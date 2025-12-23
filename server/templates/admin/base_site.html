@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="background: #FFD700; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; rotate: 3deg; box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-2 10h8l-2 10"/></svg>
+        </div>
+        <span style="font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">Trento Smart <span style="color: #FFD700;">Dispatch</span></span>
+    </div>
+</h1>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'css/admin_custom.css' %}">
+<style>
+    /* Hero section for Dashboard only */
+    {% if is_popup %}{% else %}
+    {% if title == 'Site administration' or title == 'Dispatch Management Console' %}
+    .dashboard #content::before {
+        content: "";
+        display: block;
+        height: 200px;
+        background: radial-gradient(circle at top right, #334155, #0f172a);
+        margin: -40px -40px 40px -40px;
+        border-radius: 0 0 3rem 3rem;
+        padding: 60px 80px;
+        color: white;
+    }
+    .dashboard #content {
+        padding-top: 40px !important;
+    }
+    #content-main {
+        position: relative;
+        z-index: 1;
+        margin-top: -120px !important;
+    }
+    {% endif %}
+    {% endif %}
+</style>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

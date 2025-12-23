@@ -1,0 +1,17 @@
+Django>=4.2
+djangorestframework>=3.14
+djangorestframework-simplejwt>=5.2
+python-dotenv>=1.0
+django-cors-headers>=4.0
+# Database
+mysqlclient>=2.1
+PyMySQL>=1.0
+psycopg2-binary>=2.9
+dj-database-url>=2.1
+# Real-time & Server
+channels>=4.0
+daphne>=4.0
+uvicorn[standard]>=0.23.0
+gunicorn>=21.2.0
+# Static Files
+whitenoise>=6.5.0

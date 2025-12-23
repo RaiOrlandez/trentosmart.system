@@ -1,0 +1,224 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star } from 'lucide-react';
+import api from '../api/axios';
+
+const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
+    const [notes, setNotes] = useState(user?.verification_notes || '');
+    const [saving, setSaving] = useState(false);
+
+    if (!user) return null;
+
+    const handleApprove = async () => {
+        if (window.confirm(`Verify ${user.username} as an official driver?`)) {
+            await onApprove(user.id);
+            onClose();
+        }
+    };
+
+    const handleSaveNotes = async () => {
+        setSaving(true);
+        try {
+            await api.patch(`/users/${user.id}/`, { verification_notes: notes });
+            onRefresh();
+            alert("Verification notes updated!");
+        } catch (err) {
+            alert("Failed to update notes");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 md:px-0">
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="absolute inset-0 bg-secondary/80 backdrop-blur-xl"
+                    />
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 50 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 50 }}
+                        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden relative z-10 flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh]"
+                    >
+                        {/* Sidebar / Profile Header */}
+                        <div className="w-full md:w-1/3 bg-slate-50 dark:bg-slate-800/50 p-8 flex flex-col items-center">
+                            <button onClick={onClose} className="absolute top-6 left-6 p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full md:hidden">
+                                <X size={24} className="text-slate-400" />
+                            </button>
+
+                            <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-800 shadow-2xl p-2 mb-6 mt-4 md:mt-2 relative group overflow-hidden">
+                                <img
+                                    src={user.profile_picture ? user.profile_picture : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                    alt="Avatar"
+                                    className="w-full h-full rounded-[2rem] object-cover"
+                                />
+                            </div>
+
+                            <h2 className="text-2xl font-black text-secondary dark:text-white text-center mb-1">{user.username}</h2>
+                            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-primary text-secondary rounded-full mb-6">
+                                {user.role} Account
+                            </span>
+
+                            <div className="w-full space-y-4">
+                                <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <Mail size={18} className="text-primary" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
+                                        <p className="text-sm font-bold truncate dark:text-white">{user.email || 'N/A'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <Phone size={18} className="text-primary" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
+                                        <p className="text-sm font-bold truncate dark:text-white">{user.phone_number || 'No contact info'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <User size={18} className="text-primary" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</p>
+                                        <p className="text-sm font-bold truncate dark:text-white uppercase">{user.gender || 'Not Stated'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <Wallet size={18} className="text-primary" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</p>
+                                        <p className="text-sm font-bold truncate text-green-600">₱{user.wallet_balance}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    <FileText size={18} className="text-primary" />
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Home Address</p>
+                                        <p className="text-sm font-bold truncate dark:text-white">{user.address || 'No address'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Content */}
+                        <div className="flex-1 p-8 md:p-12 overflow-y-auto">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Official Resource</h3>
+                                    <h2 className="text-3xl font-black text-secondary dark:text-white uppercase tracking-tight">Record View</h2>
+                                </div>
+                                <button onClick={onClose} className="p-3 bg-slate-50 dark:bg-white/5 hover:bg-slate-100 rounded-2xl hidden md:block transition-all hover:rotate-90">
+                                    <X size={24} className="text-slate-400" />
+                                </button>
+                            </div>
+
+                            {user.role === 'driver' ? (
+                                <div className="space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Car size={20} className="text-primary" />
+                                                <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Vehicle Details</h4>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-3xl space-y-4">
+                                                <DetailItem label="LGU Body #" value={user.body_number} highlighted />
+                                                <DetailItem label="Vehicle Model" value={user.vehicle_model} />
+                                                <DetailItem label="Plate Number" value={user.vehicle_plate} />
+                                                <DetailItem label="Vehicle Color" value={user.vehicle_color} />
+                                                <DetailItem label="Sidecar Type" value={user.sidecar_type} />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Shield size={20} className="text-primary" />
+                                                <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Security & Compliance</h4>
+                                            </div>
+                                            <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-3xl space-y-4">
+                                                <DetailItem label="License Number" value={user.license_number} />
+                                                <DetailItem label="Permit Number" value={user.permit_number} />
+                                                <DetailItem label="Date of Birth" value={user.date_of_birth} />
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auth Status</span>
+                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${user.is_verified_driver ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                        {user.is_verified_driver ? 'Fully Verified' : 'Pending Review'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Driver Rating</span>
+                                                    <div className="flex items-center gap-1 text-secondary dark:text-primary font-black text-sm">
+                                                        <Star size={14} fill="currentColor" /> {user.average_rating || '5.0'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex items-center justify-between gap-3 mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <FileText size={20} className="text-primary" />
+                                                <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Admin Verification Notes</h4>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {!user.is_verified_driver && (
+                                                    <button
+                                                        onClick={handleApprove}
+                                                        className="text-[10px] font-black uppercase tracking-widest bg-green-600 text-white px-4 py-2 rounded-xl hover:bg-green-700 transition-all"
+                                                    >
+                                                        Verify Driver
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={handleSaveNotes}
+                                                    disabled={saving}
+                                                    className="text-[10px] font-black uppercase tracking-widest bg-secondary text-white px-4 py-2 rounded-xl hover:bg-primary hover:text-secondary transition-all"
+                                                >
+                                                    {saving ? 'Saving...' : 'Update Notes'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <textarea
+                                            value={notes}
+                                            onChange={(e) => setNotes(e.target.value)}
+                                            placeholder="Add observations about this driver's background, conduct, or document validity..."
+                                            className="w-full h-32 bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[2rem] p-6 text-sm outline-none focus:border-primary transition-all font-medium italic"
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    <div className="p-12 bg-slate-50 dark:bg-white/5 rounded-[3rem] text-center">
+                                        <User size={48} className="mx-auto text-slate-200 mb-4" />
+                                        <p className="text-slate-400 font-medium italic">Standard passenger profile. No vehicle or professional credentials on file.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-xl shadow-slate-200/50">
+                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Emergency Contact Relationship</h4>
+                                            <p className="text-xs font-black text-secondary dark:text-white uppercase mb-1">{user.emergency_contact_name || 'N/A'}</p>
+                                            <p className="text-sm font-bold text-primary">{user.emergency_contact_phone || 'None provided'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
+
+const DetailItem = ({ label, value, highlighted = false }) => (
+    <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/5 pb-2">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+        <span className={`text-xs font-bold ${highlighted ? 'text-primary bg-primary/10 px-2 py-1 rounded-lg' : 'text-secondary dark:text-white'}`}>{value || 'NOT FILED'}</span>
+    </div>
+);
+
+export default UserDetailModal;

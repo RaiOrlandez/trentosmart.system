@@ -1,0 +1,133 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div id="content-main">
+    <!-- Premium Stats Header Area -->
+    <div style="grid-column: 1 / -1; margin-bottom: 40px;">
+        <h2
+            style="color: white; margin-bottom: 25px; font-weight: 900; letter-spacing: -0.5px; border: none; padding: 0;">
+            REAL-TIME SYSTEM METRICS</h2>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
+            <!-- Total Users Card -->
+            <div
+                style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 25px; border-radius: 24px; color: white;">
+                <div
+                    style="text-transform: uppercase; font-size: 10px; font-weight: 800; opacity: 0.6; letter-spacing: 1.5px; margin-bottom: 10px;">
+                    Total Registered</div>
+                <div style="font-size: 32px; font-weight: 900; margin-bottom: 5px;">{{ total_users }}</div>
+                <div style="font-size: 11px; color: #fbbf24; font-weight: 700;">ACTIVE USERS</div>
+            </div>
+
+            <!-- Active Rides Card -->
+            <div
+                style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 25px; border-radius: 24px; color: white;">
+                <div
+                    style="text-transform: uppercase; font-size: 10px; font-weight: 800; opacity: 0.6; letter-spacing: 1.5px; margin-bottom: 10px;">
+                    Live Dispatch</div>
+                <div style="font-size: 32px; font-weight: 900; margin-bottom: 5px;">{{ active_rides }}</div>
+                <div style="font-size: 11px; color: #22c55e; font-weight: 700;">CURRENT RIDES</div>
+            </div>
+
+            <!-- Revenue Card -->
+            <div
+                style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 25px; border-radius: 24px; color: white;">
+                <div
+                    style="text-transform: uppercase; font-size: 10px; font-weight: 800; opacity: 0.6; letter-spacing: 1.5px; margin-bottom: 10px;">
+                    Total Revenue</div>
+                <div style="font-size: 32px; font-weight: 900; margin-bottom: 5px;">₱{{ total_revenue|floatformat:2 }}
+                </div>
+                <div style="font-size: 11px; color: #FFD700; font-weight: 700;">PAID TRANSACTIONS</div>
+            </div>
+
+            <!-- Incidents Card -->
+            <div
+                style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 25px; border-radius: 24px; color: white;">
+                <div
+                    style="text-transform: uppercase; font-size: 10px; font-weight: 800; opacity: 0.6; letter-spacing: 1.5px; margin-bottom: 10px;">
+                    Safety Alerts</div>
+                <div style="font-size: 32px; font-weight: 900; margin-bottom: 5px;">{{ incident_count }}</div>
+                <div style="font-size: 11px; color: #ef4444; font-weight: 700;">LOGGED INCIDENTS</div>
+            </div>
+        </div>
+    </div>
+
+    {% if app_list %}
+    {% for app in app_list %}
+    <div class="app-{{ app.app_label }} module">
+        <table>
+            <caption>
+                <a href="{{ app.app_url }}" class="section"
+                    title="{% blocktranslate with name=app.name %}Models in the {{ name }} application{% endblocktranslate %}">{{
+                    app.name }}</a>
+            </caption>
+            {% for model in app.models %}
+            <tr class="model-{{ model.object_name|lower }}">
+                {% if model.admin_url %}
+                <th scope="row"><a href="{{ model.admin_url }}">{{ model.name }}</a></th>
+                {% else %}
+                <th scope="row">{{ model.name }}</th>
+                {% endif %}
+
+                {% if model.add_url %}
+                <td><a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a></td>
+                {% else %}
+                <td>&nbsp;</td>
+                {% endif %}
+
+                {% if model.admin_url %}
+                {% if model.view_only %}
+                <td><a href="{{ model.admin_url }}" class="viewlink">{% translate 'View' %}</a></td>
+                {% else %}
+                <td><a href="{{ model.admin_url }}" class="changelink">{% translate 'Change' %}</a></td>
+                {% endif %}
+                {% else %}
+                <td>&nbsp;</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>{% translate 'You don’t have permission to view or edit anything.' %}</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<div id="content-related" style="margin-top: -65px;">
+    <div class="module" id="recent-actions-module" style="background: white !important;">
+        <h2 style="padding: 20px 25px 0 25px;">{% translate 'Recent actions' %}</h2>
+        <h3 style="padding: 0 25px 15px 25px; font-size: 11px; opacity: 0.5;">{% translate 'My activities' %}</h3>
+        {% load log %}
+        {% get_admin_log 10 as admin_log for_user user %}
+        {% if not admin_log %}
+        <p style="padding: 20px 25px;">{% translate 'None available' %}</p>
+        {% else %}
+        <ul class="actionlist" style="padding: 0 25px 25px 25px;">
+            {% for entry in admin_log %}
+            <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}"
+                style="border-bottom: 1px solid #f1f5f9; padding: 12px 0;">
+                {% if entry.is_deletion or not entry.get_admin_url %}
+                {{ entry.object_repr }}
+                {% else %}
+                <a href="{{ entry.get_admin_url }}" style="font-weight: 600; color: #1e293b;">{{ entry.object_repr
+                    }}</a>
+                {% endif %}
+                <br>
+                {% if entry.content_type %}
+                <span class="mini quiet"
+                    style="font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">{{
+                    entry.content_type.name|capfirst }}</span>
+                {% else %}
+                <span class="mini quiet">{% translate 'Unknown content' %}</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

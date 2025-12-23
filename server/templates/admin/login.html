@@ -1,0 +1,133 @@
+{% extends "admin/login.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+    body.login {
+        background: radial-gradient(circle at top right, #1e293b, #0f172a) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 100vh !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    #container {
+        background: white !important;
+        border-radius: 2.5rem !important;
+        padding: 3rem !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+        width: 100% !important;
+        max-width: 450px !important;
+        border: none !important;
+        margin: 0 !important;
+    }
+
+    #header {
+        background: transparent !important;
+        color: #0f172a !important;
+        text-align: center !important;
+        padding: 0 0 2rem 0 !important;
+        border: none !important;
+    }
+
+    #header #branding h1 {
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        letter-spacing: -1px !important;
+        font-size: 1.5rem !important;
+        color: #0f172a !important;
+    }
+
+    #header #branding h1::before {
+        content: "";
+        display: block;
+        width: 64px;
+        height: 64px;
+        background: #FFD700;
+        margin: 0 auto 1.5rem;
+        border-radius: 1rem;
+        rotate: 3deg;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-2 10h8l-2 10"/></svg>');
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    .form-row {
+        padding: 1rem 0 !important;
+        border: none !important;
+    }
+
+    .form-row label {
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        font-size: 10px !important;
+        letter-spacing: 0.1em !important;
+        color: #64748b !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .form-row input {
+        width: 100% !important;
+        padding: 1rem !important;
+        border-radius: 1rem !important;
+        border: 2px solid #f1f5f9 !important;
+        background: #f8fafc !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        box-sizing: border-box !important;
+    }
+
+    .form-row input:focus {
+        border-color: #FFD700 !important;
+        outline: none !important;
+        box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.1) !important;
+    }
+
+    .submit-row {
+        background: transparent !important;
+        padding: 1.5rem 0 0 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        text-align: center !important;
+    }
+
+    .submit-row input {
+        width: 100% !important;
+        background: #0f172a !important;
+        color: white !important;
+        padding: 1rem !important;
+        border-radius: 1rem !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        cursor: pointer !important;
+        transition: all 0.2s !important;
+        border: none !important;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .submit-row input:hover {
+        background: #1e293b !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .errornote {
+        background: #fef2f2 !important;
+        color: #ef4444 !important;
+        border: 1px solid #fee2e2 !important;
+        border-radius: 1rem !important;
+        padding: 1rem !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        margin-bottom: 1.5rem !important;
+    }
+</style>
+{% endblock %}
+
+{% block branding %}
+<h1>TRENTO SMART <span style="color: #FFD700;">SYSTEM</span></h1>
+{% endblock %}
