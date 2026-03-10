@@ -1,4 +1,5 @@
 from django.db import models
+import uuid
 from django.contrib.auth.models import AbstractUser
 
 
@@ -57,6 +58,7 @@ class User(AbstractUser):
     last_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     last_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     last_location_update = models.DateTimeField(null=True, blank=True)
+    is_online = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.username} ({self.role})"
@@ -79,6 +81,7 @@ class Ride(models.Model):
     )
     passenger = models.ForeignKey('api.User', on_delete=models.CASCADE, related_name='rides')
     driver = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='assigned_rides')
+    targeted_driver = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='requested_targeted_rides')
     pickup_address = models.CharField(max_length=255, blank=True)
     dest_address = models.CharField(max_length=255, blank=True)
     pickup_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -87,10 +90,17 @@ class Ride(models.Model):
     dest_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
     fare = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    
+    # LGU Commission System (5% default)
+    lgu_commission = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    driver_earnings = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)  # Percentage
+    
     requested_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    share_token = models.UUIDField(default=uuid.uuid4, editable=False)
 
     def __str__(self):
         return f"Ride {self.id} - {self.status}"
@@ -100,7 +110,6 @@ class Payment(models.Model):
     METHOD_CHOICES = (
         ('cash', 'Cash'),
         ('gcash', 'GCash'),
-        ('paymaya', 'PayMaya'),
     )
     ride = models.OneToOneField(Ride, on_delete=models.CASCADE, related_name='payment')
     method = models.CharField(max_length=20, choices=METHOD_CHOICES, default='cash')
@@ -132,6 +141,8 @@ class WalletTransaction(models.Model):
         ('payment', 'Ride Payment'),
         ('refund', 'Refund'),
         ('cashout', 'Cash Out'),
+        ('lgu_commission', 'LGU Commission'),
+        ('driver_earning', 'Driver Earning'),
     )
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='wallet_transactions')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -273,3 +284,33 @@ class FraudAlert(models.Model):
 
     def __str__(self):
         return f"Fraud Alert ({self.severity}): {self.user.username} - {self.reason}"
+
+
+class LGURevenue(models.Model):
+    """
+    Tracks all LGU commission collected from completed rides.
+    Purpose: System maintenance, emergency fund, regulatory compliance, driver benefits.
+    """
+    PURPOSE_CHOICES = (
+        ('system_maintenance', 'System Maintenance'),
+        ('emergency_fund', 'Emergency Fund'),
+        ('regulatory', 'Regulatory Compliance'),
+        ('driver_benefits', 'Driver Benefits'),
+        ('general', 'General Fund'),
+    )
+    
+    ride = models.OneToOneField(Ride, on_delete=models.CASCADE, related_name='lgu_revenue')
+    amount = models.DecimalField(max_digits=8, decimal_places=2)
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2)  # Percentage used
+    purpose = models.CharField(max_length=50, choices=PURPOSE_CHOICES, default='general')
+    collected_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        verbose_name = 'LGU Revenue'
+        verbose_name_plural = 'LGU Revenues'
+        ordering = ['-collected_at']
+    
+    def __str__(self):
+        return f"LGU Revenue ₱{self.amount} from Ride #{self.ride.id} ({self.purpose})"
+

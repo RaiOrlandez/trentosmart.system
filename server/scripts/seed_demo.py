@@ -55,20 +55,37 @@ def create_ride(passenger, pickup_address, dest_address, pickup_lat, pickup_lng,
     return ride
 
 def main():
-    admin = create_user('admin', 'admin@example.com', 'demo', role='admin')
-    passenger = create_user('passenger', 'passenger@example.com', 'demo', role='passenger', phone='+639123456789', emergency='+639987654321')
-    driver = create_user('driver', 'driver@example.com', 'demo', role='driver', verified=True, phone='+639456123789')
+    admin = create_user('admin', 'admin@trike-trento.gov.ph', 'demo', role='admin')
+    
+    # Realistic Passenger Samples
+    p1 = create_user('juandelacruz', 'juan@example.com', 'demo', role='passenger', phone='+639123456789', emergency='+639987654321')
+    p2 = create_user('mariaclara', 'maria@example.com', 'demo', role='passenger', phone='+639223456788', emergency='+639987654322')
+    p3 = create_user('jose_rizal', 'jose@example.com', 'demo', role='passenger', phone='+639333456787', emergency='+639987654323')
 
-    # Sample rides near Trento, Agusan del Sur (approx coords)
-    create_ride(passenger, 'Brgy. Poblacion', 'Brgy. East', 8.314000, 125.899000, 8.320000, 125.905000, fare=50.00)
-    create_ride(passenger, 'Market Area', 'Municipal Hall', 8.315500, 125.900500, 8.318000, 125.905500, fare=40.00)
+    # Realistic Driver Samples (Verified)
+    d1 = create_user('ricky_montano', 'ricky@example.com', 'demo', role='driver', verified=True, phone='+639456123789')
+    d1.body_number = 'UNIT-402'
+    d1.vehicle_model = 'Honda TMX 125'
+    d1.vehicle_plate = 'RT-1024'
+    d1.save()
+
+    d2 = create_user('emery_garcia', 'emery@example.com', 'demo', role='driver', verified=True, phone='+639556123780')
+    d2.body_number = 'UNIT-115'
+    d2.vehicle_model = 'Kawasaki Barako 175'
+    d2.vehicle_plate = 'AG-8892'
+    d2.save()
+
+    # Create some history
+    create_ride(p1, 'Poblacion Market', 'Trento National High School', 8.314000, 125.899000, 8.320000, 125.905000, fare=45.00, status='completed')
+    create_ride(p2, 'Brgy. Cuevas Entrance', 'Munisipyo (Poblacion)', 8.315500, 125.900500, 8.318000, 125.905500, fare=35.00, status='completed')
+    create_ride(p3, 'West Trento Elementary', 'Terminal Area', 8.317000, 125.895000, 8.313000, 125.902000, fare=55.00, status='requested')
 
     # Seeding System Configuration
     SystemConfig.objects.get_or_create(key='base_fare', defaults={'value': '30.00', 'description': 'Initial fare for first 2km'})
     SystemConfig.objects.get_or_create(key='rate_per_km', defaults={'value': '8.00', 'description': 'Additional fare per kilometer'})
     SystemConfig.objects.get_or_create(key='surge_threshold', defaults={'value': '1.5', 'description': 'Ratio of riders/drivers to trigger surge'})
 
-    print('Seeding complete.')
+    print('Realistic seeding complete.')
 
 if __name__ == '__main__':
     main()

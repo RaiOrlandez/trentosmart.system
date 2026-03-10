@@ -7,7 +7,8 @@ import {
     ShieldCheck,
     Star,
     Share2,
-    Download
+    Download,
+    AlertCircle
 } from 'lucide-react';
 
 const ReceiptModal = ({ isOpen, onClose, ride }) => {
@@ -138,7 +139,7 @@ const ReceiptModal = ({ isOpen, onClose, ride }) => {
                             </div>
 
                             {/* Actions */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
                                 <button className="flex items-center justify-center gap-2 py-3 bg-secondary text-white font-bold rounded-2xl hover:bg-slate-800 transition-colors">
                                     <Download size={18} /> Receipt
                                 </button>
@@ -146,6 +147,13 @@ const ReceiptModal = ({ isOpen, onClose, ride }) => {
                                     <Share2 size={18} /> Share
                                 </button>
                             </div>
+
+                            <button
+                                onClick={() => window.location.href = `/passenger/support?ride=${ride.id}`}
+                                className="w-full py-4 border-2 border-dashed border-red-500/30 text-red-500 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-all flex items-center justify-center gap-2"
+                            >
+                                <AlertCircle size={14} /> Report an issue with this trip
+                            </button>
                         </div>
 
                         {/* Bottom Safety Footer */}

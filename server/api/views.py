@@ -1,11 +1,12 @@
 from django.db import models
+import math
 from rest_framework import viewsets, status, parsers, serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
-from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog
+from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment
 from .serializers import (
     UserSerializer, RegisterSerializer, RideSerializer, 
     DriverVerificationSerializer, WalletTransactionSerializer, WithdrawalSerializer,
@@ -25,6 +26,22 @@ from django.contrib.auth.hashers import make_password, check_password
 from .models import TransactionPIN
 
 User = get_user_model()
+
+
+def calculate_distance(lat1, lng1, lat2, lng2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    """
+    R = 6371  # Radius of earth in km
+    dLat = math.radians(lat2 - lat1)
+    dLng = math.radians(lng2 - lng1)
+    a = math.sin(dLat/2) * math.sin(dLat/2) + \
+        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
+        math.sin(dLng/2) * math.sin(dLng/2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    d = R * c
+    return d
 
 
 class RegisterView(APIView):
@@ -49,8 +66,26 @@ class RegisterView(APIView):
             }
         )
         
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(UserSerializer(user, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
+
+class CheckEmailView(APIView):
+    permission_classes = (AllowAny,)
+    def get(self, request):
+        email = request.query_params.get('email', '')
+        if not email:
+            return Response({'error': 'Email is required'}, status=400)
+        exists = User.objects.filter(email__iexact=email).exists()
+        return Response({'available': not exists})
+
+class CheckUsernameView(APIView):
+    permission_classes = (AllowAny,)
+    def get(self, request):
+        username = request.query_params.get('username', '')
+        if not username:
+            return Response({'error': 'Username is required'}, status=400)
+        exists = User.objects.filter(username__iexact=username).exists()
+        return Response({'available': not exists})
 
 class LoginView(TokenObtainPairView):
     permission_classes = (AllowAny,)
@@ -61,13 +96,14 @@ class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(UserSerializer(request.user, context={'request': request}).data)
 
     def patch(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
+        print("Profile Update Error:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -83,39 +119,97 @@ class UserViewSet(viewsets.ModelViewSet):
         # Users can only see themselves (though usually handled by ProfileView)
         return self.queryset.filter(id=self.request.user.id)
 
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            print(f"Delete request from {request.user.username} (Role: {request.user.role}) for user {instance.username}")
+
+            # Strict permission check
+            if request.user.role != 'admin' and request.user.id != instance.id:
+                return Response({'detail': 'Forbidden: You can only delete your own account.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Prevent deleting yourself if you are an admin (safety)
+            if request.user.role == 'admin' and request.user.id == instance.id:
+                 # Check if there are other admins? For now, just warn or allow with caution
+                 # Allowing self-delete for admins is dangerous, maybe block it?
+                 print("Admin attempting to delete themselves - WARNING")
+                 # Uncomment to block: return Response({'detail': 'Cannot delete your own admin account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            self.perform_destroy(instance)
+            print(f"User {instance.username} deleted successfully")
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except Exception as e:
+            print(f"Error deleting user: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'detail': f'Failed to delete user: {str(e)}',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve_driver(self, request, pk=None):
-        if request.user.role != 'admin':
-            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
-        
-        user = self.get_object()
-        if user.role != 'driver':
-            return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user.is_verified_driver = True
-        user.save()
+        try:
+            print(f"Driver approval request from admin: {request.user.username} for user ID: {pk}")
+            
+            if request.user.role != 'admin':
+                print(f"Permission denied: {request.user.username} is not an admin")
+                return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            
+            user = self.get_object()
+            print(f"Approving driver: {user.username} (ID: {user.id})")
+            
+            if user.role != 'driver':
+                print(f"User {user.username} is not a driver, role: {user.role}")
+                return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            user.is_verified_driver = True
+            user.save()
+            print(f"Driver {user.username} verified successfully")
 
-        # Broadcast event to system
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            'global_system',
-            {
-                'type': 'system_event',
-                'event': {
-                    'type': 'driver_verified',
-                    'message': f"Driver {user.username} has been verified!",
-                    'user_id': user.id,
-                    'timestamp': timezone.now().isoformat()
-                }
-            }
-        )
-        
-        send_push_notification(
-            user,
-            "Driver Account Verified ✅",
-            "Congratulations! You are now authorized to accept rides."
-        )
-        return Response({'status': 'verified', 'is_verified_driver': True})
+            # Broadcast event to system (non-blocking)
+            try:
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    'global_system',
+                    {
+                        'type': 'system_event',
+                        'event': {
+                            'type': 'driver_verified',
+                            'message': f"Driver {user.username} has been verified!",
+                            'user_id': user.id,
+                            'timestamp': timezone.now().isoformat()
+                        }
+                    }
+                )
+            except Exception as broadcast_err:
+                print(f"Broadcast failed (non-critical): {broadcast_err}")
+            
+            # Send notification (non-blocking)
+            try:
+                send_push_notification(
+                    user,
+                    "Driver Account Verified ✅",
+                    "Congratulations! You are now authorized to accept rides."
+                )
+            except Exception as notif_err:
+                print(f"Notification failed (non-critical): {notif_err}")
+            
+            return Response({
+                'status': 'verified',
+                'is_verified_driver': True,
+                'detail': f'Driver {user.username} verified successfully'
+            })
+            
+        except Exception as e:
+            print(f"Error approving driver: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'detail': f'Failed to approve driver: {str(e)}',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def update_location(self, request):
@@ -150,6 +244,89 @@ class UserViewSet(viewsets.ModelViewSet):
         
         return Response({'status': 'location updated'})
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def toggle_online(self, request):
+        is_online = request.data.get('is_online', False)
+        user = request.user
+        user.is_online = is_online
+        if is_online:
+            user.last_location_update = timezone.now()
+        user.save()
+
+        # Broadcast status change to system
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            'global_system',
+            {
+                'type': 'driver_location_update', # Use existing type to trigger marker updates
+                'driver_id': user.id,
+                'username': user.username,
+                'lat': float(user.last_lat) if user.last_lat else 8.050,
+                'lng': float(user.last_lng) if user.last_lng else 126.062,
+                'status': 'Available' if is_online else 'Offline',
+                'is_online': is_online
+            }
+        )
+        
+        return Response({'status': 'success', 'is_online': is_online})
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def nearby_drivers(self, request):
+        """
+        Returns a list of drivers who are online and verified.
+        """
+        lat = request.query_params.get('lat')
+        lng = request.query_params.get('lng')
+        
+        # Priority: explicit 'is_online' field
+        drivers = User.objects.filter(
+            role='driver',
+            is_verified_driver=True,
+            is_online=True
+        ).exclude(last_lat__isnull=True)
+
+        # Fallback for demo: if no one is explicitly online, show those who updated recently
+        if not drivers.exists():
+            time_threshold = timezone.now() - timezone.timedelta(minutes=30)
+            drivers = User.objects.filter(
+                role='driver',
+                is_verified_driver=True,
+                last_location_update__gte=time_threshold
+            ).exclude(last_lat__isnull=True)
+
+        data = []
+        for d in drivers:
+            driver_info = {
+                'id': d.id,
+                'username': d.username,
+                'lat': float(d.last_lat),
+                'lng': float(d.last_lng),
+                'vehicle_model': d.vehicle_model,
+                'vehicle_plate': d.vehicle_plate,
+                'body_number': d.body_number,
+                'vehicle_color': d.vehicle_color,
+                'average_rating': d.average_rating,
+                'distance': None
+            }
+            
+            if lat and lng:
+                try:
+                    dist = calculate_distance(
+                        float(lat), float(lng),
+                        float(d.last_lat), float(d.last_lng)
+                    )
+                    driver_info['distance'] = round(dist, 2)
+                except (ValueError, TypeError):
+                    pass
+            
+            data.append(driver_info)
+        
+        # Sort by distance if available
+        if lat and lng:
+            data.sort(key=lambda x: x['distance'] if x['distance'] is not None else 999)
+            
+        return Response(data[:10]) # Return top 10 nearest online drivers
+
 
 
 class RideViewSet(viewsets.ModelViewSet):
@@ -162,17 +339,86 @@ class RideViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        ride = serializer.save(passenger=self.request.user)
+        payment_method = self.request.data.get('payment_method', 'cash')
+        targeted_driver_id = self.request.data.get('targeted_driver_id')
+        targeted_driver = None
+        if targeted_driver_id:
+            targeted_driver = User.objects.filter(id=targeted_driver_id, role='driver').first()
         
-        # Broadcast new ride to all drivers
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            'global_system',
-            {
-                'type': 'new_ride_request',
-                'ride': RideSerializer(ride).data
-            }
+        ride = serializer.save(
+            passenger=self.request.user,
+            targeted_driver=targeted_driver
         )
+
+        # Create Payment record
+        Payment.objects.create(
+            ride=ride,
+            method=payment_method,
+            amount=ride.fare or 0
+        )
+        
+        channel_layer = get_channel_layer()
+        
+        if targeted_driver:
+            # TARGETED DISPATCH: Notify the chosen driver and log status
+            print(f"DEBUG: Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
+            
+            async_to_sync(channel_layer.group_send)(
+                f'user_{targeted_driver.id}',
+                {
+                    'type': 'new_ride_request',
+                    'ride': RideSerializer(ride).data
+                }
+            )
+            
+            # Broadcast to system for visibility (e.g. Admin or Global Live Map)
+            async_to_sync(channel_layer.group_send)(
+                'global_system',
+                {
+                    'type': 'system_event',
+                    'event': {
+                        'type': 'ride_activity',
+                        'message': f"Targeted ride request for {targeted_driver.username}",
+                        'ride_id': ride.id
+                    }
+                }
+            )
+            print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
+        else:
+            # SMART DISPATCH: Find nearest drivers
+            drivers = User.objects.filter(role='driver', is_verified_driver=True).exclude(last_lat__isnull=True)
+            
+            nearby_drivers = []
+            if ride.pickup_lat and ride.pickup_lng:
+                driver_distances = []
+                for driver in drivers:
+                    try:
+                        dist = calculate_distance(
+                            float(ride.pickup_lat), float(ride.pickup_lng), 
+                            float(driver.last_lat), float(driver.last_lng)
+                        )
+                        # Filter: Only consider drivers within their preferred search radius
+                        if dist <= driver.search_radius_km: 
+                            driver_distances.append((driver, dist))
+                    except (ValueError, TypeError):
+                        continue
+                
+                # Sort by distance (nearest first)
+                driver_distances.sort(key=lambda x: x[1])
+                nearby_drivers = [d[0] for d in driver_distances[:5]]
+            
+            # Fallback: Notify ALL online verified drivers if none found nearby
+            recipients = nearby_drivers if nearby_drivers else User.objects.filter(role='driver', is_verified_driver=True)
+
+            for driver in recipients:
+                async_to_sync(channel_layer.group_send)(
+                    f'user_{driver.id}',
+                    {
+                        'type': 'new_ride_request',
+                        'ride': RideSerializer(ride).data
+                    }
+                )
+            print(f"Smart Dispatch: Notified {len(recipients)} drivers for Ride #{ride.id}")
 
     def perform_update(self, serializer):
         # Fetch original instance to compare status
@@ -214,12 +460,54 @@ class RideViewSet(viewsets.ModelViewSet):
                     "Driver is On the Way! 🏁",
                     "Your ride has officially started. Enjoy the trip!"
                 )
-            elif new_status == 'completed':
-                fare = updated_ride.fare or 0
+            elif new_status == 'completed' and old_status != 'completed':
+                # CENTRALIZED COMPLETION LOGIC (ensure financial records are created)
+                # Only run if not already processed
+                if updated_ride.driver_earnings == 0:
+                    from .models import SystemConfig, WalletTransaction, LGURevenue
+                    fare = updated_ride.fare or Decimal('0.00')
+                    commission_rate_config = SystemConfig.objects.filter(key='lgu_commission_rate').first()
+                    rate = Decimal(commission_rate_config.value) if commission_rate_config else Decimal('5.00')
+                    
+                    lgu_comm = (fare * rate) / Decimal('100')
+                    dr_earn = fare - lgu_comm
+                    
+                    updated_ride.lgu_commission = lgu_comm
+                    updated_ride.driver_earnings = dr_earn
+                    updated_ride.commission_rate = rate
+                    updated_ride.save()
+                    
+                    # Credit Wallet
+                    if updated_ride.driver:
+                        driver = updated_ride.driver
+                        driver.wallet_balance += dr_earn
+                        driver.save()
+                        
+                        WalletTransaction.objects.create(
+                            user=driver,
+                            amount=dr_earn,
+                            transaction_type='driver_earning',
+                            reference_id=f'RIDE-{updated_ride.id}',
+                            description=f'Completed Ride #{updated_ride.id}'
+                        )
+                        
+                        # Log LGU commission
+                        LGURevenue.objects.create(
+                            ride=updated_ride,
+                            amount=lgu_comm,
+                            commission_rate=rate,
+                            notes=f'Auto-recorded from Ride #{updated_ride.id}'
+                        )
+                
+                # Mark payment as paid
+                if hasattr(updated_ride, 'payment'):
+                    updated_ride.payment.paid = True
+                    updated_ride.payment.save()
+
                 send_push_notification(
                     updated_ride.passenger,
                     "Ride Completed ✅",
-                    f"You have arrived! Total fare is ₱{fare}. Please pay via {updated_ride.payment.method if hasattr(updated_ride, 'payment') else 'Cash'}."
+                    f"You have arrived! Total fare: ₱{updated_ride.fare}. Thank you for riding TransMart!"
                 )
             elif new_status == 'cancelled':
                 # Notify the other party
@@ -239,6 +527,38 @@ class RideViewSet(viewsets.ModelViewSet):
             qs = Ride.objects.filter(passenger=request.user)
         ser = RideSerializer(qs, many=True)
         return Response(ser.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def active_ride(self, request):
+        if request.user.role == 'driver':
+            ride = Ride.objects.filter(driver=request.user, status__in=['accepted', 'on_route']).first()
+        else:
+            ride = Ride.objects.filter(passenger=request.user, status__in=['requested', 'accepted', 'on_route']).first()
+        
+        if ride:
+            return Response(RideSerializer(ride).data)
+        return Response(None, status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject(self, request, pk=None):
+        ride = self.get_object()
+        if ride.status != 'requested':
+            return Response({'detail': 'Cannot reject non-pending ride'}, status=400)
+            
+        # If it was targeted at this driver, mark as unavailable for them
+        # In this simple implementation, we'll just cancel the ride if it was targeted
+        # or just notify that this driver declined.
+        
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'ride_{ride.id}',
+            {
+                'type': 'ride_status_update',
+                'status': 'driver_rejected',
+                'message': f"Driver {request.user.username} is currently unavailable."
+            }
+        )
+        return Response({'status': 'rejected'})
 
     @action(detail=False, methods=['get'])
     def estimate_fare(self, request):
@@ -280,9 +600,56 @@ def driver_requests(request):
     # Return nearby or pending requests for the authenticated driver
     if request.user.role != 'driver':
         return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
-    qs = Ride.objects.filter(status='requested').order_by('requested_at')[:20]
+    
+    # Filter: Show rides targeted specifically at OR with no target at all
+    from django.db.models import Q
+    qs = Ride.objects.filter(
+        Q(status='requested') & (Q(targeted_driver=request.user) | Q(targeted_driver__isnull=True))
+    ).order_by('-requested_at')[:20]
+    
     ser = RideSerializer(qs, many=True)
     return Response(ser.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def driver_reject(request, ride_id):
+    if request.user.role != 'driver':
+        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        
+    ride = get_object_or_404(Ride, id=ride_id)
+    
+    # If the driver rejects a targeted request, we make it "Public" so other drivers can pick it up
+    # or notify the passenger. Let's make it public but notify the passenger.
+    if ride.targeted_driver == request.user:
+        ride.targeted_driver = None
+        ride.save()
+        
+        channel_layer = get_channel_layer()
+        # Notify specific ride group so passenger dashboard resets
+        async_to_sync(channel_layer.group_send)(
+            f'ride_{ride.id}',
+            {
+                'type': 'ride_status_update',
+                'status': 'driver_rejected',
+                'message': f'Driver {request.user.username} is unavailable. Searching for other drivers...'
+            }
+        )
+        
+        # Also notify passenger personally as a backup
+        async_to_sync(channel_layer.group_send)(
+            f'user_{ride.passenger.id}',
+            {
+                'type': 'system_event',
+                'event': {
+                    'type': 'ride_activity',
+                    'message': f"Driver {request.user.username} declined. Re-routing...",
+                    'status': 'driver_rejected'
+                }
+            }
+        )
+        
+    return Response({'status': 'rejected'})
 
 
 @api_view(['POST'])
@@ -305,8 +672,10 @@ def driver_accept(request, ride_id):
         f"Driver {request.user.username} is on the way to pick you up at {ride.pickup_address}."
     )
     
-    # Notify passenger via WebSocket
+    # Notify passenger via WebSocket (Reliability: Send to both Ride and User groups)
     channel_layer = get_channel_layer()
+    
+    # Update on specific ride channel
     async_to_sync(channel_layer.group_send)(
         f'ride_{ride.id}',
         {
@@ -316,7 +685,168 @@ def driver_accept(request, ride_id):
         }
     )
     
+    # Update on passenger's personal channel (Master fallback)
+    async_to_sync(channel_layer.group_send)(
+        f'user_{ride.passenger.id}',
+        {
+            'type': 'system_event',
+            'event': {
+                'type': 'ride_matched',
+                'status': 'accepted',
+                'ride': RideSerializer(ride).data
+            }
+        }
+    )
+    
     return Response(RideSerializer(ride).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def ride_complete(request, ride_id):
+    """
+    Complete a ride and calculate LGU commission (5% default).
+    Automatically deducts commission and credits driver earnings to wallet.
+    """
+    from .models import LGURevenue
+    
+    if request.user.role != 'driver':
+        return Response({'detail': 'Only drivers can complete rides'}, status=status.HTTP_403_FORBIDDEN)
+    
+    ride = get_object_or_404(Ride, id=ride_id)
+    
+    # Verify driver owns this ride
+    if ride.driver != request.user:
+        return Response({'detail': 'You are not the driver for this ride'}, status=status.HTTP_403_FORBIDDEN)
+    
+    # Verify ride is in acceptable status
+    if ride.status not in ['accepted', 'on_route']:
+        return Response({'detail': f'Cannot complete ride with status: {ride.status}'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get commission rate from SystemConfig or use default 5%
+    commission_rate_config = SystemConfig.objects.filter(key='lgu_commission_rate').first()
+    commission_rate = Decimal(commission_rate_config.value) if commission_rate_config else Decimal('5.00')
+    
+    # Calculate commission and driver earnings
+    total_fare = ride.fare or Decimal('0.00')
+    lgu_commission = (total_fare * commission_rate) / Decimal('100')
+    driver_earnings = total_fare - lgu_commission
+    
+    # Update ride
+    ride.status = 'completed'
+    ride.completed_at = timezone.now()
+    ride.lgu_commission = lgu_commission
+    ride.driver_earnings = driver_earnings
+    ride.commission_rate = commission_rate
+    ride.save()
+
+    # Mark payment as paid
+    if hasattr(ride, 'payment'):
+        ride.payment.paid = True
+        ride.payment.save()
+    
+    # Credit driver wallet with net earnings (after commission)
+    driver = ride.driver
+    driver.wallet_balance += driver_earnings
+    driver.save()
+    
+    # Log driver earning transaction
+    WalletTransaction.objects.create(
+        user=driver,
+        amount=driver_earnings,
+        transaction_type='driver_earning',
+        reference_id=f'RIDE-{ride.id}',
+        description=f'Ride #{ride.id} earnings (₱{total_fare} - ₱{lgu_commission} LGU commission)'
+    )
+    
+    # Log LGU commission revenue
+    LGURevenue.objects.create(
+        ride=ride,
+        amount=lgu_commission,
+        commission_rate=commission_rate,
+        purpose='general',  # Can be customized based on admin settings
+        notes=f'Commission from Ride #{ride.id} - {driver.username}'
+    )
+    
+    # Notify passenger via WebSocket
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'ride_{ride.id}',
+        {
+            'type': 'ride_status_update',
+            'status': 'completed',
+            'data': RideSerializer(ride).data
+        }
+    )
+    
+    # Broadcast to admin activity feed
+    async_to_sync(channel_layer.group_send)(
+        'global_system',
+        {
+            'type': 'system_event',
+            'event': {
+                'type': 'ride_completed',
+                'message': f'Ride #{ride.id} completed - ₱{lgu_commission} LGU revenue collected',
+                'ride_id': ride.id,
+                'timestamp': timezone.now().isoformat()
+            }
+        }
+    )
+    
+    # Notify passenger
+    send_push_notification(
+        ride.passenger,
+        "Ride Completed ✅",
+        f"You have arrived! Total fare: ₱{total_fare}. Thank you for riding with us!"
+    )
+    
+    # Notify driver
+    send_push_notification(
+        driver,
+        "Ride Completed 💰",
+        f"Earned ₱{driver_earnings} (₱{total_fare} - ₱{lgu_commission} LGU commission). New balance: ₱{driver.wallet_balance}"
+    )
+    
+    return Response({
+        'status': 'completed',
+        'total_fare': str(total_fare),
+        'lgu_commission': str(lgu_commission),
+        'driver_earnings': str(driver_earnings),
+        'commission_rate': str(commission_rate),
+        'driver_balance': str(driver.wallet_balance),
+        'message': f'Ride completed successfully. ₱{driver_earnings} credited to your wallet.'
+    })
+
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def track_ride(request, token):
+    try:
+        ride = Ride.objects.get(share_token=token)
+    except (Ride.DoesNotExist, ValueError):
+        return Response({'detail': 'Invalid tracking link'}, status=status.HTTP_404_NOT_FOUND)
+        
+    driver_data = None
+    if ride.driver:
+        driver_data = {
+            'username': ride.driver.username,
+            'vehicle_model': ride.driver.vehicle_model,
+            'vehicle_plate': ride.driver.vehicle_plate,
+            'vehicle_color': ride.driver.vehicle_color,
+            'lat': ride.driver.last_lat,
+            'lng': ride.driver.last_lng,
+            'rating': ride.driver.average_rating
+        }
+
+    return Response({
+        'status': ride.status,
+        'passenger': ride.passenger.first_name or ride.passenger.username,
+        'pickup': ride.pickup_address,
+        'destination': ride.dest_address,
+        'started_at': ride.started_at,
+        'driver': driver_data
+    })
 
 
 class DriverVerificationView(APIView):
@@ -324,23 +854,61 @@ class DriverVerificationView(APIView):
     parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
     def post(self, request):
-        if request.user.role != 'driver':
-            return Response({'detail': 'Only drivers can submit verification documents.'}, status=status.HTTP_403_FORBIDDEN)
-        
-        serializer = DriverVerificationSerializer(request.user, data=request.data, partial=True)
-        if serializer.is_valid():
-            user = serializer.save()
-            # If they update documents, they need to be re-verified
-            user.is_verified_driver = False
-            user.save()
+        try:
+            if request.user.role != 'driver':
+                return Response({'detail': 'Only drivers can submit verification documents.'}, status=status.HTTP_403_FORBIDDEN)
             
-            send_push_notification(
-                request.user,
-                "Verification Submitted 📄",
-                "Your documents have been received. Please wait for admin re-approval."
-            )
-            return Response({'detail': 'Documents submitted successfully. Waiting for admin approval.'})
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            print(f"Driver Verification Request from: {request.user.username}")
+            print(f"Request Data: {request.data}")
+            print(f"Request Files: {request.FILES}")
+            
+            serializer = DriverVerificationSerializer(request.user, data=request.data, partial=True)
+            if serializer.is_valid():
+                try:
+                    user = serializer.save()
+                    # If they update documents, they need to be re-verified
+                    user.is_verified_driver = False
+                    user.save()
+                    
+                    print(f"Verification documents saved for {user.username}")
+                    
+                    # Try to send notification, but don't fail if it doesn't work
+                    try:
+                        send_push_notification(
+                            request.user,
+                            "Verification Submitted 📄",
+                            "Your documents have been received. Please wait for admin re-approval."
+                        )
+                    except Exception as notif_err:
+                        print(f"Notification failed (non-critical): {notif_err}")
+                    
+                    return Response({
+                        'detail': 'Documents submitted successfully. Waiting for admin approval.',
+                        'status': 'success'
+                    })
+                except Exception as save_err:
+                    print(f"Error saving verification data: {save_err}")
+                    import traceback
+                    traceback.print_exc()
+                    return Response({
+                        'detail': f'Failed to save documents: {str(save_err)}',
+                        'errors': {'save_error': str(save_err)}
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            print(f"Validation Errors: {serializer.errors}")
+            return Response({
+                'detail': 'Validation failed. Please check your inputs.',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            print(f"Unexpected error in DriverVerificationView: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'detail': f'Server error: {str(e)}',
+                'errors': {'server_error': str(e)}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class DriverAnalyticsView(APIView):
@@ -356,24 +924,24 @@ class DriverAnalyticsView(APIView):
         
         rides = Ride.objects.filter(driver=request.user, status='completed')
         
-        today_earnings = sum(r.fare for r in rides.filter(completed_at__date=today)) if rides.exists() else 0
-        week_earnings = sum(r.fare for r in rides.filter(completed_at__date__gte=week_start)) if rides.exists() else 0
-        total_earnings = sum(r.fare for r in rides) if rides.exists() else 0
+        today_earnings = sum(r.driver_earnings for r in rides.filter(completed_at__date=today)) if rides.exists() else 0
+        week_earnings = sum(r.driver_earnings for r in rides.filter(completed_at__date__gte=week_start)) if rides.exists() else 0
+        total_earnings = sum(r.driver_earnings for r in rides) if rides.exists() else 0
         
         # Last 7 days chart data
         chart_data = []
         for i in range(6, -1, -1):
             date = today - timezone.timedelta(days=i)
-            day_earnings = sum(r.fare for r in rides.filter(completed_at__date=date))
+            day_earnings = sum(r.driver_earnings for r in rides.filter(completed_at__date=date))
             chart_data.append({
                 'day': date.strftime('%a'),
-                'amount': day_earnings
+                'amount': float(day_earnings)
             })
             
         return Response({
-            'today': today_earnings,
-            'week': week_earnings,
-            'total': total_earnings,
+            'today': float(today_earnings),
+            'week': float(week_earnings),
+            'total': float(total_earnings),
             'trips_count': rides.count(),
             'chart_data': chart_data
         })
@@ -397,7 +965,7 @@ class WalletViewSet(viewsets.ViewSet):
             return Response({'detail': 'Amount is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            amt = float(amount)
+            amt = Decimal(str(amount))
             if amt <= 0: raise ValueError
         except ValueError:
             return Response({'detail': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)

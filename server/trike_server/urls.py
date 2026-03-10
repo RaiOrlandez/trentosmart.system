@@ -57,9 +57,12 @@ from django.views.generic import TemplateView
 urlpatterns = [
     path('admin/', admin_site.urls),
     path('api/', include('api.urls')),
-    # Serve React App for any other route
-    re_path(r'^.*$', TemplateView.as_view(template_name='index.html')),
 ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# ALWAYS keep the React catch-all at the absolute bottom
+urlpatterns += [
+    re_path(r'^.*$', TemplateView.as_view(template_name='index.html')),
+]

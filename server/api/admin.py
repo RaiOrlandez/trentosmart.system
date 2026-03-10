@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.db.models import Sum
-from .models import User, Ride, Payment, Incident, FraudAlert
+from .models import User, Ride, Payment, Incident, FraudAlert, LGURevenue
 
 class TrikeAdminSite(admin.AdminSite):
     site_header = "TRENTO SMART TRICYCLE ADMIN"
@@ -198,3 +198,40 @@ class FraudAlertAdmin(admin.ModelAdmin):
     @admin.action(description='Mark selected alerts as resolved')
     def mark_resolved(self, request, queryset):
         queryset.update(is_resolved=True)
+
+
+@admin.register(LGURevenue, site=admin_site)
+class LGURevenueAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ride_link', 'amount_display', 'commission_rate', 'purpose_badge', 'collected_at')
+    list_filter = ('purpose', 'collected_at')
+    search_fields = ('ride__id', 'notes')
+    readonly_fields = ('collected_at',)
+    
+    class Media:
+        css = {
+            'all': ('css/admin_custom.css',)
+        }
+    
+    def ride_link(self, obj):
+        return format_html('<a href="../ride/{}/change/">Ride #{}</a>', obj.ride.id, obj.ride.id)
+    ride_link.short_description = 'Related Ride'
+    
+    def amount_display(self, obj):
+        return format_html('<span style="font-weight: bold; color: #059669; font-size: 14px;">₱{:.2f}</span>', obj.amount)
+    amount_display.short_description = 'LGU Commission'
+    
+    def purpose_badge(self, obj):
+        colors = {
+            'system_maintenance': '#3b82f6',  # Blue
+            'emergency_fund': '#ef4444',      # Red
+            'regulatory': '#8b5cf6',          # Purple
+            'driver_benefits': '#10b981',     # Green
+            'general': '#64748b',             # Gray
+        }
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase;">{}</span>',
+            colors.get(obj.purpose, '#64748b'),
+            obj.get_purpose_display()
+        )
+    purpose_badge.short_description = 'Purpose'
+

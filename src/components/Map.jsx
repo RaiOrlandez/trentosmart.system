@@ -38,13 +38,13 @@ const loadGoogleMaps = (key) => {
   });
 };
 const TRENTO_BOUNDS = {
-  north: 8.150,
-  south: 7.950,
-  east: 126.200,
-  west: 125.950,
+  north: 8.080,
+  south: 8.020,
+  east: 126.100,
+  west: 126.020,
 };
 
-const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 14, markers = [], heatPoints = [] }) => {
+const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], heatPoints = [], routeCoordinates = null }) => {
   const ref = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -143,7 +143,7 @@ const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 14, markers = [], h
 
   // If no Google Maps key, use Leaflet fallback
   if (!key || key === 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
-    return <LeafletMap center={center} zoom={zoom} markers={markers} />;
+    return <LeafletMap center={center} zoom={zoom} markers={markers} routeCoordinates={routeCoordinates} />;
   }
 
   return <div ref={ref} className="w-full h-full min-h-[400px]" />;

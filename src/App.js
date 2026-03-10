@@ -17,8 +17,10 @@ import RideHistory from './pages/RideHistory';
 import ScheduledRides from './pages/ScheduledRides';
 import Profile from './pages/Profile';
 import MyReviews from './pages/passenger/MyReviews';
+import SupportComplaints from './pages/passenger/SupportComplaints';
 import DriverReviews from './pages/driver/DriverReviews';
 import MaintenanceLogs from './pages/driver/MaintenanceLogs';
+import PublicTracking from './pages/PublicTracking';
 
 function App() {
   return (
@@ -29,11 +31,14 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/track/:token" element={<PublicTracking />} />
 
             <Route path="/passenger" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
             <Route path="/passenger/home" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
             <Route path="/passenger/reviews" element={<ProtectedRoute role="passenger"><MyReviews /></ProtectedRoute>} />
+            <Route path="/passenger/support" element={<ProtectedRoute role="passenger"><SupportComplaints /></ProtectedRoute>} />
             <Route path="/driver" element={<ProtectedRoute role="driver"><DriverHome /></ProtectedRoute>} />
             <Route path="/driver/verify" element={<ProtectedRoute role="driver"><DriverVerification /></ProtectedRoute>} />
             <Route path="/driver/earnings" element={<ProtectedRoute role="driver"><EarningsDashboard /></ProtectedRoute>} />

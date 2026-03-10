@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
+import { ensureImageUrl } from '../utils/url';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -20,9 +21,10 @@ import {
     Lock
 } from 'lucide-react';
 import SecurityPINModal from '../components/SecurityPINModal';
+import AvatarUploadModal from '../components/AvatarUploadModal';
 
 const Profile = () => {
-    const { logout } = useContext(AuthContext);
+    const { logout, getProfile } = useContext(AuthContext);
     const navigate = useNavigate();
     const [profile, setProfile] = useState({
         username: '',
@@ -40,7 +42,9 @@ const Profile = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
+    const [showAvatarModal, setShowAvatarModal] = useState(false);
 
     useEffect(() => {
         fetchProfile();
@@ -49,7 +53,19 @@ const Profile = () => {
     const fetchProfile = async () => {
         try {
             const res = await api.get('/user/profile/');
-            setProfile(res.data);
+            let data = res.data;
+
+            // Convert YYYY-MM-DD to DD/MM/YYYY for display
+            if (data.date_of_birth && data.date_of_birth.includes('-')) {
+                const parts = data.date_of_birth.split('-');
+                data.date_of_birth = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            if (data.license_expiry_date && data.license_expiry_date.includes('-')) {
+                const parts = data.license_expiry_date.split('-');
+                data.license_expiry_date = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+
+            setProfile(data);
         } catch (err) {
             console.error('Failed to load profile', err);
         } finally {
@@ -58,19 +74,44 @@ const Profile = () => {
     };
 
     const handleChange = (e) => {
-        setProfile({ ...profile, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+
+        // Handle date formatting for DD/MM/YYYY
+        if (name === 'date_of_birth' || name === 'license_expiry_date') {
+            let val = value.replace(/\D/g, '');
+            if (val.length > 8) val = val.slice(0, 8);
+
+            let formatted = '';
+            if (val.length > 0) formatted += val.slice(0, 2);
+            if (val.length > 2) formatted += '/' + val.slice(2, 4);
+            if (val.length > 4) formatted += '/' + val.slice(4, 8);
+
+            setProfile({ ...profile, [name]: formatted });
+            return;
+        }
+
+        setProfile({ ...profile, [name]: value });
     };
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
-            setProfile({ ...profile, profile_picture: e.target.files[0] });
+            const file = e.target.files[0];
+
+            // Limit to 5MB to handle "oversize" issue
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Selected image is too large! Please choose an image smaller than 5MB to ensure it displays correctly.");
+                return;
+            }
+
+            setProfile({ ...profile, profile_picture: file });
+
             // Show preview
             const reader = new FileReader();
             reader.onload = (event) => {
                 const imgElement = document.getElementById('profile-preview');
                 if (imgElement) imgElement.src = event.target.result;
             };
-            reader.readAsDataURL(e.target.files[0]);
+            reader.readAsDataURL(file);
         }
     };
 
@@ -81,13 +122,31 @@ const Profile = () => {
 
         try {
             const formData = new FormData();
+            const imageFields = [
+                'profile_picture', 'license_image', 'permit_image',
+                'nbi_clearance_image', 'barangay_residency_image', 'government_id_image'
+            ];
+
             Object.keys(profile).forEach(key => {
-                if (profile[key] !== null && profile[key] !== undefined) {
-                    if (key === 'profile_picture' && !(profile[key] instanceof File)) {
-                        // Don't resend the URL string if hasn't changed to a File
-                        return;
+                let value = profile[key];
+
+                // Convert back to YYYY-MM-DD for backend
+                if ((key === 'date_of_birth' || key === 'license_expiry_date') && value && value.includes('/')) {
+                    const parts = value.split('/');
+                    if (parts.length === 3) {
+                        value = `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }
-                    formData.append(key, profile[key]);
+                }
+
+                if (value !== null && value !== undefined && value !== '') {
+                    if (imageFields.includes(key)) {
+                        // Only append images if a NEW file was selected
+                        if (value instanceof File) {
+                            formData.append(key, value);
+                        }
+                    } else {
+                        formData.append(key, value);
+                    }
                 }
             });
 
@@ -95,10 +154,13 @@ const Profile = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setSuccessMsg('Profile updated successfully!');
+            setIsEditing(false);
             setTimeout(() => setSuccessMsg(''), 3000);
-            fetchProfile(); // Reload to get fresh URLs
+            await getProfile(); // Sync global auth context
+            fetchProfile(); // Reload local state
         } catch (err) {
             console.error('Update failed', err);
+            alert("Update Failed: " + (err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message));
         } finally {
             setSaving(false);
         }
@@ -130,15 +192,20 @@ const Profile = () => {
                                     <div className="w-full h-full rounded-full overflow-hidden bg-white dark:bg-slate-700">
                                         <img
                                             id="profile-preview"
-                                            src={profile.profile_picture || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username}`}
+                                            src={ensureImageUrl(profile.profile_picture, profile.username, profile.profile_picture_url)}
                                             alt="Profile"
                                             className="w-full h-full object-cover"
                                         />
                                     </div>
-                                    <label className="absolute bottom-1 right-1 p-2 bg-secondary text-white rounded-full shadow-lg hover:scale-110 transition-transform cursor-pointer">
+                                    {/* Always-visible camera button — no edit mode required */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAvatarModal(true)}
+                                        className="absolute bottom-1 right-1 p-2 bg-secondary text-white rounded-full shadow-lg hover:scale-110 transition-transform cursor-pointer"
+                                        title="Change profile photo"
+                                    >
                                         <Camera size={16} />
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
-                                    </label>
+                                    </button>
                                 </div>
 
                                 <h2 className="text-2xl font-black text-secondary dark:text-white tracking-tight mb-1">
@@ -191,18 +258,28 @@ const Profile = () => {
                         >
                             <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-xl font-black text-secondary dark:text-white uppercase tracking-tight">Account Details</h3>
-                                <AnimatePresence>
-                                    {successMsg && (
-                                        <motion.div
-                                            initial={{ opacity: 0, x: 20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0 }}
-                                            className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-2"
+                                <div className="flex items-center gap-2">
+                                    <AnimatePresence>
+                                        {successMsg && (
+                                            <motion.div
+                                                initial={{ opacity: 0, x: 20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0 }}
+                                                className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-2"
+                                            >
+                                                <CheckCircle2 size={14} /> {successMsg}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                    {!isEditing && (
+                                        <button
+                                            onClick={() => setIsEditing(true)}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                         >
-                                            <CheckCircle2 size={14} /> {successMsg}
-                                        </motion.div>
+                                            Edit Details
+                                        </button>
                                     )}
-                                </AnimatePresence>
+                                </div>
                             </div>
 
                             <form onSubmit={handleSubmit} className="space-y-6">
@@ -227,7 +304,8 @@ const Profile = () => {
                                             name="email"
                                             value={profile.email}
                                             onChange={handleChange}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                            disabled={!isEditing}
                                         />
                                     </div>
                                     <div className="space-y-3">
@@ -240,7 +318,8 @@ const Profile = () => {
                                             value={profile.phone_number || ''}
                                             onChange={handleChange}
                                             placeholder="+63 900 000 0000"
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                            disabled={!isEditing}
                                         />
                                     </div>
                                     <div className="space-y-3">
@@ -248,11 +327,14 @@ const Profile = () => {
                                             <Calendar size={12} /> Date of Birth
                                         </label>
                                         <input
-                                            type="date"
+                                            type="text"
                                             name="date_of_birth"
                                             value={profile.date_of_birth || ''}
                                             onChange={handleChange}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                            placeholder="DD/MM/YYYY"
+                                            maxLength="10"
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                            disabled={!isEditing}
                                         />
                                     </div>
                                     <div className="space-y-3">
@@ -263,7 +345,8 @@ const Profile = () => {
                                             name="gender"
                                             value={profile.gender || ''}
                                             onChange={handleChange}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0 appearance-none'}`}
+                                            disabled={!isEditing}
                                         >
                                             <option value="">Select Gender</option>
                                             <option value="male">Male</option>
@@ -283,7 +366,8 @@ const Profile = () => {
                                         value={profile.address || ''}
                                         onChange={handleChange}
                                         placeholder="Block/Lot, Street, Barangay, Trento"
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                        className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                        disabled={!isEditing}
                                     />
                                 </div>
 
@@ -308,7 +392,8 @@ const Profile = () => {
                                                 value={profile.emergency_contact_name || ''}
                                                 onChange={handleChange}
                                                 placeholder="e.g. Maria Clara"
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 focus:border-red-400 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-red-100 dark:border-red-900/30 focus:border-red-400' : 'border-transparent bg-transparent pl-0'}`}
+                                                disabled={!isEditing}
                                             />
                                         </div>
                                         <div className="space-y-3">
@@ -320,7 +405,8 @@ const Profile = () => {
                                                 value={profile.emergency_contact_phone || ''}
                                                 onChange={handleChange}
                                                 placeholder="+63 900 000 0000"
-                                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-red-100 dark:border-red-900/30 focus:border-red-400 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-red-100 dark:border-red-900/30 focus:border-red-400' : 'border-transparent bg-transparent pl-0'}`}
+                                                disabled={!isEditing}
                                             />
                                         </div>
                                     </div>
@@ -340,7 +426,8 @@ const Profile = () => {
                                                     value={profile.vehicle_model || ''}
                                                     onChange={handleChange}
                                                     placeholder="e.g. Honda TMX 125"
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                                    disabled={!isEditing}
                                                 />
                                             </div>
                                             <div className="space-y-3">
@@ -351,7 +438,8 @@ const Profile = () => {
                                                     value={profile.vehicle_plate || ''}
                                                     onChange={handleChange}
                                                     placeholder="e.g. RT-1024"
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                                    disabled={!isEditing}
                                                 />
                                             </div>
                                             <div className="space-y-3">
@@ -361,16 +449,20 @@ const Profile = () => {
                                                     value={profile.body_number || ''}
                                                     onChange={handleChange}
                                                     placeholder="e.g. UNIT-402"
-                                                    className="w-full bg-primary/10 dark:bg-primary/5 border-2 border-primary/20 focus:border-primary rounded-2xl py-3 px-4 font-black text-secondary dark:text-primary outline-none transition-colors"
+                                                    className={`w-full bg-primary/10 dark:bg-primary/5 border-2 rounded-2xl py-3 px-4 font-black text-secondary dark:text-primary outline-none transition-colors ${isEditing ? 'border-primary/20 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                                    disabled={!isEditing}
                                                 />
                                             </div>
                                             <div className="space-y-3">
                                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">License Expiry</label>
                                                 <input
-                                                    type="date" name="license_expiry_date"
+                                                    type="text" name="license_expiry_date"
                                                     value={profile.license_expiry_date || ''}
                                                     onChange={handleChange}
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                    placeholder="DD/MM/YYYY"
+                                                    maxLength="10"
+                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                                    disabled={!isEditing}
                                                 />
                                             </div>
                                             <div className="space-y-3">
@@ -381,7 +473,8 @@ const Profile = () => {
                                                     value={profile.vehicle_color || ''}
                                                     onChange={handleChange}
                                                     placeholder="e.g. Royal Blue"
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                                    disabled={!isEditing}
                                                 />
                                             </div>
                                             <div className="space-y-3">
@@ -390,7 +483,8 @@ const Profile = () => {
                                                     name="sidecar_type"
                                                     value={profile.sidecar_type || ''}
                                                     onChange={handleChange}
-                                                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 focus:border-primary rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors"
+                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0 appearance-none'}`}
+                                                    disabled={!isEditing}
                                                 >
                                                     <option value="">Select Type</option>
                                                     <option value="Standard">Standard</option>
@@ -404,22 +498,36 @@ const Profile = () => {
                                 )}
 
                                 <div className="pt-4 flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={saving}
-                                        className="bg-secondary dark:bg-white dark:text-secondary text-white font-black py-4 px-8 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
-                                                Saving...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save size={18} /> Save Changes
-                                            </>
-                                        )}
-                                    </button>
+                                    {isEditing && (
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsEditing(false);
+                                                    fetchProfile(); // Reset changes
+                                                }}
+                                                className="bg-slate-100 text-slate-500 font-bold py-4 px-8 rounded-2xl hover:bg-slate-200 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={saving}
+                                                className="bg-secondary dark:bg-white dark:text-secondary text-white font-black py-4 px-8 rounded-2xl hover:bg-slate-800 dark:hover:bg-slate-200 transition-all shadow-xl flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                            >
+                                                {saving ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                                                        Saving...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Save size={18} /> Save Changes
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </form>
                         </motion.div>
@@ -455,6 +563,28 @@ const Profile = () => {
                 </div>
             </div>
             <SecurityPINModal isOpen={showPinModal} onClose={() => setShowPinModal(false)} />
+            <AvatarUploadModal
+                isOpen={showAvatarModal}
+                onClose={() => setShowAvatarModal(false)}
+                currentUsername={profile.username}
+                currentPicture={profile.profile_picture}
+                onSuccess={(updatedProfile) => {
+                    // Update the avatar preview immediately without full page reload
+                    const imgEl = document.getElementById('profile-preview');
+                    const newSrc = ensureImageUrl(
+                        updatedProfile.profile_picture,
+                        updatedProfile.username,
+                        updatedProfile.profile_picture_url
+                    );
+                    if (imgEl) imgEl.src = newSrc;
+                    setProfile(prev => ({
+                        ...prev,
+                        profile_picture: updatedProfile.profile_picture,
+                        profile_picture_url: updatedProfile.profile_picture_url
+                    }));
+                    getProfile(); // Sync nav bar avatar
+                }}
+            />
         </div >
     );
 };

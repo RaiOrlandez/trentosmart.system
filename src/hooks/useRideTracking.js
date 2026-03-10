@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const useRideTracking = (rideId, isDriver = false) => {
+const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken = null) => {
     const [location, setLocation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [connected, setConnected] = useState(false);
@@ -13,7 +13,9 @@ const useRideTracking = (rideId, isDriver = false) => {
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const socketUrl = `${protocol}//${window.location.hostname}:8000/ws/ride/${rideId}/`;
+        // For guests, we use the shareToken in the query string if available
+        const token = isGuest ? shareToken : localStorage.getItem('access');
+        const socketUrl = `${protocol}//${window.location.hostname}:8000/ws/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
 
         console.log(`Connecting to ride socket: ${socketUrl}`);
         socketRef.current = new WebSocket(socketUrl);
@@ -28,17 +30,20 @@ const useRideTracking = (rideId, isDriver = false) => {
 
             if (data.type === 'location') {
                 // If I am driver, this is passenger location. If I am passenger, this is driver location.
-                setLocation({ lat: data.lat, lng: data.lng, sender: data.sender || (isDriver ? 'passenger' : 'driver') });
+                setLocation({
+                    lat: data.lat,
+                    lng: data.lng,
+                    status: data.status,
+                    sender: data.sender || (isDriver ? 'passenger' : 'driver')
+                });
             } else if (data.type === 'chat') {
-                // Anyone receives chat
                 setMessages(prev => [...prev, {
                     text: data.message,
                     sender: data.sender,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 }]);
             } else if (data.type === 'status_update') {
-                // Passengers receive status updates (Accepted, Arrived, etc)
-                setLocation(data);
+                setLocation(prev => ({ ...prev, ...data }));
             }
         };
 
@@ -52,7 +57,7 @@ const useRideTracking = (rideId, isDriver = false) => {
                 socketRef.current.close();
             }
         };
-    }, [rideId, isDriver]);
+    }, [rideId, isDriver, isGuest, shareToken]);
 
     // Function to send location (used by driver)
     const sendLocation = useCallback((lat, lng) => {
@@ -76,3 +81,4 @@ const useRideTracking = (rideId, isDriver = false) => {
 };
 
 export default useRideTracking;
+

@@ -4,38 +4,16 @@ import { CreditCard, CheckCircle, X, ShieldCheck, Wallet, AlertCircle } from 'lu
 import api from '../api/axios';
 
 const PaymentModal = ({ isOpen, onClose, amount, method, onComplete }) => {
-    const [step, setStep] = useState('confirm'); // confirm, pin, processing, success, error
+    const [step, setStep] = useState('confirm'); // confirm, processing, success, error
     const [errorMsg, setErrorMsg] = useState('');
-    const [pin, setPin] = useState('');
-
-    const startPayment = () => {
-        if (method === 'wallet') {
-            setStep('pin');
-        } else {
-            handlePay();
-        }
-    };
 
     const handlePay = async () => {
         setStep('processing');
 
-        if (method === 'wallet') {
-            try {
-                // In a real flow, we would hit a specific payment endpoint
-                // For this simulation, we'll hit topup with a negative value or a new payment endpoint
-                // Let's assume we have /wallet/pay/ 
-                await api.post('/wallet/pay/', { amount, pin_code: pin });
-                setStep('success');
-            } catch (err) {
-                setStep('error');
-                setErrorMsg(err.response?.data?.detail || 'Incorrect PIN or Insufficient balance in your Smart Wallet.');
-            }
-        } else {
-            // Simulate external gateway
-            setTimeout(() => {
-                setStep('success');
-            }, 2000);
-        }
+        // Simulate external gateway
+        setTimeout(() => {
+            setStep('success');
+        }, 2000);
     };
 
     const handleFinish = () => {
@@ -85,13 +63,12 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete }) => {
                             </div>
 
                             <button
-                                onClick={startPayment}
+                                onClick={handlePay}
                                 className={`w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all active:scale-95 ${method === 'gcash' ? 'bg-blue-600 hover:bg-blue-700' :
-                                    method === 'wallet' ? 'bg-primary text-secondary hover:bg-white border-2 border-primary' :
-                                        'bg-secondary hover:bg-slate-800'
+                                    'bg-secondary hover:bg-slate-800'
                                     }`}
                             >
-                                {method === 'wallet' ? 'Pay with Smart Wallet' : `Simulate ${method.toUpperCase()} Payment`}
+                                {method === 'gcash' ? 'Proceed to GCash' : 'Confirm Cash Payment'}
                             </button>
                             <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                 <ShieldCheck size={14} className="text-green-500" /> Secure Encryption Active
@@ -99,40 +76,11 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete }) => {
                         </div>
                     )}
 
-                    {step === 'pin' && (
-                        <div className="text-center">
-                            <h2 className="text-xl font-black text-secondary uppercase mb-6">Security Check</h2>
-                            <p className="text-slate-500 font-bold text-sm mb-4">Enter your 6-digit Wallet PIN</p>
-
-                            <input
-                                type="password"
-                                value={pin}
-                                onChange={(e) => setPin(e.target.value.slice(0, 6))}
-                                placeholder="• • • • • •"
-                                className="w-full text-center text-4xl tracking-[1em] font-black bg-slate-50 border-2 border-slate-100 rounded-2xl py-6 focus:border-primary outline-none transition-all mb-6"
-                                maxLength="6"
-                                autoFocus
-                            />
-
-                            <button
-                                onClick={handlePay}
-                                disabled={pin.length !== 6}
-                                className="w-full bg-secondary text-white font-black py-4 rounded-2xl hover:bg-slate-800 transition-all disabled:opacity-50"
-                            >
-                                Verify & Pay
-                            </button>
-                        </div>
-                    )}
-
                     {step === 'processing' && (
                         <div className="text-center py-12">
                             <div className="w-20 h-20 border-4 border-slate-100 border-t-primary rounded-full animate-spin mx-auto mb-8"></div>
                             <h2 className="text-xl font-bold text-secondary mb-2">Processing Payment...</h2>
-                            <p className="text-slate-500">Contacting {
-                                method === 'gcash' ? 'GCash' :
-                                    method === 'wallet' ? 'Smart Wallet' :
-                                        'payment gateway'
-                            } network</p>
+                            <p className="text-slate-500">Contacting {method === 'gcash' ? 'GCash' : 'payment gateway'} network</p>
                         </div>
                     )}
 

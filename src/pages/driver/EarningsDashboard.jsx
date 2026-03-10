@@ -85,14 +85,11 @@ const EarningsDashboard = () => {
                     date: r.completed_at,
                     pickup: r.pickup_address,
                     dropoff: r.dest_address,
-                    distance: 'N/A', // Update if distance added to model
+                    distance: 'N/A',
                     duration: 'N/A',
-                    base_fare: parseFloat(r.fare) * 0.3, // Mock breakdown logic
-                    distance_charge: parseFloat(r.fare) * 0.55,
-                    surge: parseFloat(r.fare) * 0.15,
                     total: parseFloat(r.fare),
-                    commission: parseFloat(r.fare) * 0.15,
-                    net: parseFloat(r.fare) * 0.85,
+                    commission: parseFloat(r.lgu_commission || 0),
+                    net: parseFloat(r.driver_earnings || 0),
                     status: 'completed'
                 }));
 
@@ -355,13 +352,9 @@ const EarningsDashboard = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Time</th>
                                     <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Route</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Distance</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Base</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Distance</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Surge</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Total</th>
+                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Fare</th>
                                     <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Commission</th>
-                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Net</th>
+                                    <th className="px-6 py-4 text-left text-xs font-black text-slate-400 uppercase tracking-widest">Net Earnings</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
@@ -376,17 +369,7 @@ const EarningsDashboard = () => {
                                                 <span className="text-xs text-slate-400 truncate max-w-[200px]">→ {trip.dropoff}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">{trip.distance}</td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">₱{trip.base_fare}</td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">₱{trip.distance_charge.toFixed(2)}</td>
-                                        <td className="px-6 py-4">
-                                            {trip.surge > 0 ? (
-                                                <span className="text-xs font-black text-green-600 dark:text-green-400">+₱{trip.surge}</span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">—</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-black text-secondary dark:text-white">₱{trip.total.toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">₱{trip.total.toFixed(2)}</td>
                                         <td className="px-6 py-4 text-xs font-bold text-red-600 dark:text-red-400">-₱{trip.commission.toFixed(2)}</td>
                                         <td className="px-6 py-4 text-sm font-black text-primary">₱{trip.net.toFixed(2)}</td>
                                     </tr>

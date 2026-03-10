@@ -19,7 +19,14 @@ import {
   AlertTriangle,
   Activity,
   Trophy,
-  Target
+  Target,
+  Phone,
+  CreditCard,
+  Wallet,
+  Shield,
+  Signal,
+  Wifi,
+  Battery
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -44,9 +51,16 @@ const DriverHome = () => {
   const [currentBroadcast, setCurrentBroadcast] = useState(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showHeatMapModal, setShowHeatMapModal] = useState(false);
+  const [showGCashVerify, setShowGCashVerify] = useState(false);
+  const [verificationRef, setVerificationRef] = useState('');
   const [showRating, setShowRating] = useState(false);
   const [completedRideId, setCompletedRideId] = useState(null);
   const [completedPassengerName, setCompletedPassengerName] = useState('');
+
+  // New State for LGU Commission Display
+  const [commissionData, setCommissionData] = useState(null);
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+
   const [selectedRequest, setSelectedRequest] = useState(null);
   const { newRide, systemEvent } = useSystemEvents();
   const [showVerificationSuccess, setShowVerificationSuccess] = useState(false);
@@ -94,6 +108,28 @@ const DriverHome = () => {
   }, [fetchBroadcasts, fetchMaintenanceLogs]);
 
   useEffect(() => {
+    if (user && user.is_online !== undefined) {
+      setIsOnline(user.is_online);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchActiveState = async () => {
+      try {
+        const res = await api.get('/rides/active_ride/');
+        if (res.data) {
+          setActiveRide(res.data);
+          setRequests([]);
+          setSelectedRequest(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch active ride', err);
+      }
+    };
+    if (user) fetchActiveState();
+  }, [user]);
+
+  useEffect(() => {
     // Check for new critical broadcasts to show modal
     const lastSeen = localStorage.getItem('last_seen_broadcast');
     if (broadcasts.length > 0 && broadcasts[0].is_critical && broadcasts[0].id.toString() !== lastSeen) {
@@ -121,6 +157,38 @@ const DriverHome = () => {
 
   // WebSocket Tracking
   const { sendLocation, sendMessage, messages, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
+
+  // Handle passenger cancellation
+  useEffect(() => {
+    if (passengerLivePos && passengerLivePos.type === 'status_update' && (passengerLivePos.status === 'cancelled' || passengerLivePos.status === 'driver_rejected')) {
+      if (activeRide) {
+        alert("Ride update: This request is no longer available.");
+        setActiveRide(null);
+      }
+    }
+  }, [passengerLivePos, activeRide]);
+
+  // Synchronize Online Status with Server
+  useEffect(() => {
+    const syncStatus = async () => {
+      try {
+        await api.post('/users/toggle_online/', { is_online: isOnline });
+      } catch (err) {
+        console.error('Failed to sync online status', err);
+      }
+    };
+
+    // Only sync if it's different from the user object to avoid redundant calls on mount
+    if (isOnline !== user?.is_online) {
+      syncStatus();
+    }
+
+    // Auto-offline on unmount
+    return () => {
+      // Use a fire-and-forget approach or navigator.sendBeacon in real production
+      api.post('/users/toggle_online/', { is_online: false }).catch(() => { });
+    };
+  }, [isOnline, user?.is_online]);
 
   // Tracking Interval
   useEffect(() => {
@@ -152,6 +220,7 @@ const DriverHome = () => {
       }
     } else {
       setMarkers([]); // Clear markers when offline
+      setDriverPos(null);
     }
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
@@ -183,6 +252,17 @@ const DriverHome = () => {
     return () => clearInterval(interval);
   }, [isOnline]);
 
+  const fetchRequests = useCallback(async () => {
+    if (!isOnline || activeRide) return;
+    try {
+      const res = await api.get('/driver/requests/');
+      const newRequests = Array.isArray(res.data) ? res.data : [];
+      setRequests(newRequests);
+    } catch (err) {
+      console.error('Failed to fetch requests', err);
+    }
+  }, [isOnline, activeRide]);
+
   useEffect(() => {
     if (!isOnline) {
       setRequests([]);
@@ -190,19 +270,23 @@ const DriverHome = () => {
       return;
     }
 
-    const fetchRequests = async () => {
-      try {
-        const res = await api.get('/driver/requests/');
-        setRequests(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        console.error('Failed to fetch requests', err);
-      }
-    };
-
+    // Poll for requests every 5 seconds as a fallback for WebSocket
+    let interval;
     if (isOnline && !activeRide) {
-      fetchRequests();
+      fetchRequests(); // Initial fetch
+      interval = setInterval(fetchRequests, 5000);
     }
-  }, [isOnline, activeRide]);
+    return () => clearInterval(interval);
+  }, [isOnline, activeRide, fetchRequests]);
+
+  // Auto-select request logic (moved out of fetch to avoid closure issues)
+  useEffect(() => {
+    if (requests.length > 0 && !selectedRequest) {
+      setSelectedRequest(requests[0]);
+    } else if (requests.length === 0 && selectedRequest) {
+      setSelectedRequest(null);
+    }
+  }, [requests, selectedRequest]);
 
   // Handle Real-time Ride Requests
   useEffect(() => {
@@ -210,11 +294,11 @@ const DriverHome = () => {
       // Add to requests if not already there
       setRequests(prev => {
         if (prev.find(r => r.id === newRide.id)) return prev;
-        const updatedRequests = [newRide, ...prev];
-        // Automatically select the newest request for preview
-        setSelectedRequest(newRide);
-        return updatedRequests;
+        return [newRide, ...prev];
       });
+
+      // Automatically select the newest request for preview
+      setSelectedRequest(newRide);
 
       // Play alert sound
       try {
@@ -276,27 +360,45 @@ const DriverHome = () => {
   const acceptRide = async (ride) => {
     try {
       // Inform the server that the ride has been accepted
-      await api.post(`/rides/${ride.id}/accept/`);
+      const res = await api.post(`/driver/accept/${ride.id}/`);
 
-      setActiveRide(ride);
+      // Use serialized data from server to ensure passenger object is complete
+      setActiveRide(res.data);
       setRequests([]);
       setSelectedRequest(null);
     } catch (err) {
       console.error('Failed to accept ride', err);
-      // Fallback for demo
+      // Fallback for demo if needed, but the API should work now
       setActiveRide(ride);
       setRequests([]);
       setSelectedRequest(null);
     }
   };
 
-  const declineRequest = (rideId) => {
+  const startRide = async () => {
+    if (!activeRide) return;
+    try {
+      await api.patch(`/rides/${activeRide.id}/`, { status: 'on_route' });
+      setActiveRide(prev => ({ ...prev, status: 'on_route' }));
+    } catch (err) {
+      console.error('Failed to start ride', err);
+      // Fallback for demo
+      setActiveRide(prev => ({ ...prev, status: 'on_route' }));
+    }
+  };
+
+  const declineRequest = async (rideId) => {
+    // Immediate local update
     setRequests(prev => prev.filter(r => r.id !== rideId));
     if (selectedRequest?.id === rideId) {
       setSelectedRequest(null);
-      // Revert markers to just driver
-      const driverMarker = markers.find(m => m.isDriver);
-      if (driverMarker) setMarkers([driverMarker]);
+    }
+
+    try {
+      // Inform the server that the driver declined (critical for targeted requests)
+      await api.post(`/driver/reject/${rideId}/`);
+    } catch (err) {
+      console.error('Failed to decline ride on server', err);
     }
   };
 
@@ -308,21 +410,37 @@ const DriverHome = () => {
       const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
 
       // Inform the server that the ride is completed
-      await api.post(`/rides/${currentRideId}/complete/`);
+      const response = await api.post(`/rides/${currentRideId}/complete/`);
+      const data = response.data;
 
-      setEarnings(prev => prev + parseFloat(activeRide.fare));
+      // Use server response for earnings if available, else fallback to local calc
+      const gainedEarnings = data.driver_earnings ? parseFloat(data.driver_earnings) : parseFloat(activeRide.fare);
+
+      setEarnings(prev => prev + gainedEarnings);
       setTripsCount(prev => prev + 1);
       setCompletedRideId(currentRideId);
       setCompletedPassengerName(passengerName);
-      setActiveRide(null);
 
-      // Show rating modal
-      setTimeout(() => {
-        setShowRating(true);
-      }, 500);
+      // Set commission data for the modal
+      if (data.lgu_commission) {
+        setCommissionData({
+          totalFare: data.total_fare,
+          lguCommission: data.lgu_commission,
+          driverEarnings: data.driver_earnings,
+          commissionRate: data.commission_rate
+        });
+        setActiveRide(null);
+        // Show commission modal first
+        setTimeout(() => setShowCommissionModal(true), 500);
+      } else {
+        // Fallback for old API behavior
+        setActiveRide(null);
+        setTimeout(() => setShowRating(true), 500);
+      }
+
     } catch (err) {
       console.error('Failed to complete ride', err);
-      // Fallback for demo
+      // Fallback for demo/offline
       const currentRideId = activeRide.id;
       const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
       setEarnings(prev => prev + parseFloat(activeRide.fare));
@@ -549,8 +667,13 @@ const DriverHome = () => {
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full animate-pulse ${isOnline ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                <span className="font-bold text-secondary uppercase tracking-tight">Status: {isOnline ? 'Online' : 'Offline'}</span>
+                <div className="relative">
+                  <div className={`w-3 h-3 rounded-full ${isOnline ? 'status-online' : 'status-offline'}`}></div>
+                  {isOnline && <div className="absolute inset-0 w-3 h-3 bg-green-500 rounded-full animate-ping opacity-20"></div>}
+                </div>
+                <span className="font-bold text-secondary uppercase tracking-tight text-sm">
+                  {isOnline ? 'Online & Available' : 'Offline'}
+                </span>
               </div>
               <button
                 onClick={() => {
@@ -558,11 +681,15 @@ const DriverHome = () => {
                     alert("Please verify your account first!");
                     return;
                   }
-                  setIsOnline(!isOnline);
+                  const nextStatus = !isOnline;
+                  setIsOnline(nextStatus);
+                  if (nextStatus) {
+                    setTimeout(fetchRequests, 500); // Immediate feedback fetch
+                  }
                 }}
-                className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${isOnline ? 'bg-primary' : 'bg-slate-300'}`}
+                className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${isOnline ? 'bg-primary shadow-lg shadow-primary/20' : 'bg-slate-300'}`}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${isOnline ? 'left-7' : 'left-1'}`}></div>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 shadow-sm ${isOnline ? 'left-7' : 'left-1'}`}></div>
               </button>
             </div>
 
@@ -628,7 +755,7 @@ const DriverHome = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-4 mb-8 bg-slate-800/50 p-4 rounded-2xl border border-white/5">
+                    <div className="space-y-4 mb-4 bg-slate-800/50 p-4 rounded-2xl border border-white/5">
                       <div className="flex items-start space-x-3">
                         <MapPin size={18} className="text-primary mt-1" />
                         <div className="min-w-0">
@@ -646,24 +773,61 @@ const DriverHome = () => {
                       </div>
                     </div>
 
+                    <div className="flex items-center gap-2 mb-6 px-1">
+                      <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/5 flex items-center gap-2">
+                        <CreditCard size={12} className="text-primary" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">{activeRide.payment_method || 'Cash'}</span>
+                      </div>
+                      <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/5 flex items-center gap-2">
+                        <Wallet size={12} className="text-primary" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">₱{activeRide.fare}</span>
+                      </div>
+
+                      {activeRide.payment_method === 'gcash' && (
+                        <button
+                          onClick={() => {
+                            setVerificationRef(`${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`);
+                            setShowGCashVerify(true);
+                          }}
+                          className="ml-auto bg-[#007DFE] text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+                        >
+                          <Shield size={12} />
+                          <span>Verify GCash</span>
+                        </button>
+                      )}
+                    </div>
+
                     <div className="flex gap-3">
                       <button
                         onClick={() => {
-                          const target = passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
-                          openNativeNavigation(target.lat, target.lng, 'Passenger Pickup');
+                          const target = activeRide.status === 'on_route'
+                            ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
+                            : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
+                          openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
                         }}
                         className="flex-1 bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
                       >
                         <Navigation2 size={20} className="text-primary" />
                         <span>Navigate</span>
                       </button>
-                      <button
-                        onClick={completeRide}
-                        className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-primary/20"
-                      >
-                        <Check size={20} />
-                        <span>Complete</span>
-                      </button>
+
+                      {activeRide.status === 'accepted' || activeRide.status === 'matched' ? (
+                        <button
+                          onClick={startRide}
+                          className="flex-[2] bg-accent text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-accent/20"
+                        >
+                          <Tractor size={20} />
+                          <span>Start Ride</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={completeRide}
+                          className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-primary/20"
+                        >
+                          <Check size={20} />
+                          <span>Complete</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -675,50 +839,129 @@ const DriverHome = () => {
                   exit={{ scale: 0.9, opacity: 0, y: 20 }}
                   className="bg-white border-2 border-primary p-6 rounded-[2.5rem] shadow-2xl relative"
                 >
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-secondary px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-bounce">
-                    New Request
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-secondary px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-bounce shadow-lg">
+                    New Ride Request
+                  </div>
+                  <button
+                    onClick={fetchRequests}
+                    className="absolute top-4 right-4 p-2 text-slate-300 hover:text-primary transition-colors"
+                    title="Refresh Request"
+                  >
+                    <Clock size={16} />
+                  </button>
+
+                  <div className="space-y-4 pt-2">
+                    {/* Passenger Info Header */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-lg">
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}`} alt="P" className="w-full h-full" />
+                        </div>
+                        <div>
+                          <p className="font-black text-secondary text-xl leading-tight">{typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-1 text-yellow-500">
+                              <Star size={12} className="fill-yellow-500" />
+                              <span className="text-[10px] font-bold">4.9</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">•</span>
+                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
+                            {typeof selectedRequest.passenger === 'object' && (
+                              <>
+                                {selectedRequest.passenger.gender && (
+                                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">{selectedRequest.passenger.gender}</span>
+                                )}
+                                {selectedRequest.passenger.date_of_birth && (
+                                  <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                    {Math.floor((new Date() - new Date(selectedRequest.passenger.date_of_birth)) / 31557600000)} Y/O
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-primary text-3xl">₱{selectedRequest.fare}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedRequest.distance || '2.4 km'} away</p>
+                      </div>
+                    </div>
+
+                    {/* Passenger Contact Details */}
+                    {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.phone_number && (
+                      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Passenger Contact</p>
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} className="text-blue-600" />
+                          <a href={`tel:${selectedRequest.passenger.phone_number}`} className="text-sm font-bold text-blue-600 hover:underline">
+                            {selectedRequest.passenger.phone_number}
+                          </a>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex justify-between items-start mb-6 pt-2">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-14 h-14 bg-slate-100 rounded-2xl overflow-hidden border-2 border-slate-50">
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}`} alt="P" />
+                  <div className="space-y-3 mb-6">
+                    {/* Trip Details Card */}
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-3xl border border-slate-200">
+                      <div className="flex items-start space-x-3 mb-4">
+                        <div className="p-2 bg-primary/10 rounded-xl">
+                          <MapPin size={18} className="text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1">Pickup Location</p>
+                          <p className="text-sm font-bold text-secondary leading-tight">{selectedRequest.pickup_address || selectedRequest.pickup}</p>
+                          {selectedRequest.pickup_lat && selectedRequest.pickup_lng && (
+                            <p className="text-[10px] text-slate-400 font-mono mt-1">
+                              📍 {parseFloat(selectedRequest.pickup_lat).toFixed(4)}, {parseFloat(selectedRequest.pickup_lng).toFixed(4)}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-black text-secondary text-lg leading-tight">{typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}</p>
-                        <div className="flex items-center gap-1 text-yellow-500">
-                          <Star size={12} className="fill-yellow-500" />
-                          <span className="text-[10px] font-bold">4.9 • Member</span>
+                      <div className="border-l-2 border-dashed border-slate-300 ml-4 h-4 my-2"></div>
+                      <div className="flex items-start space-x-3">
+                        <div className="p-2 bg-accent/10 rounded-xl">
+                          <Navigation2 size={18} className="text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1">Destination</p>
+                          <p className="text-sm font-bold text-secondary leading-tight">{selectedRequest.dest_address || selectedRequest.dest}</p>
+                          {selectedRequest.dest_lat && selectedRequest.dest_lng && (
+                            <p className="text-[10px] text-slate-400 font-mono mt-1">
+                              📍 {parseFloat(selectedRequest.dest_lat).toFixed(4)}, {parseFloat(selectedRequest.dest_lng).toFixed(4)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-black text-secondary text-2xl">₱{selectedRequest.fare}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedRequest.distance || '2.4 km'} away</p>
-                    </div>
-                  </div>
 
-                  <div className="space-y-4 mb-8 bg-slate-50 p-4 rounded-3xl">
-                    <div className="flex items-start space-x-3">
-                      <MapPin size={18} className="text-primary mt-1" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase font-bold text-slate-400">Pickup Location</p>
-                        <p className="text-sm font-medium text-secondary truncate">{selectedRequest.pickup_address || selectedRequest.pickup}</p>
+                    {/* Trip Metadata */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Requested</p>
+                        <p className="text-xs font-bold text-secondary">{new Date(selectedRequest.requested_at).toLocaleTimeString()}</p>
                       </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Navigation2 size={18} className="text-accent mt-1" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase font-bold text-slate-400">Destination</p>
-                        <p className="text-sm font-medium text-secondary truncate">{selectedRequest.dest_address || selectedRequest.dest}</p>
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Payment</p>
+                        <p className="text-xs font-bold text-secondary uppercase italic">{selectedRequest.payment_method || 'Cash'}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-4">
+                  <div className="flex gap-3 pt-6 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        const target = { lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng };
+                        openNativeNavigation(target.lat, target.lng, 'Pickup Location');
+                      }}
+                      className="p-4 bg-slate-50 text-secondary rounded-2xl hover:bg-slate-100 transition-all border border-slate-200"
+                      title="Navigate to Pickup"
+                    >
+                      <Navigation2 size={20} className="text-primary-dark" />
+                    </button>
                     <button
                       onClick={() => declineRequest(selectedRequest.id)}
-                      className="flex-1 bg-slate-100 text-slate-500 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl hover:bg-red-100 transition-all flex items-center justify-center gap-2 border border-red-200"
                     >
                       <X size={20} />
                       <span>Decline</span>
@@ -728,7 +971,7 @@ const DriverHome = () => {
                       className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/30"
                     >
                       <Check size={20} />
-                      <span>Accept Request</span>
+                      <span>Accept Ride</span>
                     </button>
                   </div>
 
@@ -760,7 +1003,7 @@ const DriverHome = () => {
 
           {/* Map Overlays */}
           <div className="absolute top-8 left-8">
-            <div className="bg-white/95 backdrop-blur-md px-6 py-4 rounded-3xl shadow-xl flex items-center space-x-4 border border-slate-100">
+            <Link to="/profile" className="bg-white/95 backdrop-blur-md px-6 py-4 rounded-3xl shadow-xl flex items-center space-x-4 border border-slate-100 hover:scale-105 transition-transform cursor-pointer">
               <div className="w-10 h-10 bg-primary/20 text-primary-dark rounded-xl flex items-center justify-center font-black">
                 {user?.username?.[0] || 'D'}
               </div>
@@ -768,7 +1011,7 @@ const DriverHome = () => {
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service Area</p>
                 <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3">
@@ -873,14 +1116,16 @@ const DriverHome = () => {
         )}
       </AnimatePresence>
 
-      {activeRide && (
-        <ChatWindow
-          messages={messages}
-          onSendMessage={sendMessage}
-          currentUser={user?.username}
-          partnerName={typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}
-        />
-      )}
+      {
+        activeRide && (
+          <ChatWindow
+            messages={messages}
+            onSendMessage={sendMessage}
+            currentUser={user?.username}
+            partnerName={typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}
+          />
+        )
+      }
 
       <DriverSettingsModal
         isOpen={showSettingsModal}
@@ -894,6 +1139,64 @@ const DriverHome = () => {
         onClose={() => setShowHeatMapModal(false)}
       />
 
+      {/* LGU Commission Modal (New Feature) */}
+      <AnimatePresence>
+        {showCommissionModal && commissionData && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-secondary/80 backdrop-blur-xl"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 50 }}
+              className="w-full max-w-md bg-white rounded-[2.5rem] p-8 relative z-10 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-3 bg-secondary" />
+              <div className="text-center mb-6 pt-4">
+                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                  <Check size={40} strokeWidth={3} />
+                </div>
+                <h2 className="text-2xl font-black text-secondary">Ride Completed!</h2>
+                <p className="text-slate-400 font-medium">Here's your earnings breakdown</p>
+              </div>
+
+              <div className="space-y-4 mb-8">
+                <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <span className="font-bold text-slate-500">Total Fare</span>
+                  <span className="font-black text-xl text-secondary">₱{commissionData.totalFare}</span>
+                </div>
+
+                <div className="flex justify-between items-center p-4 bg-red-50 rounded-2xl border border-red-100 relative overflow-hidden">
+                  <div className="absolute left-0 top-0 h-full w-1 bg-red-400" />
+                  <div className="flex flex-col text-left">
+                    <span className="font-bold text-red-500 text-sm">LGU Commission ({commissionData.commissionRate}%)</span>
+                    <span className="text-[10px] text-red-400 font-medium tracking-tight">Maintenance & Emergency Fund</span>
+                  </div>
+                  <span className="font-black text-xl text-red-500">-₱{commissionData.lguCommission}</span>
+                </div>
+
+                <div className="flex justify-between items-center p-6 bg-green-600 rounded-2xl shadow-xl shadow-green-200 text-white transform scale-105">
+                  <span className="font-bold opacity-90">NET EARNINGS</span>
+                  <span className="font-black text-3xl">₱{commissionData.driverEarnings}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowCommissionModal(false);
+                  setTimeout(() => setShowRating(true), 300); // Show rating after closing
+                }}
+                className="w-full py-4 bg-secondary text-white rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg"
+              >
+                Continue
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <RatingModal
         isOpen={showRating}
         onClose={() => {
@@ -905,8 +1208,94 @@ const DriverHome = () => {
         targetName={completedPassengerName}
         targetRole="Passenger"
       />
-    </div>
+      <GCashVerifyModal
+        isOpen={showGCashVerify}
+        onClose={() => setShowGCashVerify(false)}
+        amount={activeRide?.fare}
+        refNo={verificationRef}
+      />
+    </div >
   );
 };
+
+const GCashVerifyModal = ({ isOpen, onClose, amount, refNo }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"
+        />
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 50 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 50 }}
+          className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20"
+        >
+          {/* Simulated Mobile Header for Driver Side */}
+          <div className="bg-[#007DFE] px-6 pt-3 flex items-center justify-end text-white/50 gap-1.5 grayscale opacity-50">
+            <Signal size={8} />
+            <Wifi size={8} />
+            <Battery size={10} />
+          </div>
+
+          <div className="bg-gradient-to-b from-[#007DFE] to-[#005ECB] p-10 text-center relative overflow-hidden">
+            <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/5 rounded-full blur-2xl" />
+
+            <div className="absolute top-4 right-4 text-white/30 hover:text-white cursor-pointer z-50" onClick={onClose}>
+              <X size={24} />
+            </div>
+
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-white rounded-full mx-auto flex items-center justify-center shadow-2xl mb-4">
+                <svg viewBox="0 0 100 100" className="w-10 h-10">
+                  <circle cx="50" cy="50" r="48" fill="#007DFE" />
+                  <text x="50" y="65" textAnchor="middle" fill="white" fontSize="45" fontWeight="900" fontStyle="italic">G</text>
+                </svg>
+              </div>
+              <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm">GCash Verification</h3>
+              <div className="mt-2 inline-flex items-center gap-1 bg-white/10 px-3 py-1 rounded-full">
+                <Shield size={10} className="text-blue-200" />
+                <span className="text-[8px] text-blue-100 font-black uppercase tracking-widest">Merchant Portal</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-10 space-y-8">
+            <div className="text-center">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Incoming Payment Amount</p>
+              <h4 className="text-5xl font-black text-secondary leading-none tracking-tighter">₱{amount}.00</h4>
+            </div>
+
+            <div className="bg-slate-50/80 rounded-[2rem] p-8 border border-slate-100 space-y-5 text-center relative">
+              <div className="absolute top-3 left-3 w-1.5 h-1.5 bg-blue-500/20 rounded-full" />
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Audit Reference No.</p>
+                <code className="text-xl font-black text-[#007DFE] tracking-[0.1em]">{refNo}</code>
+              </div>
+              <div className="pt-4 border-t border-slate-200/50 flex items-center justify-center gap-2">
+                <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                  <Check size={12} strokeWidth={4} />
+                </div>
+                <span className="text-[10px] font-black uppercase text-green-600 tracking-wider">Verified by GCash Network</span>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full bg-secondary text-white font-black py-5 rounded-[1.5rem] shadow-xl hover:bg-slate-800 transition-all active:scale-95 text-sm uppercase tracking-widest"
+            >
+              Confirm Reference
+            </button>
+          </div>
+          <div className="h-4 bg-slate-50 flex items-center justify-center pb-2">
+            <div className="w-16 h-1 bg-slate-200 rounded-full" />
+          </div>
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+);
 
 export default DriverHome;

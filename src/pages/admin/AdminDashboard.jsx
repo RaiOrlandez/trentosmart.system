@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../api/axios';
 import Map from '../../components/Map';
+import { ensureImageUrl } from '../../utils/url';
 import {
   Map as MapIcon,
   TrendingUp,
@@ -81,11 +82,13 @@ const AdminDashboard = () => {
 
       setStats({
         drivers: usersData.filter(u => u.role === 'driver').length,
+        onlineDrivers: usersData.filter(u => u.role === 'driver' && u.is_online).length,
+        onlinePassengers: usersData.filter(u => u.role === 'passenger' && u.is_online).length,
         activeRides: ridesData.filter(r => r.status === 'requested' || r.status === 'accepted' || r.status === 'on_route').length,
         totalRidesToday: ridesData.filter(r => new Date(r.requested_at).toDateString() === new Date().toDateString()).length,
         incidents: incidentsData.length,
         totalRevenue: ridesData.filter(r => r.status === 'completed').reduce((sum, r) => sum + parseFloat(r.fare || 0), 0),
-        commission: ridesData.filter(r => r.status === 'completed').reduce((sum, r) => sum + parseFloat(r.fare || 0), 0) * 0.1 // Simulated 10%
+        commission: ridesData.filter(r => r.status === 'completed').reduce((sum, r) => sum + parseFloat(r.fare || 0), 0) * 0.05 // Real 5%
       });
     } catch (err) {
       console.error("Failed to initial stats", err);
@@ -201,14 +204,15 @@ const AdminDashboard = () => {
 
       const newMarkers = drivers.map(d => {
         const currentRide = activeRides.find(r => r.driver?.id === d.id);
-        const status = currentRide ? 'On Trip 🚩' : 'Available ✅';
+        const status = currentRide ? 'On Trip 🚩' : d.is_online ? 'Available ✅' : 'Offline 🌑';
         return {
           id: d.id,
           lat: parseFloat(d.last_lat),
           lng: parseFloat(d.last_lng),
           title: d.vehicle_plate || d.username,
           info: `Driver: ${d.username}\nStatus: ${status}\nVehicle: ${d.vehicle_model || 'Tricycle'}`,
-          isDriver: true
+          isDriver: true,
+          isOnline: d.is_online
         };
       });
       setLiveMarkers(newMarkers);
@@ -245,8 +249,9 @@ const AdminDashboard = () => {
           lat: parseFloat(driverLocation.lat),
           lng: parseFloat(driverLocation.lng),
           title: driverLocation.username,
-          info: `Driver: ${driverLocation.username}\nStatus: Real-time ⚡`,
-          isDriver: true
+          info: `Driver: ${driverLocation.username}\nStatus: ${driverLocation.is_online ? 'Available ✅' : 'Offline 🌑'}`,
+          isDriver: true,
+          isOnline: driverLocation.is_online
         };
 
         if (existingIdx >= 0) {
@@ -263,12 +268,36 @@ const AdminDashboard = () => {
 
   const approveDriver = async (userId) => {
     try {
-      await api.post(`/users/${userId}/approve_driver/`);
+      console.log(`Approving driver with ID: ${userId}`);
+      const response = await api.post(`/users/${userId}/approve_driver/`);
+      console.log('Approval response:', response.data);
+
       // Update local state
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true } : u));
-      alert("Driver Verified Successfully!");
+      alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
+
+      // Refresh data to ensure sync
+      fetchUsers();
     } catch (err) {
-      alert("Failed to verify driver.");
+      console.error('Driver approval error:', err);
+      console.error('Error response:', err.response?.data);
+
+      let errorMsg = 'Failed to verify driver. ';
+      if (err.response?.status === 403) {
+        errorMsg += 'You do not have admin permissions.';
+      } else if (err.response?.status === 400) {
+        errorMsg += err.response.data?.detail || 'User is not a driver.';
+      } else if (err.response?.status === 404) {
+        errorMsg += 'Driver not found.';
+      } else if (err.response?.data?.detail) {
+        errorMsg += err.response.data.detail;
+      } else if (err.response?.data?.error) {
+        errorMsg += err.response.data.error;
+      } else {
+        errorMsg += 'Please check server logs for details.';
+      }
+
+      alert(errorMsg);
     }
   };
 
@@ -393,10 +422,13 @@ const AdminDashboard = () => {
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-card p-6 rounded-3xl border-l-4 border-primary">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-primary/10 rounded-2xl text-primary-dark"><UserCheck size={24} /></div>
-              <span className="text-green-500 text-xs font-bold">+12%</span>
+              <div className="flex flex-col items-end">
+                <span className="text-green-500 text-xs font-black">{stats.onlineDrivers} ONLINE</span>
+                <span className="text-slate-400 text-[10px] font-bold">OUT OF {stats.drivers}</span>
+              </div>
             </div>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">Registered Drivers</p>
-            <h2 className="text-4xl font-black text-secondary dark:text-white mt-1">{stats.drivers}</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">Available Drivers</p>
+            <h2 className="text-4xl font-black text-secondary dark:text-white mt-1">{stats.onlineDrivers}</h2>
           </motion.div>
 
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="glass-card p-6 rounded-3xl border-l-4 border-accent">
@@ -537,8 +569,8 @@ const AdminDashboard = () => {
                     .map(driver => (
                       <tr key={driver.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                         <td className="py-4 pl-4 font-bold text-secondary dark:text-white flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden relative">
-                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver.username}`} alt="avatar" />
+                          <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-sm border border-slate-100 dark:border-white/10">
+                            <img src={ensureImageUrl(driver.profile_picture, driver.username)} alt="avatar" className="w-full h-full object-cover" />
                             {isNew(driver.date_joined) && (
                               <div className="absolute top-0 right-0 w-3 h-3 bg-primary border-2 border-white dark:border-slate-900 rounded-full" title="New Signup"></div>
                             )}
@@ -555,15 +587,21 @@ const AdminDashboard = () => {
                           <Clock size={12} /> {new Date(driver.date_joined).toLocaleDateString()}
                         </td>
                         <td className="py-4">
-                          {driver.is_verified_driver ? (
-                            <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
-                              <CheckCircle2 size={12} /> Verified
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
-                              Pending
-                            </span>
-                          )}
+                          <div className="flex flex-col gap-1.5">
+                            {driver.is_verified_driver ? (
+                              <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
+                                <CheckCircle2 size={12} /> Verified
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
+                                Pending
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${driver.is_online ? 'status-online' : 'status-offline'}`}></div>
+                              <span className={driver.is_online ? 'badge-live' : 'badge-offline'}>{driver.is_online ? 'Live' : 'Offline'}</span>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-4 text-right pr-4">
                           <div className="flex items-center justify-end gap-2">
@@ -644,12 +682,12 @@ const AdminDashboard = () => {
               )
               .sort((a, b) => new Date(b.date_joined) - new Date(a.date_joined)) // Sort by date_joined descending
               .map(user => (
-                <div key={user.id} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between group">
+                <div key={user.id} className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between group shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full p-1 shadow-sm relative">
-                      <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="avatar" className="w-full h-full rounded-full" />
+                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full p-1 shadow-sm relative overflow-hidden border border-slate-100 dark:border-white/10">
+                      <img src={ensureImageUrl(user.profile_picture, user.username)} alt="avatar" className="w-full h-full rounded-full object-cover" />
                       {isNew(user.date_joined) && (
-                        <div className="absolute -top-1 -right-1 p-1 bg-primary text-secondary rounded-full shadow-lg animate-bounce">
+                        <div className="absolute -top-1 -right-1 p-1 bg-primary text-secondary rounded-full shadow-lg animate-bounce z-10">
                           <Sparkles size={10} />
                         </div>
                       )}
@@ -663,8 +701,8 @@ const AdminDashboard = () => {
                       </div>
                       <p className="text-xs text-slate-500 mb-1">{user.email}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300">
-                          Regular Passenger
+                        <span className={user.is_online ? 'badge-live' : 'badge-offline'}>
+                          {user.is_online ? 'Currently Online' : 'Regular Passenger'}
                         </span>
                         <span className="text-[9px] text-slate-400 flex items-center gap-1 font-bold">
                           <Clock size={10} /> {new Date(user.date_joined).toLocaleDateString()}
@@ -700,7 +738,7 @@ const AdminDashboard = () => {
           <div className="absolute top-8 left-8 flex flex-col gap-4">
             <div className="bg-black/80 backdrop-blur-md p-6 rounded-3xl text-white border border-white/10 max-w-xs shadow-2xl">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-3 h-3 bg-green-500 rounded-full animate-ping"></div>
+                <div className="w-3 h-3 status-online rounded-full"></div>
                 <h3 className="font-bold uppercase tracking-tight text-sm">Live Network Status</h3>
               </div>
               <div className="space-y-3">
@@ -1097,11 +1135,11 @@ const FinanceTab = ({ stats }) => {
         </motion.div>
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">LGU Commission (10%)</p>
-          <h2 className="text-5xl font-black italic tracking-tighter text-secondary">₱{stats.commission.toLocaleString()}</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">LGU Commission (5%)</p>
+          <h2 className="text-5xl font-black italic tracking-tighter text-secondary">₱{stats.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 text-green-500 font-bold text-xs uppercase">
             <CheckCircle2 size={14} />
-            <span>Operational Surplus</span>
+            <span>Funds Secured</span>
           </div>
         </motion.div>
 
@@ -1292,10 +1330,10 @@ const FareControlTab = () => {
 
             <div className="space-y-8">
               <div className="p-8 bg-white/5 border border-white/10 rounded-[2rem] backdrop-blur-md">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Sample Estimation (5km trip)</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Earnings Projection (5km trip)</p>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between text-sm">
-                    <span className="opacity-60">Base Fare</span>
+                    <span className="opacity-60">Standard Base Fare</span>
                     <span className="font-bold">₱{configs.find(c => c.key === 'base_fare')?.value || '30.00'}</span>
                   </div>
                   <div className="flex justify-between text-sm">

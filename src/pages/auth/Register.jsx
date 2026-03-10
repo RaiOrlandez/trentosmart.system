@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
-import { motion } from 'framer-motion';
-import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check } from 'lucide-react';
 
 const Register = () => {
   const location = useLocation();
@@ -22,16 +22,152 @@ const Register = () => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Availability states
+  const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken
+  const [dobStatus, setDobStatus] = useState('idle'); // idle, valid, invalid
+  const [dobErrorMsg, setDobErrorMsg] = useState('');
+
   const navigate = useNavigate();
+
+  // Real-time Email Check
+  useEffect(() => {
+    if (!email) {
+      setEmailStatus('idle');
+      return;
+    }
+
+    // Basic regex check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailStatus('invalid');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setEmailStatus('checking');
+      try {
+        const res = await api.get(`/auth/check-email/?email=${email}`);
+        setEmailStatus(res.data.available ? 'available' : 'taken');
+      } catch (err) {
+        setEmailStatus('idle');
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  // Real-time Username Check
+  useEffect(() => {
+    if (!username || username.length < 3) {
+      setUsernameStatus('idle');
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setUsernameStatus('checking');
+      try {
+        const res = await api.get(`/auth/check-username/?username=${username}`);
+        setUsernameStatus(res.data.available ? 'available' : 'taken');
+      } catch (err) {
+        setUsernameStatus('idle');
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [username]);
+
+  // Auto-format dd/mm/yyyy and validate
+  useEffect(() => {
+    if (!dateOfBirth || dateOfBirth.length < 10) {
+      setDobStatus('idle');
+      setDobErrorMsg('');
+      return;
+    }
+
+    const parts = dateOfBirth.split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const y = parseInt(parts[2], 10);
+
+      const currentYear = new Date().getFullYear();
+
+      if (d === 0 || d > 31 || m === 0 || m > 12 || y < 1920 || y > currentYear) {
+        setDobStatus('invalid');
+        setDobErrorMsg('Invalid date format');
+        return;
+      }
+
+      // Check age specifically if role is driver
+      const dobDate = new Date(y, m - 1, d);
+      const ageDiffMs = Date.now() - dobDate.getTime();
+      const ageDate = new Date(ageDiffMs);
+      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+
+      if (role === 'driver' && age < 18) {
+        setDobStatus('invalid');
+        setDobErrorMsg('Drivers must be at least 18 years old');
+        return;
+      }
+
+      setDobStatus('valid');
+      setDobErrorMsg('');
+    } else {
+      setDobStatus('invalid');
+      setDobErrorMsg('Invalid format');
+    }
+  }, [dateOfBirth, role]);
+
+  const handleDateChange = (e) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (value.length > 8) value = value.slice(0, 8); // Max 8 digits
+
+    let formatted = '';
+    if (value.length > 0) formatted += value.slice(0, 2);
+    if (value.length > 2) formatted += '/' + value.slice(2, 4);
+    if (value.length > 4) formatted += '/' + value.slice(4, 8);
+
+    setDateOfBirth(formatted);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setMessage(null);
     setError(null);
 
+    if (usernameStatus === 'taken') {
+      setError('This username is already taken');
+      return;
+    }
+
+    if (emailStatus === 'taken') {
+      setError('This email address is already in use');
+      return;
+    }
+
+    if (emailStatus === 'invalid') {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (dobStatus === 'invalid') {
+      setError(dobErrorMsg || 'Please enter a valid Date of Birth');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
+    }
+
+    // Convert DD/MM/YYYY to YYYY-MM-DD for backend
+    let finalDob = dateOfBirth;
+    if (dateOfBirth && dateOfBirth.includes('/')) {
+      const parts = dateOfBirth.split('/');
+      if (parts.length === 3) {
+        finalDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
     }
 
     setLoading(true);
@@ -44,7 +180,7 @@ const Register = () => {
         role,
         phone_number: phoneNumber,
         address: address,
-        date_of_birth: dateOfBirth,
+        date_of_birth: finalDob,
         gender: gender,
         emergency_contact_name: emergencyContactName
       });
@@ -104,16 +240,30 @@ const Register = () => {
               <input
                 type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
                 placeholder="Username"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${usernameStatus === 'taken' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
               />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                {usernameStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+              </div>
+              {usernameStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">Username taken</p>}
             </div>
+
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                 placeholder="Email Address"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${emailStatus === 'taken' || emailStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
               />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                {emailStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                {emailStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                {emailStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+                {emailStatus === 'invalid' && <span className="text-[9px] font-black text-red-400 uppercase tracking-tighter">Format!</span>}
+              </div>
+              {emailStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">Email already exists</p>}
             </div>
           </div>
 
@@ -148,10 +298,15 @@ const Register = () => {
             <div className="relative">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
-                type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)}
-                placeholder="Date of Birth"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                type="text" value={dateOfBirth} onChange={handleDateChange} required
+                placeholder="DD / MM / YYYY" maxLength="10"
+                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-bold text-slate-900 dark:text-white ${dobStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
               />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                {dobStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
+                {dobStatus === 'invalid' && <XCircle className="w-4 h-4 text-red-500" />}
+              </div>
+              {dobStatus === 'invalid' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{dobErrorMsg}</p>}
             </div>
           </div>
 

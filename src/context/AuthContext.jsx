@@ -9,7 +9,7 @@ export const useAuth = () => {
   if (!context) {
     // Return a dummy object if outside provider to prevent crashes during initial build/render
     // but normally we want this to error. Since we are troubleshooting "not found" error:
-    return {};
+    return { user: null, login: () => { }, logout: () => { } };
   }
   return context;
 };
@@ -23,20 +23,23 @@ export const AuthProvider = ({ children }) => {
       try {
         const decoded = jwtDecode(token);
         setUser({ ...decoded });
+        // Fetch full profile to get profile_picture and other details not in token
+        getProfile();
       } catch (err) {
-        try {
-          const decoded = JSON.parse(atob(token));
-          if (decoded.exp && decoded.exp < Date.now()) {
-            localStorage.removeItem('token');
-          } else {
-            setUser({ ...decoded });
-          }
-        } catch (mockErr) {
-          localStorage.removeItem('token');
-        }
+        localStorage.removeItem('token');
       }
     }
   }, []);
+
+  const getProfile = async () => {
+    try {
+      const res = await api.get('/user/profile/');
+      setUser(prev => ({ ...prev, ...res.data }));
+      return res.data;
+    } catch (err) {
+      console.error("Failed to fetch profile", err);
+    }
+  };
 
   const login = async (credentials) => {
     const { email, password } = credentials;
@@ -48,6 +51,8 @@ export const AuthProvider = ({ children }) => {
       if (refresh) localStorage.setItem('refresh', refresh);
       const decoded = jwtDecode(token);
       setUser(decoded);
+      // Immediately get full profile
+      getProfile();
       return decoded;
     } catch (error) {
       if (error.code === 'ERR_NETWORK') {
@@ -59,11 +64,12 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, getProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint, SavedPlace, SystemConfig, Broadcast, MaintenanceLog
+    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint, SavedPlace, SystemConfig, Broadcast, MaintenanceLog, LGURevenue
 )
 
 
@@ -28,6 +28,8 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    profile_picture_url = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
@@ -37,10 +39,21 @@ class UserSerializer(serializers.ModelSerializer):
             'sidecar_type', 'vehicle_plate', 'last_lat', 'last_lng',
             'license_number', 'license_image', 'permit_number', 'permit_image',
             'verification_notes', 'date_joined', 'address', 'date_of_birth', 'profile_picture',
+            'profile_picture_url',
             'gender', 'body_number', 'license_expiry_date', 'nbi_clearance_image', 
             'barangay_residency_image', 'government_id_image',
-            'auto_accept_rides', 'receive_notifications', 'search_radius_km'
+            'auto_accept_rides', 'receive_notifications', 'search_radius_km',
+            'is_online'
         )
+
+    def get_profile_picture_url(self, obj):
+        """Return a fully absolute URL for the profile picture."""
+        request = self.context.get('request')
+        if obj.profile_picture:
+            if request:
+                return request.build_absolute_uri(obj.profile_picture.url)
+            return obj.profile_picture.url
+        return None
 
 
 class DriverVerificationSerializer(serializers.ModelSerializer):
@@ -78,11 +91,19 @@ class RegisterSerializer(serializers.ModelSerializer):
 class RideSerializer(serializers.ModelSerializer):
     passenger = UserSerializer(read_only=True)
     driver = UserSerializer(read_only=True)
+    targeted_driver = UserSerializer(read_only=True)
+    payment_method = serializers.SerializerMethodField()
 
     class Meta:
         model = Ride
         fields = '__all__'
-        read_only_fields = ('status', 'requested_at', 'accepted_at', 'started_at', 'completed_at')
+        read_only_fields = ('status', 'requested_at', 'accepted_at', 'started_at', 'completed_at', 'share_token')
+
+    def get_payment_method(self, obj):
+        try:
+            return obj.payment.method
+        except:
+            return "cash"
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -138,6 +159,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['username'] = user.username
         token['email'] = user.email
         token['is_verified_driver'] = user.is_verified_driver
+        if user.profile_picture:
+            token['profile_picture'] = user.profile_picture.url
+        else:
+            token['profile_picture'] = None
         return token
 
 class MaintenanceLogSerializer(serializers.ModelSerializer):
@@ -145,3 +170,13 @@ class MaintenanceLogSerializer(serializers.ModelSerializer):
         model = MaintenanceLog
         fields = '__all__'
         read_only_fields = ('user', 'created_at')
+
+
+class LGURevenueSerializer(serializers.ModelSerializer):
+    ride_details = RideSerializer(source='ride', read_only=True)
+    
+    class Meta:
+        model = LGURevenue
+        fields = '__all__'
+        read_only_fields = ('collected_at',)
+

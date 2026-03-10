@@ -1,10 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 // role param can be a string or array of strings
 const ProtectedRoute = ({ children, role }) => {
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Short timeout to allow auth context to initialize
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <div style={{ padding: 12 }}>Loading...</div>;
+  }
+
   if (!user) return <Navigate to="/login" replace />;
 
   if (role) {

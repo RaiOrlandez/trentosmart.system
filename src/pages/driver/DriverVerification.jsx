@@ -41,6 +41,7 @@ const DriverVerification = () => {
     const handleUpload = async (e) => {
         e.preventDefault();
         setStatus('uploading');
+        setMsg('');
 
         const formData = new FormData();
         formData.append('license_number', licenseNum);
@@ -48,15 +49,68 @@ const DriverVerification = () => {
         if (licenseImg) formData.append('license_image', licenseImg);
         if (permitImg) formData.append('permit_image', permitImg);
 
+        console.log('Submitting verification data:', {
+            license_number: licenseNum,
+            permit_number: permitNum,
+            has_license_image: !!licenseImg,
+            has_permit_image: !!permitImg
+        });
+        console.log('API Base URL:', api.defaults.baseURL);
+
         try {
-            await api.post('/driver/verify/', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const response = await api.post('/driver/verify/', formData);
+            console.log('Verification SUCCESS:', response.data);
             setStatus('success');
-            setMsg('Your documents have been submitted for review. Note: Your verified status may be temporarily hidden during re-verification.');
+            setMsg(response.data.detail || 'Your documents have been submitted for review.');
         } catch (err) {
+            console.error('=== VERIFICATION ERROR ===');
+            console.error('Full error object:', err);
+            console.error('Error message:', err.message);
+            console.error('Error response:', err.response);
+            console.error('Error config:', err.config);
+            console.error('Request URL:', err.config?.url);
+            console.error('Base URL:', err.config?.baseURL);
             setStatus('error');
-            setMsg(err.response?.data?.detail || 'Failed to submit documents. Please try again.');
+
+            // Detailed error diagnosis
+            let errorMsg = 'Failed to submit documents. ';
+
+            if (!err.response) {
+                // Network error - request never reached server
+                console.error('NO RESPONSE - Network error or CORS issue');
+                if (err.message.includes('Network Error')) {
+                    errorMsg += 'Cannot connect to server. Please ensure the backend is running on http://127.0.0.1:8000. Check browser console for CORS errors.';
+                } else if (err.code === 'ECONNABORTED') {
+                    errorMsg += 'Request timeout. Server took too long to respond.';
+                } else {
+                    errorMsg += `Network error: ${err.message}. Backend may not be running.`;
+                }
+            } else if (err.response.status === 404) {
+                errorMsg += `Endpoint not found (404). URL: ${err.config?.url}. Check if /api/driver/verify/ exists.`;
+            } else if (err.response.status === 403) {
+                errorMsg += 'Permission denied (403). You must be logged in as a driver.';
+            } else if (err.response.status === 401) {
+                errorMsg += 'Authentication failed (401). Please log in again.';
+            } else if (err.response.status === 400) {
+                // Validation errors
+                if (err.response.data?.errors) {
+                    const errors = err.response.data.errors;
+                    const errorDetails = Object.entries(errors)
+                        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                        .join('; ');
+                    errorMsg += errorDetails;
+                } else if (err.response.data?.detail) {
+                    errorMsg += err.response.data.detail;
+                } else {
+                    errorMsg += 'Validation failed. Please check all required fields.';
+                }
+            } else if (err.response.status >= 500) {
+                errorMsg += `Server error (${err.response.status}). Backend crashed or misconfigured.`;
+            } else {
+                errorMsg += `HTTP ${err.response.status}: ${err.response.data?.detail || 'Unknown error'}`;
+            }
+
+            setMsg(errorMsg);
         }
     };
 
@@ -111,9 +165,15 @@ const DriverVerification = () => {
                 ) : (
                     <form onSubmit={handleUpload} className="space-y-6 relative z-10">
                         {status === 'error' && (
-                            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold">
-                                <AlertCircle size={18} />
-                                <span>{msg}</span>
+                            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm font-bold">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="font-black mb-1">ERROR:</p>
+                                        <p className="text-xs leading-relaxed">{msg}</p>
+                                        <p className="text-xs mt-2 opacity-75">Check browser console (F12) for detailed logs.</p>
+                                    </div>
+                                </div>
                             </div>
                         )}
 

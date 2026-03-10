@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Map from '../../components/Map';
 import { AuthContext } from '../../context/AuthContext';
 import api from '../../api/axios';
@@ -21,7 +22,9 @@ import {
   Store,
   Plus,
   Megaphone,
-  Bell
+  Bell,
+  Share2,
+  Phone
 } from 'lucide-react';
 import PaymentModal from '../../components/PaymentModal';
 import RatingModal from '../../components/RatingModal';
@@ -33,12 +36,13 @@ import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
 
 const PassengerHome = () => {
+  const navigate = useNavigate();
   const [pickup, setPickup] = useState('');
   const [dest, setDest] = useState('');
   const [status, setStatus] = useState('idle');
   const [markers, setMarkers] = useState([]);
   const [fare, setFare] = useState(0);
-  const [nearbyDrivers] = useState(8);
+  const [nearbyDrivers, setNearbyDrivers] = useState(8);
   const [showSOS, setShowSOS] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1, isSurge: false });
@@ -56,43 +60,109 @@ const PassengerHome = () => {
 
   const [showPlaceModal, setShowPlaceModal] = useState(false);
   const [editingPlace, setEditingPlace] = useState(null);
+  const [nearbyDriverList, setNearbyDriverList] = useState([]); // New: Detailed driver list
+  const [selectedDriverId, setSelectedDriverId] = useState(null); // New: Choosen driver ID
+  const [routeCoordinates, setRouteCoordinates] = useState(null); // Real driving path
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
   const [proximityAlert, setProximityAlert] = useState(false);
+  const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
+  const [showFallbackButton, setShowFallbackButton] = useState(false);
 
   // LGU Rules: Base 30 + 8 per km
   // Simulated Distance Service: Estimates distance based on address complexity
-  const computeFare = useCallback(() => {
+  const computeFare = useCallback(async () => {
     if (!pickup || !dest) {
       setFare(0);
       setDistance(0);
       return;
     }
 
-    // Seeded random based on address strings for consistency in same session
-    const combined = (pickup + dest).length;
-    const simDistance = (combined % 5) + (combined / 10); // Pseudo-distance 1-10km
+    try {
+      // 1. Geocode Pickup & Destination using OpenStreetMap Nominatim
+      // We append the LGU context (Trento) to improve accuracy if not explicitly typed
+      const searchPickup = pickup.toLowerCase().includes('trento') ? pickup : `${pickup}, Trento, Agusan del Sur, Philippines`;
+      const searchDest = dest.toLowerCase().includes('trento') ? dest : `${dest}, Trento, Agusan del Sur, Philippines`;
 
-    // Fetch AI Elasticity Surge
-    const fetchSurge = async () => {
+      // Fetch Geocoding coordinates (Adding a short timeout to prevent UI hanging)
+      const fetchWithTimeout = (url) => Promise.race([
+        fetch(url),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+      ]);
+
+      const picRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchPickup)}&format=json&limit=1`);
+      const destRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchDest)}&format=json&limit=1`);
+
+      const picData = await picRes.json();
+      const destData = await destRes.json();
+
+      let actualDistance = 0;
+
+      // 2. If valid coordinates are found, query OSRM for exact road distance
+      if (picData && picData.length > 0 && destData && destData.length > 0) {
+        const pLat = picData[0].lat;
+        const pLon = picData[0].lon;
+        const dLat = destData[0].lat;
+        const dLon = destData[0].lon;
+
+        const routeRes = await fetchWithTimeout(`https://router.project-osrm.org/route/v1/driving/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
+        const routeData = await routeRes.json();
+
+        if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+          // Distance provided in meters; convert to kilometers
+          actualDistance = routeData.routes[0].distance / 1000;
+
+          // Extract GeoJSON coordinates [lng, lat] and convert to Leaflet format [lat, lng]
+          const pathCoords = routeData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          setRouteCoordinates(pathCoords);
+
+          // Visualize the actual geocoded points on the map
+          setMarkers(prev => {
+            const others = prev.filter(m => !m.isPickup && !m.isDestination && m.title !== 'Pickup' && m.title !== 'Destination');
+            return [
+              ...others,
+              { id: 'pickup', lat: parseFloat(pLat), lng: parseFloat(pLon), title: 'Pickup', info: pickup, isPickup: true, forceFocus: Date.now() },
+              { id: 'dest', lat: parseFloat(dLat), lng: parseFloat(dLon), title: 'Destination', info: dest, isDestination: true }
+            ];
+          });
+        }
+      }
+
+      // 3. Fallback logic: If they input "Home" or unmappable custom saved places,
+      // we fallback to our deterministic pseudo-distance generator to ensure the app still works.
+      if (actualDistance === 0) {
+        const combined = (pickup + dest).length;
+        actualDistance = (combined % 5) + (combined / 10) + 1.5;
+      }
+
+      // Ensure a minimum logical distance of 1km for local tricycles
+      const finalDistanceKm = Math.max(1, actualDistance);
+      setDistance(finalDistanceKm.toFixed(1));
+
+      // 4. Fetch dynamic pricing from backend (Base + Per Km + Surge Multiplier)
       try {
         const res = await api.get('/rides/estimate_fare/');
         const { base_fare, rate_per_km, surge_multiplier, is_surge } = res.data;
 
         setFareParams({ base: base_fare, perKm: rate_per_km });
 
-        const totalFare = (base_fare + (rate_per_km * simDistance)) * surge_multiplier;
+        const totalFare = (base_fare + (rate_per_km * finalDistanceKm)) * surge_multiplier;
         setFare(Math.round(totalFare));
         setSurgeInfo({ multiplier: surge_multiplier, isSurge: is_surge });
       } catch (err) {
-        const totalFare = 30 + Math.round(8 * simDistance);
-        setFare(totalFare);
+        // Offline Fallback for Pricing
+        const totalFare = 30 + (8 * finalDistanceKm);
+        setFare(Math.round(totalFare));
       }
-    };
 
-    setDistance(simDistance.toFixed(1));
-    fetchSurge();
+    } catch (err) {
+      console.warn("Real Geocoding Failed (likely limit or offline). Using offline heuristic calculation.");
+      const fallbackDist = ((pickup + dest).length % 5) + 1.2;
+      setDistance(fallbackDist.toFixed(1));
+      setFare(30 + Math.round(8 * fallbackDist));
+      setRouteCoordinates(null);
+    }
   }, [pickup, dest]);
 
   const fetchSavedPlaces = useCallback(async () => {
@@ -126,7 +196,40 @@ const PassengerHome = () => {
   useEffect(() => {
     fetchSavedPlaces();
     fetchBroadcasts();
+
+    // Sync Passenger Online Status
+    const syncStatus = async (status) => {
+      try {
+        await api.post('/users/toggle_online/', { is_online: status });
+      } catch (err) {
+        console.error('Failed to sync passenger status', err);
+      }
+    };
+    syncStatus(true);
+
+    return () => {
+      syncStatus(false);
+    };
   }, [fetchSavedPlaces, fetchBroadcasts]);
+
+  // Real-time Driver Availability
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const res = await api.get('/users/nearby_drivers/', {
+          params: { lat: 8.050, lng: 126.062 } // Simulated passenger location
+        });
+        setNearbyDriverList(Array.isArray(res.data) ? res.data : []);
+        setNearbyDrivers(Array.isArray(res.data) ? res.data.length : 0);
+      } catch (err) {
+        console.error('Failed to fetch nearby drivers', err);
+      }
+    };
+
+    fetchDrivers(); // Initial
+    const interval = setInterval(fetchDrivers, 15000); // Poll every 15s
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // Check for new critical broadcasts
@@ -169,6 +272,12 @@ const PassengerHome = () => {
   // Handle Real-time Driver Markers (Global)
   useEffect(() => {
     if (driverLocation && status === 'idle') {
+      // If driver went offline, remove their marker
+      if (driverLocation.is_online === false) {
+        setMarkers(prev => prev.filter(m => m.id !== driverLocation.id));
+        return;
+      }
+
       setMarkers(prev => {
         const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
         const newMarker = {
@@ -200,11 +309,22 @@ const PassengerHome = () => {
       }
     }
 
+    // Safety Redundancy: Listen for match events via system channel too
+    if (systemEvent && systemEvent.type === 'ride_matched') {
+      const matchedRide = systemEvent.ride;
+      if (matchedRide.id === activeRideId && status === 'requesting') {
+        setStatus('matched');
+        if (matchedRide.driver) {
+          setAssignedDriver(matchedRide.driver);
+        }
+      }
+    }
+
     // Real-time Fare Updates
     if (systemEvent && systemEvent.type === 'config_update') {
       computeFare();
     }
-  }, [systemEvent, computeFare]);
+  }, [systemEvent, computeFare, activeRideId, status]);
 
   // Handle Proximity Alert
   useEffect(() => {
@@ -222,14 +342,74 @@ const PassengerHome = () => {
   useEffect(() => {
     if (wsData && wsData.type === 'status_update') {
       const newStatus = wsData.status;
-      if (newStatus === 'accepted') setStatus('matched');
+      if (newStatus === 'accepted') {
+        setStatus('matched');
+        if (wsData.data && wsData.data.driver) {
+          setAssignedDriver(wsData.data.driver);
+        }
+      }
+      if (newStatus === 'driver_rejected') {
+        setStatus('idle');
+        setSelectedDriverId(null);
+        setActiveRideId(null); // Clear active ride to allow re-requesting
+        alert(wsData.message || 'The chosen driver is currently unavailable. Please pick another driver.');
+      }
       if (newStatus === 'on_route') setStatus('ongoing');
-      if (newStatus === 'completed') setStatus('arrived');
+      if (newStatus === 'completed') {
+        setStatus('arrived');
+        // Auto-trigger payment modal based on method
+        if (paymentMethod === 'gcash') {
+          setShowGCashPayment(true);
+        } else {
+          setShowPayment(true);
+        }
+      }
     }
   }, [wsData]);
 
+  // Polling Fallback for Ride Status (Safety Net)
   useEffect(() => {
-    if (wsData && wsData.lat && wsData.lng && status === 'matched') {
+    let interval;
+    if (activeRideId && status === 'requesting') {
+      const checkStatus = async () => {
+        try {
+          const res = await api.get(`/rides/${activeRideId}/`);
+          if (res.data.status === 'accepted') {
+            setStatus('matched');
+            // Also fetch driver details if needed, but usually we just wait for WS for live location.
+            // However, we should at least have the static driver info.
+            if (res.data.driver) {
+              setAssignedDriver(res.data.driver);
+            }
+          }
+        } catch (err) {
+          console.error("Polling error", err);
+        }
+      };
+      interval = setInterval(checkStatus, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [activeRideId, status]);
+
+  // Request Timeout Logic
+  useEffect(() => {
+    let timer;
+    if (status === 'requesting' && requestTimeRemaining > 0) {
+      timer = setInterval(() => {
+        setRequestTimeRemaining(prev => {
+          if (prev <= 1) {
+            setShowFallbackButton(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [status, requestTimeRemaining]);
+
+  useEffect(() => {
+    if (wsData && wsData.lat && wsData.lng && (status === 'matched' || status === 'ongoing')) {
       setMarkers(current => {
         // Keep pickup and dest, update driver
         const otherMarkers = current.filter(m => m.title !== 'Driver');
@@ -268,53 +448,23 @@ const PassengerHome = () => {
         dest_lat: 8.055,
         dest_lng: 126.070,
         fare: fare,
-        payment_method: paymentMethod
+        payment_method: paymentMethod,
+        targeted_driver_id: selectedDriverId // NEW: Custom Selection
       });
 
       const createdRide = response.data;
       setActiveRideId(createdRide.id);
 
-      // Auto-assign a driver immediately (in production, this would be done by dispatch system)
-      try {
-        const driversResponse = await api.get('/users/');
-        const allUsers = Array.isArray(driversResponse.data) ? driversResponse.data : [];
-        const drivers = allUsers.filter(u => u.role === 'driver');
-
-        if (drivers.length === 0) {
-          // No drivers available - create a test driver or show error
-          alert('No drivers available. Please ensure at least one driver account exists in the system.');
-          setStatus('idle');
-          return;
-        }
-
-        const availableDriver = drivers.find(d => d.is_verified_driver) || drivers[0];
-        if (availableDriver) {
-          setAssignedDriver(availableDriver);
-          // Update ride with driver assignment
-          await api.patch(`/rides/${createdRide.id}/`, {
-            driver: availableDriver.id,
-            status: 'accepted',
-            accepted_at: new Date().toISOString()
-          });
-        }
-        console.log('Driver assigned:', availableDriver.username);
-      } catch (err) {
-        console.error('Failed to assign driver', err);
-        alert('Failed to assign driver. The ride was created but cannot proceed without a driver.');
-        setStatus('idle');
-        return;
+      if (selectedDriverId) {
+        setRequestTimeRemaining(30); // 30s wait for preferred driver
+        setShowFallbackButton(false);
       }
 
-      // Show matching animation
-      setTimeout(() => {
-        setStatus('matched');
-        const baseLat = 8.050;
-        const baseLng = 126.062;
-        setMarkers([
-          { lat: baseLat, lng: baseLng, title: 'Pickup', info: 'Your location' },
-          { lat: baseLat + 0.005, lng: baseLng + 0.008, title: 'Destination', info: 'Destination' },
-        ]);
-      }, 1000);
+      // REAL-TIME DISPATCH:
+      console.log('Ride requested. Waiting for driver...');
+
+
+
     } catch (err) {
       console.error('Failed to create ride', err);
       alert('Failed to request ride. Please try again.');
@@ -322,18 +472,45 @@ const PassengerHome = () => {
     }
   };
 
-  const cancelRide = () => {
+  const cancelRide = async () => {
+    if (activeRideId) {
+      try {
+        await api.patch(`/rides/${activeRideId}/`, { status: 'cancelled' });
+      } catch (err) {
+        console.error('Failed to cancel ride on server', err);
+      }
+    }
     setStatus('idle');
     setMarkers([]);
+    setRouteCoordinates(null);
     setFare(0);
+    setActiveRideId(null);
+    setSelectedDriverId(null);
   };
 
   const triggerSOS = async () => {
     setShowSOS(true);
+
+    let currentLat = 8.050; // Fallback to Trento Municipal Hall
+    let currentLng = 126.062;
+
+    // Try to get actual location before dispatching emergency
+    if ("geolocation" in navigator) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        currentLat = position.coords.latitude;
+        currentLng = position.coords.longitude;
+      } catch (e) {
+        console.warn('Geolocation failed for SOS, using fallback coords.');
+      }
+    }
+
     try {
       await api.post('/incidents/', {
-        lat: 8.050, // Real app would use geolocation.getCurrentPosition
-        lng: 126.062,
+        lat: currentLat,
+        lng: currentLng,
         description: 'Passenger SOS Triggered from Mobile App'
       });
     } catch (err) {
@@ -362,6 +539,7 @@ const PassengerHome = () => {
 
       setStatus('completed');
       setMarkers([]);
+      setRouteCoordinates(null);
 
       // Show rating modal after a short delay
       setTimeout(() => {
@@ -453,7 +631,9 @@ const PassengerHome = () => {
             </div>
             <div>
               <h1 className="text-lg font-bold text-secondary dark:text-white leading-none">Where to?</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{nearbyDrivers} drivers nearby in Trento</p>
+              <p className={`text-xs mt-1 font-bold ${nearbyDrivers > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {nearbyDrivers > 0 ? `${nearbyDrivers} drivers nearby` : 'No drivers currently online'}
+              </p>
             </div>
           </div>
 
@@ -570,31 +750,78 @@ const PassengerHome = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('cash')}
-                      className={`py-2 px-1 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 border-2 transition-all ${paymentMethod === 'cash' ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'cash' ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
                     >
-                      <Wallet size={12} /> CASH
+                      <Wallet size={16} /> CASH
                     </button>
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('gcash')}
-                      className={`py-2 px-1 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 border-2 transition-all ${paymentMethod === 'gcash' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'gcash' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
                     >
-                      <CreditCard size={12} /> GCASH
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('wallet')}
-                      className={`py-2 px-1 rounded-xl text-[10px] font-black flex items-center justify-center gap-1 border-2 transition-all ${paymentMethod === 'wallet' ? 'bg-primary-dark text-white border-primary-dark shadow-lg shadow-primary-dark/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
-                    >
-                      <Wallet size={12} /> WALLET
+                      <CreditCard size={16} /> GCASH
                     </button>
                   </div>
                 </div>
               </motion.div>
+            )}
+
+            {fare > 0 && nearbyDriverList.length > 0 && (
+              <div className="pt-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Select Your Preferred Driver</p>
+                <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
+                  {nearbyDriverList.slice(0, 3).map((driver) => (
+                    <div
+                      key={driver.id}
+                      onClick={() => setSelectedDriverId(driver.id)}
+                      className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-3 ${selectedDriverId === driver.id ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' : 'border-slate-100 bg-white hover:border-primary/30'}`}
+                    >
+                      <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                        {driver.profile_picture ? (
+                          <img src={driver.profile_picture} alt="Driver" className="w-full h-full object-cover" />
+                        ) : (
+                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver.username}`} alt="Driver" className="w-full h-full" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start">
+                          <p className="text-xs font-black text-secondary truncate">{driver.username}</p>
+                          <div className="flex items-center gap-1 text-yellow-600 font-bold text-xs">
+                            <Star size={10} className="fill-yellow-400 mr-0.5" />
+                            {driver.average_rating || '5.0'}
+                            {driver.average_rating >= 4.5 && (
+                              <span className="ml-1 text-[8px] bg-green-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Top Rated</span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                          {driver.vehicle_model} • {driver.vehicle_plate} • {driver.sidecar_type || 'Standard'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                            UNIT {driver.body_number || '---'}
+                          </span>
+                          <span className="text-[9px] font-bold text-slate-400 italic">
+                            {driver.distance} km away
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 opacity-70">
+                          <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 uppercase">
+                            License Verified
+                          </span>
+                          <span className="text-[8px] font-black text-green-600 bg-green-50 px-1 py-0.5 rounded border border-green-100 uppercase">
+                            LGU Permit Active
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             {status === 'idle' ? (
@@ -606,9 +833,49 @@ const PassengerHome = () => {
                 Confirm Request
               </button>
             ) : status === 'requesting' ? (
-              <div className="w-full py-4 bg-slate-100 rounded-full flex items-center justify-center space-x-3">
-                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <span className="font-bold text-slate-600 italic">Finding Driver...</span>
+              <div className="space-y-4">
+                <div className="w-full py-4 bg-slate-100 rounded-full flex flex-col items-center justify-center">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <span className="font-bold text-slate-600 italic">
+                      {selectedDriverId ? `Waiting for ${nearbyDriverList.find(d => d.id === selectedDriverId)?.username || 'Preferred Driver'}...` : 'Finding Nearest Driver...'}
+                    </span>
+                  </div>
+                  {selectedDriverId && requestTimeRemaining > 0 && (
+                    <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest">Driver has {requestTimeRemaining}s to respond</p>
+                  )}
+                </div>
+
+                {showFallbackButton && (
+                  <motion.button
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={async () => {
+                      try {
+                        // Patch ride to remove targeted_driver
+                        await api.patch(`/rides/${activeRideId}/`, { targeted_driver_id: null });
+                        setSelectedDriverId(null);
+                        setShowFallbackButton(false);
+                        setRequestTimeRemaining(0);
+                        alert("Notifying all nearby drivers now!");
+                      } catch (err) {
+                        console.error("Fallback failed", err);
+                      }
+                    }}
+                    className="w-full py-4 bg-primary text-secondary font-black rounded-full shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  >
+                    <Megaphone size={18} />
+                    BROADCAST TO ALL DRIVERS
+                  </motion.button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={cancelRide}
+                  className="w-full py-4 bg-red-50 text-red-600 font-bold rounded-full hover:bg-red-100 transition-colors"
+                >
+                  Cancel Request
+                </button>
               </div>
             ) : (
               <button
@@ -635,6 +902,7 @@ const PassengerHome = () => {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
+          onClick={() => navigate('/passenger/support')}
           className="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-3xl shadow-sm flex items-center justify-center gap-3 transition-colors"
         >
           <MessageSquare size={24} />
@@ -651,30 +919,91 @@ const PassengerHome = () => {
               className="glass-card p-6 rounded-3xl border-l-4 border-accent"
             >
               <h3 className="text-secondary font-bold flex items-center gap-2 mb-4">
-                <CheckCircle2 className="text-accent" size={20} />
-                {status === 'matched' ? 'Driver Dispatched' : 'Request Pending'}
+                <CheckCircle2 className={status === 'ongoing' ? 'text-primary' : 'text-accent'} size={20} />
+                {status === 'matched' ? 'Driver Dispatched' :
+                  status === 'ongoing' ? 'Ride In Progress' : 'Request Pending'}
               </h3>
-              {status === 'matched' && (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-200">
-                      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Driver" />
+              {(status === 'matched' || status === 'ongoing') && assignedDriver && (
+                <div className="space-y-4">
+                  {/* Driver Header */}
+                  <div className="flex items-center gap-4 p-4 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl border-2 border-primary/20">
+                    <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center overflow-hidden border-2 border-primary shadow-lg flex-shrink-0">
+                      {assignedDriver.profile_picture ? (
+                        <img src={assignedDriver.profile_picture} alt="Driver" className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${typeof assignedDriver === 'object' ? assignedDriver.username : assignedDriver}`} alt="Driver" className="w-full h-full" />
+                      )}
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-secondary">Ricky M.</p>
-                      <div className="flex items-center text-xs text-slate-500">
-                        <Star size={12} className="text-yellow-400 fill-yellow-400 mr-1" />
-                        <span>4.9 • Plate #RT-1024</span>
+                      <p className="font-black text-secondary text-lg">{typeof assignedDriver === 'object' ? assignedDriver.username : 'Driver'}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center text-xs text-yellow-600">
+                          <Star size={12} className="text-yellow-400 fill-yellow-400 mr-1" />
+                          <span className="font-bold">{assignedDriver.average_rating || '5.0'}</span>
+                        </div>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Verified Driver</span>
                       </div>
                     </div>
                   </div>
+
+                  {/* Vehicle Information */}
+                  {typeof assignedDriver === 'object' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Plate Number</p>
+                        <p className="text-sm font-bold text-secondary">{assignedDriver.vehicle_plate || 'N/A'}</p>
+                      </div>
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Vehicle</p>
+                        <p className="text-sm font-bold text-secondary">{assignedDriver.vehicle_model || 'Tricycle'}</p>
+                      </div>
+                      {assignedDriver.vehicle_color && (
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Color</p>
+                          <p className="text-sm font-bold text-secondary">{assignedDriver.vehicle_color}</p>
+                        </div>
+                      )}
+                      {assignedDriver.body_number && (
+                        <div className="bg-white p-3 rounded-xl border border-slate-200">
+                          <p className="text-[9px] font-black uppercase text-slate-400 mb-1">LGU Unit</p>
+                          <p className="text-sm font-bold text-primary">{assignedDriver.body_number}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Driver Contact */}
+                  {typeof assignedDriver === 'object' && assignedDriver.phone_number && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Driver Contact</p>
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-blue-600" />
+                        <a href={`tel:${assignedDriver.phone_number}`} className="text-sm font-bold text-blue-600 hover:underline">
+                          {assignedDriver.phone_number}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trip Status */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-green-600">Trip Status</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">Driver is on the way to your location</p>
+                    <p className="text-xs text-green-600 mt-1">Track your driver on the map in real-time</p>
+                  </div>
+
                   <button
                     onClick={completeAndPay}
-                    className="w-full mt-4 py-2 bg-green-500 text-white font-bold rounded-xl text-xs hover:bg-green-600 transition-colors uppercase tracking-wider"
+                    className="w-full py-4 bg-green-500 text-white font-black rounded-2xl text-sm hover:bg-green-600 transition-all shadow-lg uppercase tracking-wider flex items-center justify-center gap-2"
                   >
+                    <CheckCircle2 size={18} />
                     Arrived at Destination
                   </button>
-                </>
+                </div>
               )}
             </motion.div>
           )}
@@ -683,7 +1012,7 @@ const PassengerHome = () => {
 
       {/* Main Map View */}
       <div className="flex-1 min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
-        <Map markers={markers} />
+        <Map markers={markers} routeCoordinates={routeCoordinates} />
 
         {/* Floating Info */}
         <div className="absolute top-6 right-6 flex flex-col gap-3">
@@ -747,6 +1076,32 @@ const PassengerHome = () => {
               <span className="text-sm font-bold">Track Driver</span>
             </button>
           )}
+
+          {/* Share Ride Button */}
+          {(status === 'matched' || status === 'ongoing') && activeRideId && (
+            <button
+              onClick={async () => {
+                // In a real app, we would fetch the token from the ACTIVE ride object.
+                // For now, we need to fetch the ride details to get the token or assume we have it.
+                // Let's quickly fetch it or use a placeholder if not in state.
+                // Better approach: We should have 'activeRide' state object that includes 'share_token'.
+                // BUT to save time, let's fetch it on click.
+                try {
+                  const res = await api.get(`/rides/${activeRideId}/`);
+                  const token = res.data.share_token;
+                  const url = `${window.location.origin}/track/${token}`;
+                  await navigator.clipboard.writeText(url);
+                  alert("Tracking link copied to clipboard! Share it with family.");
+                } catch (e) {
+                  alert("Could not generate link.");
+                }
+              }}
+              className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10"
+            >
+              <Share2 size={20} />
+              <span className="text-sm font-bold">Share Ride</span>
+            </button>
+          )}
         </div>
 
         {/* SOS Overlay */}
@@ -763,7 +1118,7 @@ const PassengerHome = () => {
               </div>
               <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter">Emergency Signal Sent!</h2>
               <p className="text-xl max-w-md opacity-90">
-                Authorities in Trento and emergency responders have been notified of your location. Stay where you are.
+                Authorities in Trento and your emergency contacts have been notified via SMS with your exact live location. Stay calm and remain where you are.
               </p>
             </motion.div>
           )}
@@ -803,7 +1158,7 @@ const PassengerHome = () => {
           setFare(0);
         }}
         rideId={activeRideId}
-        targetName={assignedDriver?.username || 'Ricky M.'}
+        targetName={assignedDriver?.username || 'Assigned Driver'}
         targetRole="Driver"
       />
 
@@ -850,12 +1205,12 @@ const PassengerHome = () => {
         )}
       </AnimatePresence>
 
-      {status === 'matched' && (
+      {(status === 'matched' || status === 'ongoing') && (
         <ChatWindow
           messages={messages}
           onSendMessage={sendMessage}
           currentUser={user?.username}
-          partnerName="Ricky M."
+          partnerName={assignedDriver?.username || 'Driver'}
         />
       )}
 

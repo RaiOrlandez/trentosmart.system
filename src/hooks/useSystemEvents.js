@@ -10,7 +10,8 @@ const useSystemEvents = () => {
 
     useEffect(() => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const socketUrl = `${protocol}//${window.location.hostname}:8000/ws/system/`;
+        const token = localStorage.getItem('access');
+        const socketUrl = `${protocol}//${window.location.hostname}:8000/ws/system/?token=${token}`;
 
         socketRef.current = new WebSocket(socketUrl);
 

@@ -1,11 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    RegisterView, LoginView, ProfileView, RideViewSet, driver_requests, 
-    driver_accept, DriverVerificationView, WalletViewSet,
+    RegisterView, CheckEmailView, CheckUsernameView, LoginView, ProfileView, RideViewSet, driver_requests, 
+    driver_accept, driver_reject, ride_complete, DriverVerificationView, WalletViewSet,
     ReviewViewSet, IncidentViewSet, ComplaintViewSet, UserViewSet,
     DriverAnalyticsView, SavedPlaceViewSet, SystemConfigViewSet, BroadcastViewSet,
-    WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView
+    WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride
 )
 
 router = DefaultRouter()
@@ -23,12 +23,17 @@ router.register(r'maintenance-logs', MaintenanceLogViewSet, basename='maintenanc
 
 urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
+    path('auth/check-email/', CheckEmailView.as_view(), name='check-email'),
+    path('auth/check-username/', CheckUsernameView.as_view(), name='check-username'),
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
     path('user/profile/', ProfileView.as_view(), name='profile'),
     path('', include(router.urls)),
     path('driver/requests/', driver_requests, name='driver_requests'),
     path('driver/accept/<int:ride_id>/', driver_accept, name='driver_accept'),
+    path('driver/reject/<int:ride_id>/', driver_reject, name='driver_reject'),
+    path('rides/<int:ride_id>/complete/', ride_complete, name='ride_complete'),
     path('driver/verify/', DriverVerificationView.as_view(), name='driver_verify'),
     path('driver/analytics/', DriverAnalyticsView.as_view(), name='driver_analytics'),
+    path('ride/track/<str:token>/', track_ride, name='public_track_ride'),
 ]
