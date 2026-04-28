@@ -179,7 +179,8 @@ class SystemConsumer(AsyncWebsocketConsumer):
             'username': event['username'],
             'lat': event['lat'],
             'lng': event['lng'],
-            'status': event['status']
+            'status': event['status'],
+            'is_online': event.get('is_online', True)
         }))
 
     async def new_user_signup(self, event):

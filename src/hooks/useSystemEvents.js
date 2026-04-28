@@ -25,7 +25,8 @@ const useSystemEvents = () => {
                     username: data.username,
                     lat: data.lat,
                     lng: data.lng,
-                    status: data.status
+                    status: data.status,
+                    is_online: data.is_online
                 });
             } else if (data.type === 'new_signup') {
                 setNewSignup(data.user);

@@ -48,9 +48,10 @@ const destIcon = new L.Icon({
     iconAnchor: [15, 15]
 });
 
+// Reference bounds for Trento (not enforced – map can follow real GPS anywhere)
 const TRENTO_BOUNDS = [
-    [8.020, 126.020], // Southwest
-    [8.080, 126.100]  // Northeast
+    [8.020, 126.020],
+    [8.080, 126.100]
 ];
 
 // Component to control map view
@@ -58,19 +59,32 @@ function MapController({ markers, center }) {
     const map = useMap();
     const isFirstLoad = useRef(true);
 
+    // Auto-pan following the center prop from GPS tracking
+    useEffect(() => {
+        if (center && center.lat && center.lng) {
+            // Using flyTo for a smoother animation when updating center
+            map.flyTo([center.lat, center.lng], map.getZoom(), {
+                animate: true,
+                duration: 1.5
+            });
+        }
+    }, [center.lat, center.lng, map]);
+
     useEffect(() => {
         if (markers && markers.length > 0) {
             const focusMarker = markers.find(m => m.forceFocus);
             if (focusMarker) {
                 map.panTo([focusMarker.lat, focusMarker.lng]);
                 // map.setZoom(16);
-            } else if (markers.length === 1) {
+            } else if (markers.length === 1 && isFirstLoad.current) {
                 map.panTo([markers[0].lat, markers[0].lng]);
             } else if (isFirstLoad.current) {
                 const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
                 map.fitBounds(bounds, { padding: [50, 50] });
-                isFirstLoad.current = false;
             }
+        }
+        if (markers && markers.length > 0) {
+            isFirstLoad.current = false;
         }
     }, [markers, map]);
 
@@ -198,15 +212,13 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
     const driver = markers.find(m => m.isDriver);
 
     return (
-        <div className="w-full h-full min-h-[400px] rounded-[2.5rem] overflow-hidden border-4 border-white/50 dark:border-slate-800 shadow-2xl relative">
+        <div className="absolute inset-0 w-full h-full rounded-[2.5rem] overflow-hidden border-4 border-white/50 dark:border-slate-800 shadow-2xl z-0">
             <MapContainer
                 center={[center.lat, center.lng]}
                 zoom={zoom}
-                minZoom={12}
-                maxZoom={18}
-                maxBounds={TRENTO_BOUNDS}
-                maxBoundsViscosity={1.0}
-                style={{ height: '100%', width: '100%' }}
+                minZoom={10}
+                maxZoom={19}
+                style={{ height: '100%', width: '100%', touchAction: 'none' }}
                 className="z-0"
             >
                 <TileLayer
@@ -296,7 +308,7 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                     />
                 )}
 
-                <MapController markers={markers} />
+                <MapController markers={markers} center={center} />
             </MapContainer>
 
             {/* Live Legend Watermark */}

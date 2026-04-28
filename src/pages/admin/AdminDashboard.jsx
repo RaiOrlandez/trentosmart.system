@@ -23,7 +23,8 @@ import {
   Sparkles,
   MapPin,
   ClipboardList,
-  Star
+  Star,
+  Download
 } from 'lucide-react';
 import {
   XAxis,
@@ -69,6 +70,22 @@ const AdminDashboard = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [demandPoints, setDemandPoints] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(null);
+
+  const handleExportCSV = async () => {
+    try {
+      const response = await api.get('/reports/export/', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'LGU_Revenue_Report.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export report.");
+    }
+  };
 
   const fetchStats = useCallback(async () => {
     try {
@@ -241,26 +258,42 @@ const AdminDashboard = () => {
 
   // Handle Real-time Driver Updates
   useEffect(() => {
-    if (driverLocation && activeTab === 'live') {
-      setLiveMarkers(prev => {
-        const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
-        const newMarker = {
-          id: driverLocation.id,
-          lat: parseFloat(driverLocation.lat),
-          lng: parseFloat(driverLocation.lng),
-          title: driverLocation.username,
-          info: `Driver: ${driverLocation.username}\nStatus: ${driverLocation.is_online ? 'Available ✅' : 'Offline 🌑'}`,
-          isDriver: true,
-          isOnline: driverLocation.is_online
-        };
+    if (driverLocation) {
+      // Update Live Map Markers if on live tab
+      if (activeTab === 'live') {
+        setLiveMarkers(prev => {
+          const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
+          const newMarker = {
+            id: driverLocation.id,
+            lat: parseFloat(driverLocation.lat),
+            lng: parseFloat(driverLocation.lng),
+            title: driverLocation.username,
+            info: `Driver: ${driverLocation.username}\nStatus: ${driverLocation.is_online ? 'Available ✅' : 'Offline 🌑'}`,
+            isDriver: true,
+            isOnline: driverLocation.is_online
+          };
 
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = newMarker;
-          return updated;
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated[existingIdx] = newMarker;
+            return updated;
+          }
+          return [...prev, newMarker];
+        });
+      }
+
+      // Real-time update for Drivers Table Status
+      setUsers(prev => prev.map(u => {
+        if (u.id === driverLocation.id) {
+          return {
+            ...u,
+            is_online: driverLocation.is_online,
+            last_lat: driverLocation.lat,
+            last_lng: driverLocation.lng
+          };
         }
-        return [...prev, newMarker];
-      });
+        return u;
+      }));
     }
   }, [driverLocation, activeTab]);
 
@@ -273,7 +306,7 @@ const AdminDashboard = () => {
       console.log('Approval response:', response.data);
 
       // Update local state
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true } : u));
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true, verification_status: 'approved' } : u));
       alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
 
       // Refresh data to ensure sync
@@ -299,6 +332,23 @@ const AdminDashboard = () => {
 
       alert(errorMsg);
     }
+  };
+
+  const rejectDriver = async (userId) => {
+    try {
+      await api.post(`/users/${userId}/reject_driver/`);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
+      alert('Driver rejected.');
+    } catch (err) { alert('Action failed'); }
+  };
+
+  const suspendDriver = async (userId) => {
+    try {
+      if (!window.confirm("Suspend this driver? They will not be able to accept rides.")) return;
+      await api.post(`/users/${userId}/suspend_driver/`);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
+      alert('Driver suspended.');
+    } catch (err) { alert('Action failed'); }
   };
 
   const deleteUser = async (id) => {
@@ -341,6 +391,10 @@ const AdminDashboard = () => {
             <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tight">Authority Console</h1>
             <p className="text-slate-500 dark:text-slate-400">Monitoring & Control Center</p>
           </div>
+
+          <button onClick={handleExportCSV} className="bg-primary/20 text-primary-dark dark:text-primary px-4 py-2 border border-primary/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all flex items-center gap-2 shadow-sm">
+            <Download size={16} /> Export CSV Report
+          </button>
 
           <div className="relative">
             <button
@@ -588,13 +642,24 @@ const AdminDashboard = () => {
                         </td>
                         <td className="py-4">
                           <div className="flex flex-col gap-1.5">
-                            {driver.is_verified_driver ? (
+                            {driver.verification_status === 'approved' && (
                               <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
-                                <CheckCircle2 size={12} /> Verified
+                                <CheckCircle2 size={12} /> Approved
                               </span>
-                            ) : (
+                            )}
+                            {(!driver.verification_status || driver.verification_status === 'pending') && (
                               <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
                                 Pending
+                              </span>
+                            )}
+                            {driver.verification_status === 'rejected' && (
+                              <span className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
+                                <XCircle size={12} /> Rejected
+                              </span>
+                            )}
+                            {driver.verification_status === 'suspended' && (
+                              <span className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 w-fit">
+                                <ShieldAlert size={12} /> Suspended
                               </span>
                             )}
                             <div className="flex items-center gap-2">
@@ -605,13 +670,37 @@ const AdminDashboard = () => {
                         </td>
                         <td className="py-4 text-right pr-4">
                           <div className="flex items-center justify-end gap-2">
-                            {!driver.is_verified_driver && (
+                            {(!driver.verification_status || driver.verification_status === 'pending') && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => approveDriver(driver.id)}
+                                  className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => rejectDriver(driver.id)}
+                                  className="bg-red-100 text-red-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all shadow-md"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            )}
+                            {driver.verification_status === 'approved' && (
                               <button
-                                onClick={() => approveDriver(driver.id)}
-                                className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
+                                onClick={() => suspendDriver(driver.id)}
+                                className="bg-red-100 text-red-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all shadow-md"
                               >
-                                Approve
+                                Suspend
                               </button>
+                            )}
+                            {driver.verification_status === 'suspended' && (
+                               <button
+                                  onClick={() => approveDriver(driver.id)}
+                                  className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
+                                >
+                                  Restore
+                                </button>
                             )}
                             <button
                               onClick={() => { setSelectedUser(driver); setShowDetailModal(true); }}

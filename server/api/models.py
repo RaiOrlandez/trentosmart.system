@@ -9,8 +9,16 @@ class User(AbstractUser):
         ('driver', 'Driver'),
         ('admin', 'Admin'),
     )
+    VERIFICATION_CHOICES = (
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('suspended', 'Suspended')
+    )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='passenger')
     is_verified_driver = models.BooleanField(default=False)
+    verification_status = models.CharField(max_length=20, choices=VERIFICATION_CHOICES, default='pending')
+    fcm_device_token = models.CharField(max_length=255, blank=True, null=True)
     
     # Driver Verification fields
     license_number = models.CharField(max_length=50, blank=True)

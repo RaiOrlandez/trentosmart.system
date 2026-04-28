@@ -165,6 +165,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
             
             user.is_verified_driver = True
+            user.verification_status = 'approved'
             user.save()
             print(f"Driver {user.username} verified successfully")
 
@@ -210,6 +211,32 @@ class UserViewSet(viewsets.ModelViewSet):
                 'detail': f'Failed to approve driver: {str(e)}',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def reject_driver(self, request, pk=None):
+        try:
+            if request.user.role != 'admin': return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            user = self.get_object()
+            if user.role != 'driver': return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
+            user.is_verified_driver = False
+            user.verification_status = 'rejected'
+            user.save()
+            return Response({'status': 'rejected', 'detail': f'Driver {user.username} rejected'})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def suspend_driver(self, request, pk=None):
+        try:
+            if request.user.role != 'admin': return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            user = self.get_object()
+            if user.role != 'driver': return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
+            user.is_verified_driver = False
+            user.verification_status = 'suspended'
+            user.save()
+            return Response({'status': 'suspended', 'detail': f'Driver {user.username} suspended'})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def update_location(self, request):
@@ -603,8 +630,13 @@ def driver_requests(request):
     
     # Filter: Show rides targeted specifically at OR with no target at all
     from django.db.models import Q
+    from django.utils import timezone
+    # Strict 3-minute expiration for pending requests to ensure dashboard ONLY shows new, real-time requests.
+    recent_threshold = timezone.now() - timezone.timedelta(minutes=3)
     qs = Ride.objects.filter(
-        Q(status='requested') & (Q(targeted_driver=request.user) | Q(targeted_driver__isnull=True))
+        Q(status='requested') & 
+        (Q(targeted_driver=request.user) | Q(targeted_driver__isnull=True)) &
+        Q(requested_at__gte=recent_threshold)
     ).order_by('-requested_at')[:20]
     
     ser = RideSerializer(qs, many=True)
@@ -1418,3 +1450,163 @@ class MaintenanceLogViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REAL-TIME LOCATION ENDPOINTS  (Universal — works for all roles)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class LocationUpdateView(APIView):
+    """
+    POST /api/location/update/
+
+    Save the authenticated user's current GPS coordinates.
+    Works for drivers, passengers, and admins alike.
+
+    Request body:
+        { "lat": 8.2965, "lng": 126.0630 }
+
+    Response:
+        { "status": "ok", "lat": 8.2965, "lng": 126.063, "role": "driver" }
+
+    Side-effects:
+        - Persists last_lat / last_lng / last_location_update on the User model
+        - For drivers: also broadcasts location via WebSocket to the global
+          system channel (updates the admin live map and nearby passenger views)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        lat = request.data.get('lat')
+        lng = request.data.get('lng')
+
+        if lat is None or lng is None:
+            return Response(
+                {'detail': 'Both "lat" and "lng" are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            lat = float(lat)
+            lng = float(lng)
+        except (ValueError, TypeError):
+            return Response(
+                {'detail': '"lat" and "lng" must be valid numbers.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Persist to user model (same fields used by the existing driver tracker)
+        user = request.user
+        user.last_lat = lat
+        user.last_lng = lng
+        user.last_location_update = timezone.now()
+        user.save(update_fields=['last_lat', 'last_lng', 'last_location_update'])
+
+        # For drivers: push real-time update to WebSocket channel so the
+        # admin live map and passenger tracking panels refresh immediately.
+        if user.role == 'driver':
+            try:
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    'global_system',
+                    {
+                        'type': 'driver_location_update',
+                        'driver_id': user.id,
+                        'username': user.username,
+                        'lat': lat,
+                        'lng': lng,
+                        'status': 'Available' if user.is_online else 'Offline',
+                    }
+                )
+            except Exception as ws_err:
+                # Non-critical – log only
+                print(f"[location/update] WebSocket broadcast failed: {ws_err}")
+
+        return Response({
+            'status': 'ok',
+            'lat': lat,
+            'lng': lng,
+            'role': user.role,
+            'updated_at': user.last_location_update.isoformat(),
+        })
+
+
+class NearbyLocationsView(APIView):
+    """
+    GET /api/location/nearby/
+
+    Return recently-active users with known coordinates.
+
+    Query params (all optional):
+        role   – filter by role: 'driver' | 'passenger' | 'all'  (default: 'driver')
+        lat    – requester's latitude  (used to compute distance)
+        lng    – requester's longitude
+        radius – max distance in km    (default: 10)
+
+    Response:
+        [
+          {
+            "id":        1,
+            "username":  "juan",
+            "role":      "driver",
+            "lat":       8.2965,
+            "lng":       126.063,
+            "distance":  0.42,          // km — only if lat/lng provided
+            "is_online": true,
+            "updated_at": "2026-04-13T…"
+          },
+          …
+        ]
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role_filter    = request.query_params.get('role', 'driver')
+        radius_km      = float(request.query_params.get('radius', 10))
+        requester_lat  = request.query_params.get('lat')
+        requester_lng  = request.query_params.get('lng')
+
+        # Only show users that updated their location in the last 30 minutes
+        time_threshold = timezone.now() - timezone.timedelta(minutes=30)
+
+        qs = User.objects.filter(
+            last_location_update__gte=time_threshold
+        ).exclude(last_lat__isnull=True).exclude(last_lng__isnull=True)
+
+        if role_filter and role_filter != 'all':
+            qs = qs.filter(role=role_filter)
+
+        results = []
+        for u in qs:
+            entry = {
+                'id':         u.id,
+                'username':   u.username,
+                'role':       u.role,
+                'lat':        float(u.last_lat),
+                'lng':        float(u.last_lng),
+                'is_online':  u.is_online,
+                'updated_at': u.last_location_update.isoformat() if u.last_location_update else None,
+                'distance':   None,
+            }
+
+            # Compute distance if requester coordinates were provided
+            if requester_lat and requester_lng:
+                try:
+                    dist = calculate_distance(
+                        float(requester_lat), float(requester_lng),
+                        float(u.last_lat), float(u.last_lng)
+                    )
+                    entry['distance'] = round(dist, 3)
+                    if dist > radius_km:
+                        continue  # Skip users outside requested radius
+                except (ValueError, TypeError):
+                    pass
+
+            results.append(entry)
+
+        # Sort nearest first when distance is available
+        if requester_lat and requester_lng:
+            results.sort(key=lambda x: x['distance'] if x['distance'] is not None else 9999)
+
+        return Response(results[:50])  # Cap at 50 results
+

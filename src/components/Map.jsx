@@ -146,7 +146,7 @@ const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], h
     return <LeafletMap center={center} zoom={zoom} markers={markers} routeCoordinates={routeCoordinates} />;
   }
 
-  return <div ref={ref} className="w-full h-full min-h-[400px]" />;
+  return <div ref={ref} className="absolute inset-0 w-full h-full min-h-[400px]" />;
 };
 
 export default Map;

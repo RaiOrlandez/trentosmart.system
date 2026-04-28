@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../api/axios';
 import jwtDecode from 'jwt-decode';
+import { requestForToken } from '../firebase';
 
 export const AuthContext = createContext(null);
 
@@ -41,6 +42,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const enableNotifications = async () => {
+    try {
+      const fcmToken = await requestForToken();
+      if (fcmToken) {
+        await api.post('/auth/update-fcm-token/', { token: fcmToken });
+        localStorage.setItem('fcm_token', fcmToken);
+      }
+    } catch (err) {
+      console.log("Push notifications not enabled or blocked", err);
+    }
+  };
+
   const login = async (credentials) => {
     const { email, password } = credentials;
     try {
@@ -53,6 +66,8 @@ export const AuthProvider = ({ children }) => {
       setUser(decoded);
       // Immediately get full profile
       getProfile();
+      // Ask user for push notification permission
+      enableNotifications();
       return decoded;
     } catch (error) {
       if (error.code === 'ERR_NETWORK') {

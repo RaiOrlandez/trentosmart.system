@@ -1,3 +1,6 @@
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+
 const CACHE_NAME = 'trentosmart-cache-v1';
 const urlsToCache = [
     '/',
@@ -8,8 +11,34 @@ const urlsToCache = [
     '/logo512.png'
 ];
 
+// TODO: Replace with your actual Firebase config from the Firebase Console
+const firebaseConfig = {
+  apiKey: "AIzaSyCK0TPCAL3DCkZcbi5mm05Owu_wwr-Pnyo",
+  authDomain: "transmart-c8c7b.firebaseapp.com",
+  projectId: "transmart-c8c7b",
+  storageBucket: "transmart-c8c7b.firebasestorage.app",
+  messagingSenderId: "928911803916",
+  appId: "1:928911803916:web:bd2f00673587c1c2039029",
+  measurementId: "G-MZJ9HQCFDN"
+};
+
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+// Handle background messages
+messaging.onBackgroundMessage((payload) => {
+  console.log('Received background message ', payload);
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/logo192.png'
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// PWA Caching Logic
 self.addEventListener('install', event => {
-    // Perform install steps
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -21,7 +50,6 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-    // We want to fetch from network first, falling back to cache
     event.respondWith(
         fetch(event.request)
             .catch(() => {

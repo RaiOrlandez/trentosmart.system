@@ -34,7 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = (
             'id', 'username', 'email', 'role', 'phone_number', 
-            'emergency_contact_phone', 'emergency_contact_name', 'is_verified_driver', 'wallet_balance', 
+            'emergency_contact_phone', 'emergency_contact_name', 'is_verified_driver', 'verification_status', 'wallet_balance', 
             'average_rating', 'vehicle_model', 'vehicle_color', 
             'sidecar_type', 'vehicle_plate', 'last_lat', 'last_lng',
             'license_number', 'license_image', 'permit_number', 'permit_image',
@@ -159,6 +159,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['username'] = user.username
         token['email'] = user.email
         token['is_verified_driver'] = user.is_verified_driver
+        token['verification_status'] = user.verification_status
         if user.profile_picture:
             token['profile_picture'] = user.profile_picture.url
         else:

@@ -36,6 +36,10 @@ import ChatWindow from '../../components/ChatWindow';
 import DriverSettingsModal from '../../components/DriverSettingsModal';
 import HeatMapModal from '../../components/HeatMapModal';
 import RatingModal from '../../components/RatingModal';
+import useGeoLocation from '../../hooks/useGeoLocation';
+import useLocationSync from '../../hooks/useLocationSync';
+
+const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
 
 const DriverHome = () => {
   const { user } = React.useContext(AuthContext);
@@ -190,67 +194,41 @@ const DriverHome = () => {
     };
   }, [isOnline, user?.is_online]);
 
-  // Tracking Interval
+  // ── Real-time GPS tracking ───────────────────────────────────────────────
+  const { location: gpsLocation, status: gpsStatus } = useGeoLocation();
+
+  // Derived map centre
+  const driverCenter = gpsLocation
+    ? { lat: gpsLocation.lat, lng: gpsLocation.lng }
+    : TRENTO_CENTER;
+
+  // Sync location to backend every 4s while online
+  useLocationSync(gpsLocation, { enabled: isOnline });
+
+  // Update Driver map pinning dynamically based on GPS changes
   useEffect(() => {
-    let watchId;
-    if (isOnline) {
-      if (navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            const { latitude, longitude } = pos.coords;
-
-            // Only send to WebSocket if there is an active ride
-            if (activeRide) {
-              sendLocation(latitude, longitude);
-            }
-
-            setDriverPos({
-              lat: latitude,
-              lng: longitude,
-              title: 'Your Location',
-              info: 'Driver (Live)',
-              isDriver: true
-            });
-          },
-          (err) => console.error('Geolocation error:', err),
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-        );
-      } else {
-        console.error('Geolocation is not supported by this browser.');
-      }
-    } else {
-      setMarkers([]); // Clear markers when offline
+    if (!isOnline) {
+      setMarkers([]);
       setDriverPos(null);
+      return;
     }
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [isOnline, activeRide, sendLocation]);
 
-  // Server Location Sync (for Admin View)
-  useEffect(() => {
-    let interval;
-    if (isOnline) {
-      const updateLocation = async () => {
-        if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(async (pos) => {
-            try {
-              await api.post('/users/update_location/', {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude
-              });
-            } catch (err) {
-              console.error('Failed to sync location with server', err);
-            }
-          });
-        }
+    if (gpsLocation) {
+      const livePos = {
+        lat: gpsLocation.lat,
+        lng: gpsLocation.lng,
+        title: 'You',
+        info: gpsLocation.isDemo ? 'Demo Mode (Trento ADS)' : `GPS live · ±${Math.round(gpsLocation.accuracy)} m`,
+        isDriver: true
       };
+      setDriverPos(livePos);
 
-      updateLocation(); // Initial call
-      interval = setInterval(updateLocation, 15000); // Sync every 15s
+      // Only send live location to passenger over WebSocket if ride active
+      if (activeRide) {
+        sendLocation(gpsLocation.lat, gpsLocation.lng);
+      }
     }
-    return () => clearInterval(interval);
-  }, [isOnline]);
+  }, [gpsLocation, isOnline, activeRide, sendLocation]);
 
   const fetchRequests = useCallback(async () => {
     if (!isOnline || activeRide) return;
@@ -267,14 +245,15 @@ const DriverHome = () => {
     if (!isOnline) {
       setRequests([]);
       setMarkers([]);
+      setSelectedRequest(null);
       return;
     }
 
-    // Poll for requests every 5 seconds as a fallback for WebSocket
+    // Rely on WebSockets for real-time dispatch, but keep a slow fallback poll
     let interval;
     if (isOnline && !activeRide) {
       fetchRequests(); // Initial fetch
-      interval = setInterval(fetchRequests, 5000);
+      interval = setInterval(fetchRequests, 15000);
     }
     return () => clearInterval(interval);
   }, [isOnline, activeRide, fetchRequests]);
@@ -502,20 +481,41 @@ const DriverHome = () => {
 
         {/* Verification Warning */}
         {!user?.is_verified_driver && (
-          <div className="w-full lg:col-span-4 bg-amber-50 border-2 border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-4 shadow-sm">
-            <div className="flex items-center gap-4 text-amber-800">
-              <ShieldCheck className="text-amber-500" size={32} />
+          <div className={`w-full lg:col-span-4 border-2 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 mb-4 shadow-sm ${user?.verification_status === 'suspended' ? 'bg-red-50 border-red-200' :
+            user?.verification_status === 'rejected' ? 'bg-orange-50 border-orange-200' :
+              'bg-amber-50 border-amber-200'
+            }`}>
+            <div className={`flex items-center gap-4 ${user?.verification_status === 'suspended' ? 'text-red-800' :
+              user?.verification_status === 'rejected' ? 'text-orange-800' :
+                'text-amber-800'
+              }`}>
+              <ShieldCheck className={
+                user?.verification_status === 'suspended' ? 'text-red-500' :
+                  user?.verification_status === 'rejected' ? 'text-orange-500' :
+                    'text-amber-500'} size={32} />
               <div>
-                <p className="font-black uppercase text-xs tracking-wider">Verification Required</p>
-                <p className="text-sm font-medium">Your account is not yet verified. You cannot accept rides until documents are approved.</p>
+                <p className="font-black uppercase text-xs tracking-wider">
+                  {user?.verification_status === 'suspended' ? 'Account Suspended' :
+                    user?.verification_status === 'rejected' ? 'Application Rejected' :
+                      'Verification Required'}
+                </p>
+                <p className="text-sm font-medium">
+                  {user?.verification_status === 'suspended' ? 'Your account has been suspended by the LGU. Please visit the LGU office.' :
+                    user?.verification_status === 'rejected' ? 'Your documents were rejected. Please check and re-upload valid credentials.' :
+                      'Your account is not yet verified. You cannot accept rides until documents are approved.'}
+                </p>
               </div>
             </div>
-            <Link
-              to="/driver/verify"
-              className="bg-amber-500 text-white font-black px-8 py-3 rounded-2xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 whitespace-nowrap"
-            >
-              Verify Profile
-            </Link>
+            {user?.verification_status !== 'suspended' && (
+              <Link
+                to="/driver/verify"
+                className={`text-white font-black px-8 py-3 rounded-2xl transition-all shadow-lg whitespace-nowrap ${user?.verification_status === 'rejected' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' :
+                  'bg-amber-500 hover:bg-amber-600 shadow-amber-200'
+                  }`}
+              >
+                {user?.verification_status === 'rejected' ? 'Update Profile' : 'Verify Profile'}
+              </Link>
+            )}
           </div>
         )}
 
@@ -999,7 +999,37 @@ const DriverHome = () => {
 
         {/* Right Column: Map and Navigation */}
         <div className="flex-1 min-h-[600px] relative rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
-          <Map markers={markers} />
+          <Map markers={markers} center={driverCenter} />
+
+          {/* GPS status badge */}
+          <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
+            <div style={{
+              background: 'rgba(15,23,42,0.82)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 999,
+              padding: '6px 14px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8',
+                boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8'}`,
+                display: 'inline-block',
+                flexShrink: 0,
+              }} />
+              <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: 700, letterSpacing: '0.01em' }}>
+                {gpsStatus === 'live'
+                  ? 'Tracking live location'
+                  : gpsStatus === 'demo'
+                    ? 'Demo Mode: Showing default location (Trento ADS)'
+                    : 'Acquiring GPS…'}
+              </span>
+            </div>
+          </div>
 
           {/* Map Overlays */}
           <div className="absolute top-8 left-8">

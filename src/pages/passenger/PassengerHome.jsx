@@ -34,6 +34,10 @@ import ChatWindow from '../../components/ChatWindow';
 import SavedPlaceModal from '../../components/SavedPlaceModal';
 import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
+import useGeoLocation from '../../hooks/useGeoLocation';
+
+// Demo fallback centre for Trento ADS (matches useGeoLocation default)
+const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
 
 const PassengerHome = () => {
   const navigate = useNavigate();
@@ -63,12 +67,54 @@ const PassengerHome = () => {
   const [nearbyDriverList, setNearbyDriverList] = useState([]); // New: Detailed driver list
   const [selectedDriverId, setSelectedDriverId] = useState(null); // New: Choosen driver ID
   const [routeCoordinates, setRouteCoordinates] = useState(null); // Real driving path
+  const [showDestSuggestions, setShowDestSuggestions] = useState(false);
+  const [estimatedTime, setEstimatedTime] = useState(0);
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
   const [proximityAlert, setProximityAlert] = useState(false);
   const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
   const [showFallbackButton, setShowFallbackButton] = useState(false);
+
+  // ── Real-time GPS tracking (falls back to Trento ADS demo if denied) ────────
+  const { location: gpsLocation, status: gpsStatus } = useGeoLocation();
+
+  // Derived map centre: use live GPS when available, else TRENTO_CENTER
+  const userCenter = gpsLocation
+    ? { lat: gpsLocation.lat, lng: gpsLocation.lng }
+    : TRENTO_CENTER;
+
+  // ── "You are here" marker ────────────────────────────────────────────────
+  // Only shown when the browser has a real GPS fix. In demo mode we do NOT
+  // place a pin so the user is not confused by a fake Trento marker.
+  useEffect(() => {
+    if (!gpsLocation) return;
+
+    if (gpsLocation.isDemo) {
+      // Demo mode: remove any stale "you are here" pin
+      setMarkers(prev => prev.filter(m => m.id !== 'you_are_here'));
+      return;
+    }
+
+    // Real GPS fix — place / update the marker
+    setMarkers(prev => {
+      const others = prev.filter(m => m.id !== 'you_are_here');
+      const isFirst = !prev.find(m => m.id === 'you_are_here');
+      return [
+        {
+          id: 'you_are_here',
+          lat: gpsLocation.lat,
+          lng: gpsLocation.lng,
+          title: '📍 You are here',
+          info: `GPS live · ±${Math.round(gpsLocation.accuracy || 0)} m`,
+          // Only force-pan to the pin the very first time it appears
+          forceFocus: isFirst ? Date.now() : undefined,
+        },
+        ...others,
+      ];
+    });
+  }, [gpsLocation]);
+
 
   // LGU Rules: Base 30 + 8 per km
   // Simulated Distance Service: Estimates distance based on address complexity
@@ -139,6 +185,7 @@ const PassengerHome = () => {
       // Ensure a minimum logical distance of 1km for local tricycles
       const finalDistanceKm = Math.max(1, actualDistance);
       setDistance(finalDistanceKm.toFixed(1));
+      setEstimatedTime(Math.ceil(finalDistanceKm * 3));
 
       // 4. Fetch dynamic pricing from backend (Base + Per Km + Surge Multiplier)
       try {
@@ -160,6 +207,7 @@ const PassengerHome = () => {
       console.warn("Real Geocoding Failed (likely limit or offline). Using offline heuristic calculation.");
       const fallbackDist = ((pickup + dest).length % 5) + 1.2;
       setDistance(fallbackDist.toFixed(1));
+      setEstimatedTime(Math.ceil(fallbackDist * 3));
       setFare(30 + Math.round(8 * fallbackDist));
       setRouteCoordinates(null);
     }
@@ -212,12 +260,12 @@ const PassengerHome = () => {
     };
   }, [fetchSavedPlaces, fetchBroadcasts]);
 
-  // Real-time Driver Availability
+  // Real-time Driver Availability — uses live GPS coords when available
   useEffect(() => {
     const fetchDrivers = async () => {
       try {
         const res = await api.get('/users/nearby_drivers/', {
-          params: { lat: 8.050, lng: 126.062 } // Simulated passenger location
+          params: { lat: userCenter.lat, lng: userCenter.lng }
         });
         setNearbyDriverList(Array.isArray(res.data) ? res.data : []);
         setNearbyDrivers(Array.isArray(res.data) ? res.data.length : 0);
@@ -229,7 +277,8 @@ const PassengerHome = () => {
     fetchDrivers(); // Initial
     const interval = setInterval(fetchDrivers, 15000); // Poll every 15s
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userCenter.lat, userCenter.lng]);
 
   useEffect(() => {
     // Check for new critical broadcasts
@@ -439,14 +488,15 @@ const PassengerHome = () => {
     setStatus('requesting');
 
     try {
-      // Create actual ride in database
+      // Create actual ride in database — use live GPS for pickup coords
       const response = await api.post('/rides/', {
         pickup_address: pickup,
         dest_address: dest,
-        pickup_lat: 8.050, // In production, use actual geolocation
-        pickup_lng: 126.062,
-        dest_lat: 8.055,
-        dest_lng: 126.070,
+        pickup_lat: parseFloat(userCenter.lat).toFixed(6),
+        pickup_lng: parseFloat(userCenter.lng).toFixed(6),
+        // Destination coords are geocoded later by the backend or OSRM; use a small offset as fallback
+        dest_lat: (parseFloat(userCenter.lat) + 0.005).toFixed(6),
+        dest_lng: (parseFloat(userCenter.lng) + 0.008).toFixed(6),
         fare: fare,
         payment_method: paymentMethod,
         targeted_driver_id: selectedDriverId // NEW: Custom Selection
@@ -645,9 +695,17 @@ const PassengerHome = () => {
               <input
                 value={pickup}
                 onChange={(e) => setPickup(e.target.value)}
-                placeholder="Current location"
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all dark:text-white"
+                placeholder="Enter pickup location"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-12 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all dark:text-white text-sm"
               />
+              <button
+                type="button"
+                onClick={() => setPickup(gpsLocation?.isDemo ? 'Trento Demo Location' : 'Current GPS Location')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary-dark transition-colors"
+                title="Use Current Location"
+              >
+                <Navigation size={18} />
+              </button>
             </div>
             <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -655,10 +713,43 @@ const PassengerHome = () => {
               </div>
               <input
                 value={dest}
-                onChange={(e) => setDest(e.target.value)}
-                placeholder="Enter destination"
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all dark:text-white"
+                onChange={(e) => {
+                  setDest(e.target.value);
+                  setShowDestSuggestions(true);
+                }}
+                onFocus={() => setShowDestSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowDestSuggestions(false), 200)}
+                placeholder="Enter destination (e.g. Public Market)"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all dark:text-white text-sm"
               />
+              <AnimatePresence>
+                {showDestSuggestions && !dest && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
+                  >
+                    <div className="p-2">
+                      <p className="text-[10px] font-black uppercase text-slate-400 ml-2 mb-1">Suggested Landmarks</p>
+                      {['Public Market', 'Trento Municipal Hall', 'Trento Bus Terminal', 'Trento Hospital', 'Trento National High School'].map((landmark) => (
+                        <button
+                          key={landmark}
+                          type="button"
+                          onClick={() => {
+                            setDest(landmark);
+                            setShowDestSuggestions(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-secondary dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2"
+                        >
+                          <MapPin size={14} className="text-primary" />
+                          {landmark}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {status === 'idle' && (
@@ -730,6 +821,7 @@ const PassengerHome = () => {
                     <div className="text-right">
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Distance</p>
                       <p className="font-bold text-accent">{distance} km</p>
+                      <p className="text-[10px] text-slate-300 font-bold mt-0.5">~{estimatedTime} mins</p>
                     </div>
                   </div>
 
@@ -1010,9 +1102,39 @@ const PassengerHome = () => {
         </AnimatePresence>
       </div>
 
-      {/* Main Map View */}
+      {/* Main Map View — centred on live GPS position */}
       <div className="flex-1 min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
-        <Map markers={markers} routeCoordinates={routeCoordinates} />
+        <Map center={userCenter} markers={markers} routeCoordinates={routeCoordinates} />
+
+        {/* GPS status badge */}
+        <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
+          <div style={{
+            background: 'rgba(15,23,42,0.82)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 999,
+            padding: '6px 14px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8',
+              boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8'}`,
+              display: 'inline-block',
+              flexShrink: 0,
+            }} />
+            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: 700, letterSpacing: '0.01em' }}>
+              {gpsStatus === 'live'
+                ? 'Tracking live location'
+                : gpsStatus === 'demo'
+                  ? 'Demo Mode: Showing default location (Trento ADS)'
+                  : 'Acquiring GPS…'}
+            </span>
+          </div>
+        </div>
 
         {/* Floating Info */}
         <div className="absolute top-6 right-6 flex flex-col gap-3">
