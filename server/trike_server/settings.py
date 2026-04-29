@@ -70,17 +70,19 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQL_DATABASE', 'transport'),
-        'USER': os.environ.get('MYSQL_USER', 'root'),
-        'PASSWORD': os.environ.get('MYSQL_PASSWORD', ''),
-        'HOST': os.environ.get('MYSQL_HOST', '127.0.0.1'),
-        'PORT': os.environ.get('MYSQL_PORT', '3306'),
+        'NAME': os.environ.get('MYSQLDATABASE', os.environ.get('MYSQL_DATABASE', 'transport')),
+        'USER': os.environ.get('MYSQLUSER', os.environ.get('MYSQL_USER', 'root')),
+        'PASSWORD': os.environ.get('MYSQLPASSWORD', os.environ.get('MYSQL_PASSWORD', '')),
+        'HOST': os.environ.get('MYSQLHOST', os.environ.get('MYSQL_HOST', '127.0.0.1')),
+        'PORT': os.environ.get('MYSQLPORT', os.environ.get('MYSQL_PORT', '3306')),
     }
 }
 
 # Production Database Override
-if 'DATABASE_URL' in os.environ:
-    DATABASES['default'] = dj_database_url.config(conn_max_age=600, ssl_require=True)
+if 'MYSQL_URL' in os.environ:
+    DATABASES['default'] = dj_database_url.parse(os.environ['MYSQL_URL'], conn_max_age=600)
+elif 'DATABASE_URL' in os.environ:
+    DATABASES['default'] = dj_database_url.config(conn_max_age=600)
 
 AUTH_USER_MODEL = 'api.User'
 
