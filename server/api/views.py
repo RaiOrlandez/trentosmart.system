@@ -51,8 +51,68 @@ class RegisterView(APIView):
         ser = RegisterSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         user = ser.save()
-        
-        # Broadcast to admins/system
+
+        # ── Send Welcome Email to New User ────────────────────────────────
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings as django_settings
+            send_mail(
+                subject='Welcome to Trento Smart Tricycle System! 🛺',
+                message=f"""Hi {user.username},
+
+Welcome to the Trento Smart Tricycle System!
+
+Your account has been successfully created.
+
+Account Details:
+  Username : {user.username}
+  Email    : {user.email}
+  Role     : {user.role.capitalize()}
+
+{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if user.role == 'driver' else "You can now log in and start booking rides!"}
+
+If you did not create this account, please contact us immediately.
+
+Best regards,
+Trento Smart System Team
+""",
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"[Email] Welcome email failed: {e}")
+
+        # ── Send Admin Notification Email ─────────────────────────────────
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings as django_settings
+            admin_email = django_settings.ADMIN_NOTIFICATION_EMAIL
+            if admin_email:
+                send_mail(
+                    subject=f'🆕 New {user.role.capitalize()} Registered — {user.username}',
+                    message=f"""A new user has registered on the Trento Smart System.
+
+User Details:
+  Username  : {user.username}
+  Email     : {user.email}
+  Role      : {user.role.capitalize()}
+  Joined At : {user.date_joined.strftime('%B %d, %Y at %I:%M %p') if user.date_joined else 'N/A'}
+  {"⚠️  This driver account requires your verification approval." if user.role == 'driver' else ""}
+
+Log in to the Admin Dashboard to manage this user:
+https://trentosmartsystem-production.up.railway.app/admin/
+
+— Trento Smart Automated System
+""",
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[admin_email],
+                    fail_silently=True,
+                )
+        except Exception as e:
+            print(f"[Email] Admin notification failed: {e}")
+
+        # ── Broadcast to admins/system via WebSocket ──────────────────────
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             'global_system',
@@ -65,8 +125,9 @@ class RegisterView(APIView):
                 }
             }
         )
-        
+
         return Response(UserSerializer(user, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
 
 
 class CheckEmailView(APIView):
