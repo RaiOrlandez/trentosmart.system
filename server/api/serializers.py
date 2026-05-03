@@ -59,7 +59,7 @@ class UserSerializer(serializers.ModelSerializer):
 class DriverVerificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('license_number', 'license_image', 'permit_number', 'permit_image')
+        fields = ('license_number', 'license_image', 'permit_number', 'permit_image', 'nbi_clearance_image', 'barangay_residency_image')
 
 
 class RegisterSerializer(serializers.ModelSerializer):

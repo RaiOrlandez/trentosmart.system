@@ -9,8 +9,12 @@ const DriverVerification = () => {
     const [permitNum, setPermitNum] = useState('');
     const [licenseImg, setLicenseImg] = useState(null); // File object for upload
     const [permitImg, setPermitImg] = useState(null);   // File object for upload
+    const [nbiClearanceImg, setNbiClearanceImg] = useState(null);
+    const [barangayResidencyImg, setBarangayResidencyImg] = useState(null);
     const [existingLicenseImg, setExistingLicenseImg] = useState(null); // URL string
     const [existingPermitImg, setExistingPermitImg] = useState(null);   // URL string
+    const [existingNbiClearanceImg, setExistingNbiClearanceImg] = useState(null);
+    const [existingBarangayResidencyImg, setExistingBarangayResidencyImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
     const [verificationStatus, setVerificationStatus] = useState(false); // is_verified_driver
@@ -29,6 +33,8 @@ const DriverVerification = () => {
             setPermitNum(data.permit_number || '');
             setExistingLicenseImg(data.license_image);
             setExistingPermitImg(data.permit_image);
+            setExistingNbiClearanceImg(data.nbi_clearance_image);
+            setExistingBarangayResidencyImg(data.barangay_residency_image);
             setVerificationStatus(data.is_verified_driver);
             setIsEditing(!data.is_verified_driver);
             setStatus('idle');
@@ -48,6 +54,8 @@ const DriverVerification = () => {
         formData.append('permit_number', permitNum);
         if (licenseImg) formData.append('license_image', licenseImg);
         if (permitImg) formData.append('permit_image', permitImg);
+        if (nbiClearanceImg) formData.append('nbi_clearance_image', nbiClearanceImg);
+        if (barangayResidencyImg) formData.append('barangay_residency_image', barangayResidencyImg);
 
         console.log('Submitting verification data:', {
             license_number: licenseNum,
@@ -262,6 +270,53 @@ const DriverVerification = () => {
                                         </>
                                     )}
                                     <input type="file" className="hidden" onChange={(e) => setPermitImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">NBI Clearance</label>
+                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                    {nbiClearanceImg ? (
+                                        <div className="text-secondary font-bold text-xs truncate w-full">
+                                            <FileText size={24} className="mx-auto text-primary mb-2" />
+                                            {nbiClearanceImg.name}
+                                        </div>
+                                    ) : existingNbiClearanceImg ? (
+                                        <div className="text-secondary font-bold text-xs w-full">
+                                            <img src={existingNbiClearanceImg} alt="NBI Clearance" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
+                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
+                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
+                                        </>
+                                    )}
+                                    <input type="file" className="hidden" onChange={(e) => setNbiClearanceImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                </label>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Barangay Residency</label>
+                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                    {barangayResidencyImg ? (
+                                        <div className="text-secondary font-bold text-xs truncate w-full">
+                                            <FileText size={24} className="mx-auto text-primary mb-2" />
+                                            {barangayResidencyImg.name}
+                                        </div>
+                                    ) : existingBarangayResidencyImg ? (
+                                        <div className="text-secondary font-bold text-xs w-full">
+                                            <img src={existingBarangayResidencyImg} alt="Brgy Residency" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
+                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
+                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
+                                        </>
+                                    )}
+                                    <input type="file" className="hidden" onChange={(e) => setBarangayResidencyImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
                                 </label>
                             </div>
                         </div>
