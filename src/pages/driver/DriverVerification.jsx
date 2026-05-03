@@ -31,10 +31,10 @@ const DriverVerification = () => {
             const data = res.data;
             setLicenseNum(data.license_number || '');
             setPermitNum(data.permit_number || '');
-            setExistingLicenseImg(data.license_image);
-            setExistingPermitImg(data.permit_image);
-            setExistingNbiClearanceImg(data.nbi_clearance_image);
-            setExistingBarangayResidencyImg(data.barangay_residency_image);
+            setExistingLicenseImg(data.license_image_url || data.license_image);
+            setExistingPermitImg(data.permit_image_url || data.permit_image);
+            setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
+            setExistingBarangayResidencyImg(data.barangay_residency_image_url || data.barangay_residency_image);
             setVerificationStatus(data.is_verified_driver);
             // Only lock the form if the driver is currently approved — pending drivers should always be editable
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';

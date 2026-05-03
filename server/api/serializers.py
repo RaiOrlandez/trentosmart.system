@@ -29,6 +29,11 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     profile_picture_url = serializers.SerializerMethodField()
+    license_image_url = serializers.SerializerMethodField()
+    permit_image_url = serializers.SerializerMethodField()
+    nbi_clearance_image_url = serializers.SerializerMethodField()
+    barangay_residency_image_url = serializers.SerializerMethodField()
+    government_id_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -37,23 +42,50 @@ class UserSerializer(serializers.ModelSerializer):
             'emergency_contact_phone', 'emergency_contact_name', 'is_verified_driver', 'verification_status', 'wallet_balance', 
             'average_rating', 'vehicle_model', 'vehicle_color', 
             'sidecar_type', 'vehicle_plate', 'last_lat', 'last_lng',
-            'license_number', 'license_image', 'permit_number', 'permit_image',
+            'license_number', 'license_image', 'license_image_url',
+            'permit_number', 'permit_image', 'permit_image_url',
             'verification_notes', 'date_joined', 'address', 'date_of_birth', 'profile_picture',
             'profile_picture_url',
-            'gender', 'body_number', 'license_expiry_date', 'nbi_clearance_image', 
-            'barangay_residency_image', 'government_id_image',
+            'gender', 'body_number', 'license_expiry_date',
+            'nbi_clearance_image', 'nbi_clearance_image_url',
+            'barangay_residency_image', 'barangay_residency_image_url',
+            'government_id_image', 'government_id_image_url',
             'auto_accept_rides', 'receive_notifications', 'search_radius_km',
             'is_online'
         )
 
-    def get_profile_picture_url(self, obj):
-        """Return a fully absolute URL for the profile picture."""
+    def _build_url(self, obj, field_name):
+        """Build absolute URL for any image field, works with both local and Cloudinary storage."""
         request = self.context.get('request')
-        if obj.profile_picture:
-            if request:
-                return request.build_absolute_uri(obj.profile_picture.url)
-            return obj.profile_picture.url
-        return None
+        field = getattr(obj, field_name, None)
+        if not field:
+            return None
+        url = field.url
+        # If already an absolute URL (Cloudinary), return as-is
+        if url.startswith('http'):
+            return url
+        # Otherwise build absolute URL from request
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_profile_picture_url(self, obj):
+        return self._build_url(obj, 'profile_picture')
+
+    def get_license_image_url(self, obj):
+        return self._build_url(obj, 'license_image')
+
+    def get_permit_image_url(self, obj):
+        return self._build_url(obj, 'permit_image')
+
+    def get_nbi_clearance_image_url(self, obj):
+        return self._build_url(obj, 'nbi_clearance_image')
+
+    def get_barangay_residency_image_url(self, obj):
+        return self._build_url(obj, 'barangay_residency_image')
+
+    def get_government_id_image_url(self, obj):
+        return self._build_url(obj, 'government_id_image')
 
 
 class DriverVerificationSerializer(serializers.ModelSerializer):

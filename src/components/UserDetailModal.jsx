@@ -164,10 +164,10 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                             <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Submitted Documents</h4>
                                         </div>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <DocumentViewer label="Driver's License" imageUrl={user.license_image} />
-                                            <DocumentViewer label="Permit" imageUrl={user.permit_image} />
-                                            <DocumentViewer label="NBI Clearance" imageUrl={user.nbi_clearance_image} />
-                                            <DocumentViewer label="Brgy. Residency" imageUrl={user.barangay_residency_image} />
+                                            <DocumentViewer label="Driver's License" imageUrl={user.license_image_url} />
+                                            <DocumentViewer label="Permit" imageUrl={user.permit_image_url} />
+                                            <DocumentViewer label="NBI Clearance" imageUrl={user.nbi_clearance_image_url} />
+                                            <DocumentViewer label="Brgy. Residency" imageUrl={user.barangay_residency_image_url} />
                                         </div>
                                     </div>
 
