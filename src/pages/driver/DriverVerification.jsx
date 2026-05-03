@@ -230,7 +230,7 @@ const DriverVerification = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Driver's License</label>
-                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                <label htmlFor="upload-license" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
                                     {licenseImg ? (
                                         <div className="text-secondary font-bold text-xs truncate w-full">
                                             <FileText size={24} className="mx-auto text-primary mb-2" />
@@ -247,12 +247,12 @@ const DriverVerification = () => {
                                             <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
                                         </>
                                     )}
-                                    <input type="file" className="hidden" onChange={(e) => setLicenseImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                    <input id="upload-license" type="file" className="hidden" onChange={(e) => setLicenseImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
                                 </label>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Tricycle Permit</label>
-                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                <label htmlFor="upload-permit" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
                                     {permitImg ? (
                                         <div className="text-secondary font-bold text-xs truncate w-full">
                                             <FileText size={24} className="mx-auto text-primary mb-2" />
@@ -269,7 +269,7 @@ const DriverVerification = () => {
                                             <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
                                         </>
                                     )}
-                                    <input type="file" className="hidden" onChange={(e) => setPermitImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                    <input id="upload-permit" type="file" className="hidden" onChange={(e) => setPermitImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
                                 </label>
                             </div>
                         </div>
@@ -277,7 +277,7 @@ const DriverVerification = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">NBI Clearance</label>
-                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                <label htmlFor="upload-nbi" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
                                     {nbiClearanceImg ? (
                                         <div className="text-secondary font-bold text-xs truncate w-full">
                                             <FileText size={24} className="mx-auto text-primary mb-2" />
@@ -294,12 +294,12 @@ const DriverVerification = () => {
                                             <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
                                         </>
                                     )}
-                                    <input type="file" className="hidden" onChange={(e) => setNbiClearanceImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                    <input id="upload-nbi" type="file" className="hidden" onChange={(e) => setNbiClearanceImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
                                 </label>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Barangay Residency</label>
-                                <label className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
+                                <label htmlFor="upload-brgy" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
                                     {barangayResidencyImg ? (
                                         <div className="text-secondary font-bold text-xs truncate w-full">
                                             <FileText size={24} className="mx-auto text-primary mb-2" />
@@ -316,7 +316,7 @@ const DriverVerification = () => {
                                             <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
                                         </>
                                     )}
-                                    <input type="file" className="hidden" onChange={(e) => setBarangayResidencyImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
+                                    <input id="upload-brgy" type="file" className="hidden" onChange={(e) => setBarangayResidencyImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
                                 </label>
                             </div>
                         </div>
