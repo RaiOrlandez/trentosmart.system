@@ -61,6 +61,8 @@ const AdminDashboard = () => {
   const { driverLocation, newRide, newSignup, emergencyAlert, systemEvent } = useSystemEvents();
   const [activeSOS, setActiveSOS] = useState(null);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
+  const [approvingId, setApprovingId] = useState(null); // prevent double-click
+  const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
 
   // Live Alerts & Notifications State
   const [liveAlerts, setLiveAlerts] = useState([
@@ -113,6 +115,8 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchUsers = useCallback(async () => {
+    if (isFetchingUsers.current) return; // debounce: skip if already running
+    isFetchingUsers.current = true;
     setLoadingUsers(true);
     try {
       const res = await api.get('/users/');
@@ -124,6 +128,7 @@ const AdminDashboard = () => {
       console.error("Failed to fetch users", err);
     } finally {
       setLoadingUsers(false);
+      isFetchingUsers.current = false;
     }
   }, []);
 
@@ -300,17 +305,19 @@ const AdminDashboard = () => {
 
 
   const approveDriver = async (userId) => {
+    if (approvingId) return; // prevent double-click
+    setApprovingId(userId);
     try {
       console.log(`Approving driver with ID: ${userId}`);
       const response = await api.post(`/users/${userId}/approve_driver/`);
       console.log('Approval response:', response.data);
 
-      // Update local state
+      // Optimistically update local state immediately
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true, verification_status: 'approved' } : u));
       alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
 
-      // Refresh data to ensure sync
-      fetchUsers();
+      // Single refresh to sync with DB
+      await fetchUsers();
     } catch (err) {
       console.error('Driver approval error:', err);
       console.error('Error response:', err.response?.data);
@@ -331,6 +338,8 @@ const AdminDashboard = () => {
       }
 
       alert(errorMsg);
+    } finally {
+      setApprovingId(null);
     }
   };
 

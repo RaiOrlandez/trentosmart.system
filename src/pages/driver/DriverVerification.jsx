@@ -17,9 +17,9 @@ const DriverVerification = () => {
     const [existingBarangayResidencyImg, setExistingBarangayResidencyImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
-    const [verificationStatus, setVerificationStatus] = useState(false); // is_verified_driver
+    const [verificationStatus, setVerificationStatus] = useState(null);
     const [msg, setMsg] = useState('');
-    const [isEditing, setIsEditing] = useState(false);
+    const [isEditing, setIsEditing] = useState(true); // default open for new drivers
 
     useEffect(() => {
         fetchData();
@@ -36,7 +36,9 @@ const DriverVerification = () => {
             setExistingNbiClearanceImg(data.nbi_clearance_image);
             setExistingBarangayResidencyImg(data.barangay_residency_image);
             setVerificationStatus(data.is_verified_driver);
-            setIsEditing(!data.is_verified_driver);
+            // Only lock the form if the driver is currently approved — pending drivers should always be editable
+            const isApproved = data.is_verified_driver && data.verification_status === 'approved';
+            setIsEditing(!isApproved);
             setStatus('idle');
         } catch (err) {
             console.error(err);
