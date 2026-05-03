@@ -17,3 +17,6 @@ gunicorn>=21.2.0
 whitenoise>=6.5.0
 requests>=2.31.0
 Pillow>=10.0.0
+# Media Storage (Cloud)
+cloudinary>=1.36.0
+django-cloudinary-storage>=0.3.0
