@@ -961,6 +961,7 @@ class DriverVerificationView(APIView):
                     user = serializer.save()
                     # If they update documents, they need to be re-verified
                     user.is_verified_driver = False
+                    user.verification_status = 'pending'
                     user.save()
                     
                     print(f"Verification documents saved for {user.username}")

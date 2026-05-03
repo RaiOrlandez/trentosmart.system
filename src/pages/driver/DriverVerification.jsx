@@ -61,6 +61,7 @@ const DriverVerification = () => {
             const response = await api.post('/driver/verify/', formData);
             console.log('Verification SUCCESS:', response.data);
             setStatus('success');
+            setVerificationStatus(false);
             setMsg(response.data.detail || 'Your documents have been submitted for review.');
         } catch (err) {
             console.error('=== VERIFICATION ERROR ===');
