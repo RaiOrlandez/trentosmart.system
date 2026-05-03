@@ -158,6 +158,19 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                         </div>
                                     </div>
 
+                                    <div className="space-y-6">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <FileText size={20} className="text-primary" />
+                                            <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Submitted Documents</h4>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <DocumentViewer label="Driver's License" imageUrl={user.license_image} />
+                                            <DocumentViewer label="Permit" imageUrl={user.permit_image} />
+                                            <DocumentViewer label="NBI Clearance" imageUrl={user.nbi_clearance_image} />
+                                            <DocumentViewer label="Brgy. Residency" imageUrl={user.barangay_residency_image} />
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <div className="flex items-center justify-between gap-3 mb-4">
                                             <div className="flex items-center gap-3">
@@ -220,5 +233,30 @@ const DetailItem = ({ label, value, highlighted = false }) => (
         <span className={`text-xs font-bold ${highlighted ? 'text-primary bg-primary/10 px-2 py-1 rounded-lg' : 'text-secondary dark:text-white'}`}>{value || 'NOT FILED'}</span>
     </div>
 );
+
+const DocumentViewer = ({ label, imageUrl }) => {
+    if (!imageUrl) {
+        return (
+            <div className="flex flex-col gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+                <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-white/5 rounded-2xl flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-white/10">
+                    <span className="text-[10px] font-bold text-slate-400">Missing</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col gap-2">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-white/5 rounded-2xl overflow-hidden relative group border-2 border-slate-100 dark:border-white/5 shadow-sm hover:shadow-xl transition-all cursor-pointer" onClick={() => window.open(imageUrl, '_blank')}>
+                <img src={imageUrl} alt={label} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-white text-xs font-black uppercase tracking-widest bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">View Full</span>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export default UserDetailModal;
