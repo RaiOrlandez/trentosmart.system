@@ -132,7 +132,7 @@ class RideSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ride
         fields = '__all__'
-        read_only_fields = ('status', 'requested_at', 'accepted_at', 'started_at', 'completed_at', 'share_token')
+        read_only_fields = ('requested_at', 'accepted_at', 'started_at', 'completed_at', 'share_token')
 
     def get_payment_method(self, obj):
         try:

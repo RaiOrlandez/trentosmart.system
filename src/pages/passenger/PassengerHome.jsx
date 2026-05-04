@@ -1320,6 +1320,11 @@ const PassengerHome = () => {
           setShowRating(false);
           setStatus('idle');
           setFare(0);
+          setPickup('');
+          setDest('');
+          setActiveRideId(null);
+          setAssignedDriver(null);
+          setRouteCoordinates(null);
         }}
         rideId={activeRideId}
         targetName={assignedDriver?.username || 'Assigned Driver'}
