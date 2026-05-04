@@ -1226,7 +1226,7 @@ const PassengerHome = () => {
               <p className="text-sm font-bold text-secondary">4 mins away</p>
             </div>
           </div>
-          {status === 'matched' && (
+          {(status === 'matched' || status === 'ongoing') && (
             <button
               onClick={() => {
                 const driverMarker = markers.find(m => m.title === 'Driver');

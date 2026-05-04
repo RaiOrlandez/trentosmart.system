@@ -432,19 +432,11 @@ const DriverHome = () => {
   };
 
   const openNativeNavigation = (lat, lng, label = 'Destination') => {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const url = isIOS
-      ? `maps://maps.apple.com/?q=${label}&ll=${lat},${lng}`
-      : `google.navigation:q=${lat},${lng}`;
-
-    // Fallback for desktop/web
-    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-
-    if (url.startsWith('google.navigation') || url.startsWith('maps:')) {
-      window.location.href = url;
-    } else {
-      window.open(webUrl, '_blank');
-    }
+    // The universal Google Maps URL scheme perfectly deep-links into the
+    // native Google Maps app on both Android and iOS when clicked from a web browser,
+    // and seamlessly falls back to the browser tab if the app isn't installed.
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -1073,13 +1065,16 @@ const DriverHome = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const target = passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng };
-                    openNativeNavigation(target.lat, target.lng, 'Pickup Location');
+                    const isOngoing = activeRide.status === 'on_route';
+                    const targetLat = isOngoing ? activeRide.dest_lat : (passengerLivePos?.lat || activeRide.pickup_lat);
+                    const targetLng = isOngoing ? activeRide.dest_lng : (passengerLivePos?.lng || activeRide.pickup_lng);
+                    const label = isOngoing ? 'Dropoff Location' : 'Pickup Location';
+                    openNativeNavigation(targetLat, targetLng, label);
                   }}
                   className="bg-secondary text-white px-6 py-3 rounded-2xl font-black text-sm shadow-2xl flex items-center gap-2 hover:scale-105 transition-all border-2 border-white/10"
                 >
                   <MapPin size={18} className="text-primary" />
-                  <span>Navigate to Passenger</span>
+                  <span>{activeRide.status === 'on_route' ? 'Navigate to Dropoff' : 'Navigate to Passenger'}</span>
                 </button>
               </>
             )}
