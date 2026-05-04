@@ -114,8 +114,8 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  const fetchUsers = useCallback(async () => {
-    if (isFetchingUsers.current) return; // debounce: skip if already running
+  const fetchUsers = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh && isFetchingUsers.current) return; // debounce: skip if already running (unless forced)
     isFetchingUsers.current = true;
     setLoadingUsers(true);
     try {
@@ -316,8 +316,8 @@ const AdminDashboard = () => {
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true, verification_status: 'approved' } : u));
       alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
 
-      // Single refresh to sync with DB
-      await fetchUsers();
+      // Force refresh to ensure DB-confirmed state overrides optimistic update
+      await fetchUsers(true);
     } catch (err) {
       console.error('Driver approval error:', err);
       console.error('Error response:', err.response?.data);
@@ -348,6 +348,7 @@ const AdminDashboard = () => {
       await api.post(`/users/${userId}/reject_driver/`);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
       alert('Driver rejected.');
+      await fetchUsers(true);
     } catch (err) { alert('Action failed'); }
   };
 
@@ -357,6 +358,7 @@ const AdminDashboard = () => {
       await api.post(`/users/${userId}/suspend_driver/`);
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
       alert('Driver suspended.');
+      await fetchUsers(true);
     } catch (err) { alert('Action failed'); }
   };
 
