@@ -4,9 +4,9 @@
   "description": "Real-time tricycle hailing and management application for Trento, Agusan del Sur.",
   "icons": [
     {
-      "src": "hero.png",
-      "sizes": "1024x1024",
-      "type": "image/png"
+      "src": "zap.svg",
+      "sizes": "1024x1024 512x512 192x192",
+      "type": "image/svg+xml"
     }
   ],
   "start_url": ".",
