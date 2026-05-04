@@ -1,17 +1,14 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'trentosmart-cache-v1';
-const urlsToCache = [
+const CACHE_NAME = 'trentosmart-cache-v2';
+const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/manifest.json',
-    '/favicon.ico',
-    '/logo192.png',
-    '/logo512.png'
+    '/favicon.ico'
 ];
 
-// TODO: Replace with your actual Firebase config from the Firebase Console
 const firebaseConfig = {
   apiKey: "AIzaSyCK0TPCAL3DCkZcbi5mm05Owu_wwr-Pnyo",
   authDomain: "transmart-c8c7b.firebaseapp.com",
@@ -25,51 +22,68 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Handle background messages
+// Handle background push notifications
 messaging.onBackgroundMessage((payload) => {
   console.log('Received background message ', payload);
-  const notificationTitle = payload.notification.title;
+  const notificationTitle = payload.notification?.title || 'Transmart';
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo192.png'
+    body: payload.notification?.body || '',
+    icon: '/favicon.ico'
   };
-
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// PWA Caching Logic
+// Install: pre-cache static assets
 self.addEventListener('install', event => {
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
-            })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
     );
     self.skipWaiting();
 });
 
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        fetch(event.request)
-            .catch(() => {
-                return caches.match(event.request);
-            })
+// Activate: clean up old caches
+self.addEventListener('activate', event => {
+    event.waitUntil(
+        caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+        )
     );
+    self.clients.claim();
 });
 
-self.addEventListener('activate', event => {
-    const cacheWhitelist = [CACHE_NAME];
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+// Fetch: CRITICAL FIX
+// Do NOT intercept:
+//   1. Navigation requests (React Router pages like /register, /login, /driver)
+//   2. API calls (Railway backend)
+//   3. Cross-origin requests (Cloudinary, Firebase, Google)
+// Only cache same-origin static assets.
+self.addEventListener('fetch', event => {
+    const { request } = event;
+    const url = new URL(request.url);
+
+    // Skip navigation requests — let React Router handle them
+    if (request.mode === 'navigate') return;
+
+    // Skip non-GET requests
+    if (request.method !== 'GET') return;
+
+    // Skip cross-origin requests (API, Cloudinary, Firebase CDN)
+    if (url.origin !== self.location.origin) return;
+
+    // Skip API calls
+    if (url.pathname.startsWith('/api/')) return;
+
+    // For same-origin static assets: network-first, fallback to cache
+    event.respondWith(
+        fetch(request)
+            .then(response => {
+                // Cache successful responses for static assets
+                if (response.ok) {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+                }
+                return response;
+            })
+            .catch(() => caches.match(request))
     );
-    return self.clients.claim();
 });
