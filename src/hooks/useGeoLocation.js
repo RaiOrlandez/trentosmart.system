@@ -27,13 +27,11 @@ const DEMO_LOCATION = {
 const useGeoLocation = (options = {}) => {
     const {
         enableHighAccuracy = true,
-        timeout = 10000,
-        maximumAge = 5000,
-        // Wait this long for the browser permission prompt before falling back
-        // to the Trento demo location. Keeping it reasonable (6 s) so users
-        // aren't left staring at a blank map. If they later grant permission
-        // the hook will automatically upgrade from demo → live.
-        permissionTimeout = 6000,
+        timeout = 30000,
+        maximumAge = 0, // Force fresh location (no caching) for exact accuracy
+        // Wait this long before falling back to demo location.
+        // 30 seconds gives adequate time for real hardware GPS lock.
+        permissionTimeout = 30000,
     } = options;
 
     const [location, setLocation] = useState(null);

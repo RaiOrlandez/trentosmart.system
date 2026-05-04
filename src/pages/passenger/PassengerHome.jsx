@@ -351,7 +351,7 @@ const PassengerHome = () => {
             sendLocation(pos.coords.latitude, pos.coords.longitude);
           },
           (err) => console.error(err),
-          { enableHighAccuracy: true }
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
         );
       }
     }
