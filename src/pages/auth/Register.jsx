@@ -187,7 +187,7 @@ const Register = () => {
         emergency_contact_name: emergencyContactName
       });
       setMessage('Registration successful! Redirecting to login...');
-      setTimeout(() => navigate('/login'), 2000);
+      setTimeout(() => navigate('/login'), 800);
     } catch (err) {
       console.warn('Register failed', err);
       let errorMessage = 'Registration failed. Please try again.';
