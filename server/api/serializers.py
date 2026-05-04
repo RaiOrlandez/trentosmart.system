@@ -60,7 +60,10 @@ class UserSerializer(serializers.ModelSerializer):
         field = getattr(obj, field_name, None)
         if not field:
             return None
-        url = field.url
+        try:
+            url = field.url
+        except Exception:
+            return None
         # If already an absolute URL (Cloudinary), return as-is
         if url.startswith('http'):
             return url

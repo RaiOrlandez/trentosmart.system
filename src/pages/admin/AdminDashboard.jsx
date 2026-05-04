@@ -685,13 +685,17 @@ const AdminDashboard = () => {
                               <div className="flex gap-1">
                                 <button
                                   onClick={() => approveDriver(driver.id)}
-                                  className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
+                                  disabled={approvingId === driver.id}
+                                  className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md disabled:opacity-50 disabled:cursor-wait flex items-center gap-1"
                                 >
-                                  Approve
+                                  {approvingId === driver.id ? (
+                                    <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Wait...</>
+                                  ) : 'Approve'}
                                 </button>
                                 <button
                                   onClick={() => rejectDriver(driver.id)}
-                                  className="bg-red-100 text-red-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all shadow-md"
+                                  disabled={!!approvingId}
+                                  className="bg-red-100 text-red-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-600 hover:text-white transition-all shadow-md disabled:opacity-50"
                                 >
                                   Reject
                                 </button>
