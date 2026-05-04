@@ -113,18 +113,21 @@ https://trentosmartsystem-production.up.railway.app/admin/
             print(f"[Email] Admin notification failed: {e}")
 
         # ── Broadcast to admins/system via WebSocket ──────────────────────
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            'global_system',
-            {
-                'type': 'new_user_signup',
-                'user': {
-                    'username': user.username,
-                    'role': user.role,
-                    'date_joined': user.date_joined.isoformat() if user.date_joined else None
+        try:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'global_system',
+                {
+                    'type': 'new_user_signup',
+                    'user': {
+                        'username': user.username,
+                        'role': user.role,
+                        'date_joined': user.date_joined.isoformat() if user.date_joined else None
+                    }
                 }
-            }
-        )
+            )
+        except Exception as ws_err:
+            print(f"[WebSocket] Broadcast failed (non-critical): {ws_err}")
 
         return Response(UserSerializer(user, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
@@ -955,7 +958,13 @@ class DriverVerificationView(APIView):
             print(f"Request Data: {request.data}")
             print(f"Request Files: {request.FILES}")
             
-            serializer = DriverVerificationSerializer(request.user, data=request.data, partial=True)
+            # Merge files explicitly — guarantees uploads are processed
+            # regardless of how the multipart boundary is parsed
+            merged_data = request.data.copy()
+            for field_name, file_obj in request.FILES.items():
+                merged_data[field_name] = file_obj
+
+            serializer = DriverVerificationSerializer(request.user, data=merged_data, partial=True)
             if serializer.is_valid():
                 try:
                     user = serializer.save()

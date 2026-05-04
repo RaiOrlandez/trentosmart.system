@@ -68,11 +68,15 @@ const DriverVerification = () => {
         console.log('API Base URL:', api.defaults.baseURL);
 
         try {
-            const response = await api.post('/driver/verify/', formData);
+            const response = await api.post('/driver/verify/', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             console.log('Verification SUCCESS:', response.data);
             setStatus('success');
             setVerificationStatus(false);
             setMsg(response.data.detail || 'Your documents have been submitted for review.');
+            // Refresh to show the uploaded images
+            setTimeout(() => fetchData(), 1500);
         } catch (err) {
             console.error('=== VERIFICATION ERROR ===');
             console.error('Full error object:', err);
