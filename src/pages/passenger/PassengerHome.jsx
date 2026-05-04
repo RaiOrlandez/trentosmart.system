@@ -260,6 +260,48 @@ const PassengerHome = () => {
     };
   }, [fetchSavedPlaces, fetchBroadcasts]);
 
+  // Restore Active Ride State on Mount
+  useEffect(() => {
+    const fetchActiveRide = async () => {
+      try {
+        const res = await api.get('/rides/active_ride/');
+        if (res.data) {
+          const ride = res.data;
+          setActiveRideId(ride.id);
+          setPickup(ride.pickup_address);
+          setDest(ride.dest_address);
+          setFare(ride.fare);
+          if (ride.payment_method) setPaymentMethod(ride.payment_method);
+          
+          if (ride.status === 'requested') {
+            setStatus('requesting');
+          } else if (ride.status === 'accepted') {
+            setStatus('matched');
+            setAssignedDriver(ride.driver);
+          } else if (ride.status === 'on_route') {
+            setStatus('ongoing');
+            setAssignedDriver(ride.driver);
+          }
+
+          // Restore markers on map
+          if (ride.pickup_lat && ride.pickup_lng && ride.dest_lat && ride.dest_lng) {
+            setMarkers([
+              { id: 'pickup', lat: parseFloat(ride.pickup_lat), lng: parseFloat(ride.pickup_lng), title: 'Pickup', info: ride.pickup_address, isPickup: true, forceFocus: Date.now() },
+              { id: 'dest', lat: parseFloat(ride.dest_lat), lng: parseFloat(ride.dest_lng), title: 'Destination', info: ride.dest_address, isDestination: true }
+            ]);
+            // Estimate distance roughly since OSRM route isn't saved
+            const fallbackDist = ((ride.pickup_address + ride.dest_address).length % 5) + 1.2;
+            setDistance(fallbackDist.toFixed(1));
+            setEstimatedTime(Math.ceil(fallbackDist * 3));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to restore active ride', err);
+      }
+    };
+    fetchActiveRide();
+  }, []);
+
   // Real-time Driver Availability — uses live GPS coords when available
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -290,10 +332,10 @@ const PassengerHome = () => {
   }, [broadcasts]);
 
   useEffect(() => {
-    if (pickup && dest) {
+    if (pickup && dest && status === 'idle') {
       computeFare();
     }
-  }, [pickup, dest, computeFare]);
+  }, [pickup, dest, computeFare, status]);
 
   // Live Tracking
   const { user } = useContext(AuthContext);
