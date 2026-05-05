@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star } from 'lucide-react';
 import api from '../api/axios';
+import { ensureImageUrl } from '../utils/url';
 
 const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [notes, setNotes] = useState(user?.verification_notes || '');
@@ -32,7 +33,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 md:px-0">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -44,17 +45,17 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                         initial={{ scale: 0.9, opacity: 0, y: 50 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 50 }}
-                        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl overflow-hidden relative z-10 flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh]"
+                        className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] shadow-2xl relative z-10 flex flex-col md:flex-row h-auto max-h-[90vh] overflow-y-auto md:overflow-hidden"
                     >
                         {/* Sidebar / Profile Header */}
-                        <div className="w-full md:w-1/3 bg-slate-50 dark:bg-slate-800/50 p-8 flex flex-col items-center">
-                            <button onClick={onClose} className="absolute top-6 left-6 p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full md:hidden">
-                                <X size={24} className="text-slate-400" />
+                        <div className="w-full md:w-1/3 bg-slate-50 dark:bg-slate-800/50 p-6 md:p-8 flex flex-col items-center md:overflow-y-auto">
+                            <button onClick={onClose} className="absolute top-4 right-4 md:top-6 md:left-6 p-2 hover:bg-slate-200 dark:hover:bg-white/10 rounded-full bg-white md:bg-transparent shadow-md md:shadow-none z-20">
+                                <X size={24} className="text-slate-600 dark:text-slate-400" />
                             </button>
 
-                            <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-800 shadow-2xl p-2 mb-6 mt-4 md:mt-2 relative group overflow-hidden">
+                            <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-800 shadow-2xl p-2 mb-4 mt-8 md:mt-2 relative group overflow-hidden shrink-0">
                                 <img
-                                    src={user.profile_picture ? user.profile_picture : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
+                                    src={ensureImageUrl(user.profile_picture, user.username)}
                                     alt="Avatar"
                                     className="w-full h-full rounded-[2rem] object-cover"
                                 />
@@ -67,35 +68,35 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
 
                             <div className="w-full space-y-4">
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    <Mail size={18} className="text-primary" />
+                                    <Mail size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
                                         <p className="text-sm font-bold truncate dark:text-white">{user.email || 'N/A'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    <Phone size={18} className="text-primary" />
+                                    <Phone size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
                                         <p className="text-sm font-bold truncate dark:text-white">{user.phone_number || 'No contact info'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    <User size={18} className="text-primary" />
+                                    <User size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gender</p>
                                         <p className="text-sm font-bold truncate dark:text-white uppercase">{user.gender || 'Not Stated'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    <Wallet size={18} className="text-primary" />
+                                    <Wallet size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Wallet Balance</p>
                                         <p className="text-sm font-bold truncate text-green-600">₱{user.wallet_balance}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    <FileText size={18} className="text-primary" />
+                                    <FileText size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Home Address</p>
                                         <p className="text-sm font-bold truncate dark:text-white">{user.address || 'No address'}</p>
@@ -105,7 +106,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                         </div>
 
                         {/* Main Content */}
-                        <div className="flex-1 p-8 md:p-12 overflow-y-auto">
+                        <div className="flex-1 p-6 md:p-8 lg:p-12 md:overflow-y-auto">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Official Resource</h3>
