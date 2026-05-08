@@ -38,6 +38,7 @@ import HeatMapModal from '../../components/HeatMapModal';
 import RatingModal from '../../components/RatingModal';
 import useGeoLocation from '../../hooks/useGeoLocation';
 import useLocationSync from '../../hooks/useLocationSync';
+import LocationPermissionModal from '../../components/LocationPermissionModal';
 
 const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
 
@@ -195,7 +196,7 @@ const DriverHome = () => {
   }, [isOnline, user?.is_online]);
 
   // ── Real-time GPS tracking ───────────────────────────────────────────────
-  const { location: gpsLocation, status: gpsStatus } = useGeoLocation();
+  const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
 
   // Derived map centre
   const driverCenter = gpsLocation
@@ -218,7 +219,7 @@ const DriverHome = () => {
         lat: gpsLocation.lat,
         lng: gpsLocation.lng,
         title: 'You',
-        info: gpsLocation.isDemo ? 'Demo Mode (Trento ADS)' : `GPS live · ±${Math.round(gpsLocation.accuracy)} m`,
+        info: `GPS live · ±${Math.round(gpsLocation.accuracy)} m`,
         isDriver: true
       };
       setDriverPos(livePos);
@@ -347,10 +348,7 @@ const DriverHome = () => {
       setSelectedRequest(null);
     } catch (err) {
       console.error('Failed to accept ride', err);
-      // Fallback for demo if needed, but the API should work now
-      setActiveRide(ride);
-      setRequests([]);
-      setSelectedRequest(null);
+      alert('Error: Could not accept the ride. Another driver may have taken it or connection lost.');
     }
   };
 
@@ -361,8 +359,7 @@ const DriverHome = () => {
       setActiveRide(prev => ({ ...prev, status: 'on_route' }));
     } catch (err) {
       console.error('Failed to start ride', err);
-      // Fallback for demo
-      setActiveRide(prev => ({ ...prev, status: 'on_route' }));
+      alert('Error: Could not start the ride. Please check connection.');
     }
   };
 
@@ -419,15 +416,7 @@ const DriverHome = () => {
 
     } catch (err) {
       console.error('Failed to complete ride', err);
-      // Fallback for demo/offline
-      const currentRideId = activeRide.id;
-      const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
-      setEarnings(prev => prev + parseFloat(activeRide.fare));
-      setTripsCount(prev => prev + 1);
-      setCompletedRideId(currentRideId);
-      setCompletedPassengerName(passengerName);
-      setActiveRide(null);
-      setTimeout(() => setShowRating(true), 500);
+      alert('Error: Could not complete the ride on the server. Retrying might be needed.');
     }
   };
 
@@ -441,6 +430,11 @@ const DriverHome = () => {
 
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 px-6">
+      <LocationPermissionModal 
+          isOpen={gpsStatus === 'error'} 
+          error={gpsError} 
+          onRetry={retryGps} 
+      />
       <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-8">
 
         {/* Verification Success Popup */}
@@ -1008,16 +1002,16 @@ const DriverHome = () => {
             }}>
               <span style={{
                 width: 8, height: 8, borderRadius: '50%',
-                background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8',
-                boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8'}`,
+                background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8',
+                boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8'}`,
                 display: 'inline-block',
                 flexShrink: 0,
               }} />
               <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: 700, letterSpacing: '0.01em' }}>
                 {gpsStatus === 'live'
                   ? 'Tracking live location'
-                  : gpsStatus === 'demo'
-                    ? 'Demo Mode: Showing default location (Trento ADS)'
+                  : gpsStatus === 'error'
+                    ? 'GPS Error: Please enable location'
                     : 'Acquiring GPS…'}
               </span>
             </div>

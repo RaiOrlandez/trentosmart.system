@@ -179,7 +179,7 @@ const SmoothMarker = ({ position, icon, isDriver, children }) => {
 };
 
 
-const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], routeCoordinates = null }) => {
+const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], routeCoordinates = null, heatPoints = [] }) => {
     const { isDarkMode } = useContext(ThemeContext);
     const [history, setHistory] = useState([]);
 
@@ -242,6 +242,33 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                     />
                 )}
 
+                {/* Demand Heatmap */}
+                {heatPoints && heatPoints.map((point, i) => (
+                    <React.Fragment key={`heat-${i}`}>
+                        <CircleMarker
+                            center={[point.lat, point.lng]}
+                            pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.2 }}
+                            radius={40}
+                        />
+                        <CircleMarker
+                            center={[point.lat, point.lng]}
+                            pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.4 }}
+                            radius={20}
+                        />
+                        <CircleMarker
+                            center={[point.lat, point.lng]}
+                            pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.8 }}
+                            radius={8}
+                        />
+                    </React.Fragment>
+                ))}
+                {driver && pickup && (
+                    <Polyline
+                        positions={[[driver.lat, driver.lng], [pickup.lat, pickup.lng]]}
+                        pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.6, dashArray: '10, 10' }}
+                    />
+                )}
+
                 {routeCoordinates && routeCoordinates.length > 0 ? (
                     <Polyline
                         positions={routeCoordinates}
@@ -276,7 +303,7 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                                         <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100 dark:border-white/10">
                                             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary bg-slate-100 dark:bg-slate-800 flex-shrink-0">
                                                 <img
-                                                    src={ensureImageUrl(marker.profile_picture, marker.title)}
+                                                    src={ensureImageUrl(marker.profile_picture, marker.username || marker.title)}
                                                     alt="Driver"
                                                     className="w-full h-full object-cover"
                                                 />

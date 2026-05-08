@@ -12,15 +12,8 @@ const useSystemEvents = () => {
         let socketUrl;
         const token = localStorage.getItem('access');
         
-        // If API URL is explicitly set (like in Vercel for production)
-        if (process.env.REACT_APP_API_URL) {
-            const baseUrl = process.env.REACT_APP_API_URL.replace(/^http/, 'ws');
-            socketUrl = `${baseUrl}/ws/system/?token=${token}`;
-        } else {
-            // Local fallback
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            socketUrl = `${protocol}//${window.location.hostname}:8000/ws/system/?token=${token}`;
-        }
+        const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
+        socketUrl = `${wsBase}/system/?token=${token}`;
 
         socketRef.current = new WebSocket(socketUrl);
 

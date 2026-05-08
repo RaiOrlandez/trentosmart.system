@@ -56,39 +56,7 @@ const youAreHereIcon = new L.DivIcon({
     popupAnchor: [0, -24],
 });
 
-// ─── Demo pin icon ───────────────────────────────────────────────────────────
-const demoPinIcon = new L.DivIcon({
-    className: '',
-    html: `
-        <div style="position:relative; width:40px; height:40px;">
-            <div style="
-                position:absolute; inset:0;
-                border-radius:50%;
-                background:rgba(251,191,36,0.25);
-                animation: tmPulse 2s ease-out infinite;
-            "></div>
-            <div style="
-                position:absolute; top:50%; left:50%;
-                transform:translate(-50%,-50%);
-                width:18px; height:18px;
-                background: linear-gradient(135deg,#f59e0b,#f97316);
-                border-radius:50%;
-                border:3px solid white;
-                box-shadow:0 2px 12px rgba(245,158,11,0.6);
-            "></div>
-        </div>
-        <style>
-            @keyframes tmPulse {
-                0%   { transform: scale(0.8); opacity:0.8; }
-                70%  { transform: scale(2.2); opacity:0;   }
-                100% { transform: scale(0.8); opacity:0;   }
-            }
-        </style>
-    `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -24],
-});
+
 
 // ─── Sub-component: smoothly re-center map when location changes ─────────────
 function AutoCenter({ lat, lng }) {
@@ -125,13 +93,7 @@ function StatusBadge({ status, error, accuracy }) {
             label: 'Tracking live location',
             sub: accuracy ? `±${Math.round(accuracy)} m accuracy` : 'GPS active',
         },
-        demo: {
-            bg: 'rgba(15,23,42,0.87)',
-            dot: '#f59e0b',
-            pulse: true,
-            label: 'Demo mode active',
-            sub: 'Trento, Agusan del Sur',
-        },
+
         error: {
             bg: 'rgba(15,23,42,0.87)',
             dot: '#ef4444',
@@ -199,7 +161,7 @@ function StatusBadge({ status, error, accuracy }) {
 }
 
 // ─── Coords badge ─────────────────────────────────────────────────────────────
-function CoordsBadge({ lat, lng, isDemo }) {
+function CoordsBadge({ lat, lng }) {
     if (!lat || !lng) return null;
     return (
         <div style={{
@@ -212,7 +174,7 @@ function CoordsBadge({ lat, lng, isDemo }) {
             pointerEvents: 'none',
         }}>
             <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
-                {isDemo ? 'Demo Coordinates' : 'Your Coordinates'}
+                Your Coordinates
             </div>
             <div style={{ color: 'white', fontFamily: 'monospace', fontSize: 11, fontWeight: 600, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span>Lat: <span style={{ color: '#818cf8' }}>{lat.toFixed(6)}</span></span>
@@ -261,14 +223,12 @@ const LiveLocationMap = ({
         ? [location.lat, location.lng]
         : [8.2965, 126.0630]; // Default Trento while loading
 
-    const accuracyRadius = location && !location.isDemo && location.accuracy > 0
+    const accuracyRadius = location && location.accuracy > 0
         ? location.accuracy
         : 0;
 
-    const markerIcon = location?.isDemo ? demoPinIcon : youAreHereIcon;
-    const popupLabel = location?.isDemo
-        ? '📍 Demo Location – Trento, Agusan del Sur'
-        : '📍 You are here';
+    const markerIcon = youAreHereIcon;
+    const popupLabel = '📍 You are here';
 
     return (
         <div
@@ -321,7 +281,7 @@ const LiveLocationMap = ({
                         <Popup className="tm-popup">
                             <div style={{ fontWeight: 700, fontSize: 13, minWidth: 160, padding: '4px 0' }}>
                                 {popupLabel}
-                                {!location.isDemo && location.accuracy > 0 && (
+                                {location.accuracy > 0 && (
                                     <div style={{ fontWeight: 400, fontSize: 11, color: '#64748b', marginTop: 4 }}>
                                         Accuracy: ±{Math.round(location.accuracy)} m
                                     </div>
@@ -370,7 +330,7 @@ const LiveLocationMap = ({
                             zIndex: 1000,
                         }}
                     >
-                        <CoordsBadge lat={location.lat} lng={location.lng} isDemo={location.isDemo} />
+                        <CoordsBadge lat={location.lat} lng={location.lng} />
                     </motion.div>
                 )}
             </AnimatePresence>

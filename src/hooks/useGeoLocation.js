@@ -2,12 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
-// --- Demo fallback: Trento, Agusan del Sur, Philippines ---
-const DEMO_LOCATION = {
+// Map default fallback (not a GPS fix)
+const DEFAULT_CENTER = {
     lat: 8.2965,
     lng: 126.0630,
-    accuracy: 0,
-    isDemo: true,
 };
 
 /**
@@ -18,8 +16,8 @@ const DEMO_LOCATION = {
  * it falls back to a hard-coded demo location in Trento, ADS.
  *
  * Returns:
- *   location    – { lat, lng, accuracy, isDemo }
- *   status      – 'loading' | 'live' | 'demo' | 'error'
+ *   location    – { lat, lng, accuracy } or null
+ *   status      – 'loading' | 'live' | 'error'
  *   error       – error message string or null
  *   retry       – function to restart watching
  * ──────────────────────────────────────────────────────────────────
@@ -35,18 +33,18 @@ const useGeoLocation = (options = {}) => {
     } = options;
 
     const [location, setLocation] = useState(null);
-    const [status, setStatus] = useState('loading'); // loading | live | demo | error
+    const [status, setStatus] = useState('loading'); // loading | live | error
     const [error, setError] = useState(null);
 
     const watchIdRef = useRef(null);
     const fallbackTimerRef = useRef(null);
     const hasGotLocationRef = useRef(false);
 
-    // --- Activate demo mode ---
-    const activateDemo = useCallback((reason = '') => {
-        setLocation(DEMO_LOCATION);
-        setStatus('demo');
-        setError(reason || 'GPS unavailable – using demo location (Trento ADS)');
+    // --- Handle Location Error ---
+    const handleLocationError = useCallback((reason = '') => {
+        setLocation(null); // No functional location
+        setStatus('error');
+        setError(reason || 'GPS unavailable. Please enable location services.');
     }, []);
 
     // --- Start geo-watching ---
@@ -68,7 +66,7 @@ const useGeoLocation = (options = {}) => {
         // Permission fallback timer
         fallbackTimerRef.current = setTimeout(() => {
             if (!hasGotLocationRef.current) {
-                activateDemo('Location permission timed out. Showing demo location.');
+                handleLocationError('Location permission timed out. Please allow location access.');
             }
         }, permissionTimeout);
 
@@ -89,7 +87,7 @@ const useGeoLocation = (options = {}) => {
                 lat: lat,
                 lng: lng,
                 accuracy: acc,
-                isDemo: false,
+                accuracy: acc,
             });
             setStatus('live');
             setError(null);
@@ -97,7 +95,7 @@ const useGeoLocation = (options = {}) => {
 
         const onError = (err) => {
             clearTimeout(fallbackTimerRef.current);
-            activateDemo('Location tracking error. Showing demo location.');
+            handleLocationError('Location tracking error. Could not retrieve real-time GPS.');
         };
 
         if (Capacitor.isNativePlatform()) {
@@ -121,7 +119,7 @@ const useGeoLocation = (options = {}) => {
             });
         } else {
             if (!('geolocation' in navigator)) {
-                activateDemo('Geolocation is not supported by this browser.');
+                handleLocationError('Geolocation is not supported by this browser.');
                 return;
             }
             watchIdRef.current = navigator.geolocation.watchPosition(onSuccess, onError, {
@@ -130,7 +128,7 @@ const useGeoLocation = (options = {}) => {
                 maximumAge,
             });
         }
-    }, [activateDemo, enableHighAccuracy, timeout, maximumAge, permissionTimeout]);
+    }, [handleLocationError, enableHighAccuracy, timeout, maximumAge, permissionTimeout]);
 
     // Start watching on mount, clean up on unmount
     useEffect(() => {
@@ -152,4 +150,3 @@ const useGeoLocation = (options = {}) => {
 };
 
 export default useGeoLocation;
-export { DEMO_LOCATION };

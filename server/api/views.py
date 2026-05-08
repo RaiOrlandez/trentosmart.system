@@ -433,7 +433,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class RideViewSet(viewsets.ModelViewSet):
-    queryset = Ride.objects.all().order_by('-requested_at')
+    queryset = Ride.objects.select_related('passenger', 'driver', 'targeted_driver').order_by('-requested_at')
     serializer_class = RideSerializer
 
     def get_permissions(self):

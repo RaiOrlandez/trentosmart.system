@@ -10,13 +10,11 @@ import { updateMyLocation } from '../api/locationService';
  * Only runs when:
  *   - `location` is non-null (from useGeoLocation)
  *   - `enabled` is true (e.g. user is logged in & active)
- *   - Not in demo mode (by default – can be overridden)
  *
- * @param {object|null} location  – { lat, lng, isDemo } from useGeoLocation
+ * @param {object|null} location  – { lat, lng } from useGeoLocation
  * @param {object}      options
  *   @param {boolean}  options.enabled        – master switch (default true)
  *   @param {number}   options.interval        – ms between syncs (default 4000)
- *   @param {boolean}  options.syncInDemoMode  – whether to push demo coords (default false)
  *   @param {function} options.onSyncSuccess   – callback(data) after successful push
  *   @param {function} options.onSyncError     – callback(err) on failure
  *
@@ -27,7 +25,6 @@ const useLocationSync = (location, options = {}) => {
     const {
         enabled = true,
         interval = 4000,
-        syncInDemoMode = false,
         onSyncSuccess,
         onSyncError,
     } = options;
@@ -37,7 +34,6 @@ const useLocationSync = (location, options = {}) => {
 
     const push = useCallback(async (loc) => {
         if (!loc || isSyncingRef.current) return;
-        if (loc.isDemo && !syncInDemoMode) return;
 
         isSyncingRef.current = true;
         try {
@@ -49,7 +45,7 @@ const useLocationSync = (location, options = {}) => {
         } finally {
             isSyncingRef.current = false;
         }
-    }, [syncInDemoMode, onSyncSuccess, onSyncError]);
+    }, [onSyncSuccess, onSyncError]);
 
     // Set up the recurring timer
     useEffect(() => {

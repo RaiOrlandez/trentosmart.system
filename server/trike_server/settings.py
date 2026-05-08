@@ -125,7 +125,12 @@ if CLOUDINARY_CLOUD_NAME:
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
+
+# Provide allowed origins via comma-separated list in env var if CORS_ALLOW_ALL_ORIGINS is False
+_cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if _cors_allowed:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_allowed.split(',') if origin.strip()]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

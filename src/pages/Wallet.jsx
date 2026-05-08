@@ -94,23 +94,11 @@ const Wallet = () => {
                 message: err.message
             });
 
-            // FALLBACK: Simulate successful top-up for demo purposes
-            console.warn('API call failed, using simulation mode');
-
-            const amountToAdd = parseFloat(topUpAmount);
-            const newBalance = balance + amountToAdd;
-
-            setBalance(newBalance);
             setShowGCashTopUp(false);
-            setTopUpAmount('');
             setMsg({
-                type: 'success',
-                text: `✅ Demo Mode: Added ₱${amountToAdd} to your wallet via GCash! Ref: ${transactionRef}`
+                type: 'error',
+                text: `Failed to top-up wallet. Please try again or contact support. Error: ${err.message}`
             });
-
-            // Note: In simulation mode, this won't persist to backend
-            // The balance will reset on page refresh
-            console.info('Note: Balance updated locally only. Refresh page to see actual backend balance.');
         } finally {
             setIsProcessing(false);
         }

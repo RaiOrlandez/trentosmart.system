@@ -12,10 +12,10 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             return;
         }
 
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
         // For guests, we use the shareToken in the query string if available
         const token = isGuest ? shareToken : localStorage.getItem('access');
-        const socketUrl = `${protocol}//${window.location.hostname}:8000/ws/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
+        const socketUrl = `${wsBase}/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
 
         console.log(`Connecting to ride socket: ${socketUrl}`);
         socketRef.current = new WebSocket(socketUrl);

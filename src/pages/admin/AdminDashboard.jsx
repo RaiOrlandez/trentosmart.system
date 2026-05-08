@@ -65,10 +65,35 @@ const AdminDashboard = () => {
   const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
 
   // Live Alerts & Notifications State
-  const [liveAlerts, setLiveAlerts] = useState([
-    { time: '2h ago', type: 'System', msg: 'Map tile update completed.' },
-  ]);
-  const [notifications, setNotifications] = useState([]);
+  const [liveAlerts, setLiveAlerts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('adminLiveAlerts');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse live alerts', e);
+    }
+    return [
+      { time: '2h ago', type: 'System', msg: 'Map tile update completed.' },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('adminLiveAlerts', JSON.stringify(liveAlerts));
+  }, [liveAlerts]);
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem('adminNotifications');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse notifications', e);
+    }
+    return [];
+  });
+  
+  useEffect(() => {
+    localStorage.setItem('adminNotifications', JSON.stringify(notifications));
+  }, [notifications]);
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [demandPoints, setDemandPoints] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(null);
@@ -142,36 +167,60 @@ const AdminDashboard = () => {
   // Process Real-time Events
   useEffect(() => {
     if (newRide) {
+      const msg = `New ride request from ${typeof newRide.passenger === 'object' ? newRide.passenger.username : 'user'}`;
       setLiveAlerts(prev => [{
         time: 'JUST NOW',
         type: 'RIDE',
-        msg: `New ride request from ${typeof newRide.passenger === 'object' ? newRide.passenger.username : 'user'}`,
+        msg: msg,
         urgent: false
       }, ...prev].slice(0, 15));
+      setNotifications(prev => [{
+        id: Date.now() + Math.random(),
+        time: 'JUST NOW',
+        type: 'Ride',
+        msg: msg,
+        urgent: false
+      }, ...prev].slice(0, 50));
       fetchStats();
     }
   }, [newRide, fetchStats]);
 
   useEffect(() => {
     if (newSignup) {
+      const msg = `New signup: ${newSignup.username} (${newSignup.role})`;
       setLiveAlerts(prev => [{
         time: 'JUST NOW',
         type: 'USER',
-        msg: `New signup: ${newSignup.username} (${newSignup.role})`,
+        msg: msg,
         urgent: false
       }, ...prev].slice(0, 15));
+      setNotifications(prev => [{
+        id: Date.now() + Math.random(),
+        time: 'JUST NOW',
+        type: 'User',
+        msg: msg,
+        urgent: false
+      }, ...prev].slice(0, 50));
       fetchUsers();
     }
   }, [newSignup, fetchUsers]);
 
   useEffect(() => {
     if (emergencyAlert) {
+      const msg = emergencyAlert.message || 'Emergency signal detected!';
       setLiveAlerts(prev => [{
         time: 'CRITICAL',
         type: 'SOS',
-        msg: emergencyAlert.message || 'Emergency signal detected!',
+        msg: msg,
         urgent: true
       }, ...prev].slice(0, 15));
+      setNotifications(prev => [{
+        id: Date.now() + Math.random(),
+        time: 'CRITICAL',
+        type: 'Safety',
+        msg: msg,
+        urgent: true
+      }, ...prev].slice(0, 50));
       setActiveSOS(emergencyAlert);
       setActiveTab('live'); // Force switch to map to see location
       fetchStats();
@@ -191,12 +240,23 @@ const AdminDashboard = () => {
         'driver_verified': 'USER'
       };
 
+      const mappedType = typeMap[systemEvent.type] || 'SYSTEM';
+      const isUrgent = systemEvent.type.includes('safety') || systemEvent.type.includes('withdrawal_request');
+
       setLiveAlerts(prev => [{
         time: 'REAL-TIME',
-        type: typeMap[systemEvent.type] || 'SYSTEM',
+        type: mappedType,
         msg: systemEvent.message,
-        urgent: systemEvent.type.includes('safety') || systemEvent.type.includes('withdrawal_request')
+        urgent: isUrgent
       }, ...prev].slice(0, 15));
+
+      setNotifications(prev => [{
+        id: Date.now() + Math.random(),
+        time: 'REAL-TIME',
+        type: mappedType.charAt(0) + mappedType.slice(1).toLowerCase(), // e.g., 'Safety', 'System'
+        msg: systemEvent.message,
+        urgent: isUrgent
+      }, ...prev].slice(0, 50));
 
       // Auto-refresh relevant data
       if (systemEvent.type.includes('config')) fetchStats();
@@ -234,7 +294,9 @@ const AdminDashboard = () => {
           title: d.vehicle_plate || d.username,
           info: `Driver: ${d.username}\nStatus: ${status}\nVehicle: ${d.vehicle_model || 'Tricycle'}`,
           isDriver: true,
-          isOnline: d.is_online
+          isOnline: d.is_online,
+          profile_picture: d.profile_picture,
+          username: d.username
         };
       });
       setLiveMarkers(newMarkers);
@@ -873,23 +935,24 @@ const AdminDashboard = () => {
             </button>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 setIsUpdatingMap(true);
+                await fetchLiveData();
                 setTimeout(() => {
                   setIsUpdatingMap(false);
                   setLiveAlerts(prev => [{
                     time: 'Just now',
                     type: 'SYSTEM',
-                    msg: 'Map tile update completed.',
+                    msg: 'Live Map data synchronized successfully.',
                     urgent: false
                   }, ...prev].slice(0, 15));
-                }, 2000);
+                }, 500);
               }}
               disabled={isUpdatingMap}
               className="flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl border-2 bg-slate-900 text-white hover:bg-black disabled:opacity-50"
             >
               <div className={`w-3 h-3 rounded-full ${isUpdatingMap ? 'bg-primary animate-spin' : 'bg-green-500'}`}></div>
-              {isUpdatingMap ? 'Updating Tiles...' : 'Force Map Refresh'}
+              {isUpdatingMap ? 'Syncing Map...' : 'Force Map Refresh'}
             </button>
           </div>
 

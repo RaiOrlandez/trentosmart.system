@@ -23,4 +23,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Handle global API errors gracefully
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Automatically log out if JWT token expires or is invalid
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Redirect to login only if not already there
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

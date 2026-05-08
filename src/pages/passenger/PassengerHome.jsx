@@ -35,8 +35,9 @@ import SavedPlaceModal from '../../components/SavedPlaceModal';
 import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
 import useGeoLocation from '../../hooks/useGeoLocation';
+import LocationPermissionModal from '../../components/LocationPermissionModal';
 
-// Demo fallback centre for Trento ADS (matches useGeoLocation default)
+// Default map centre (Trento ADS)
 const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
 
 const PassengerHome = () => {
@@ -77,7 +78,7 @@ const PassengerHome = () => {
   const [showFallbackButton, setShowFallbackButton] = useState(false);
 
   // ── Real-time GPS tracking (falls back to Trento ADS demo if denied) ────────
-  const { location: gpsLocation, status: gpsStatus } = useGeoLocation();
+  const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
 
   // Derived map centre: use live GPS when available, else TRENTO_CENTER
   const userCenter = gpsLocation
@@ -85,13 +86,8 @@ const PassengerHome = () => {
     : TRENTO_CENTER;
 
   // ── "You are here" marker ────────────────────────────────────────────────
-  // Only shown when the browser has a real GPS fix. In demo mode we do NOT
-  // place a pin so the user is not confused by a fake Trento marker.
   useEffect(() => {
-    if (!gpsLocation) return;
-
-    if (gpsLocation.isDemo) {
-      // Demo mode: remove any stale "you are here" pin
+    if (!gpsLocation) {
       setMarkers(prev => prev.filter(m => m.id !== 'you_are_here'));
       return;
     }
@@ -137,8 +133,9 @@ const PassengerHome = () => {
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
       ]);
 
-      const picRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchPickup)}&format=json&limit=1`);
-      const destRes = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchDest)}&format=json&limit=1`);
+      const nominatimUrl = process.env.REACT_APP_NOMINATIM_URL || 'https://nominatim.openstreetmap.org/search';
+      const picRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchPickup)}&format=json&limit=1`);
+      const destRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchDest)}&format=json&limit=1`);
 
       const picData = await picRes.json();
       const destData = await destRes.json();
@@ -152,7 +149,8 @@ const PassengerHome = () => {
         const dLat = destData[0].lat;
         const dLon = destData[0].lon;
 
-        const routeRes = await fetchWithTimeout(`https://router.project-osrm.org/route/v1/driving/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
+        const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+        const routeRes = await fetchWithTimeout(`${osrmUrl}/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
         const routeData = await routeRes.json();
 
         if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
@@ -675,6 +673,12 @@ const PassengerHome = () => {
 
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col md:flex-row gap-6 px-6 max-w-[1400px] mx-auto transition-colors duration-500">
+      <LocationPermissionModal 
+          isOpen={gpsStatus === 'error'} 
+          error={gpsError} 
+          onRetry={retryGps} 
+      />
+
       {/* LGU Announcements */}
       <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
         {Array.isArray(broadcasts) && broadcasts.length > 0 && (
@@ -742,7 +746,13 @@ const PassengerHome = () => {
               />
               <button
                 type="button"
-                onClick={() => setPickup(gpsLocation?.isDemo ? 'Trento Demo Location' : 'Current GPS Location')}
+                onClick={() => {
+                  if (gpsLocation) {
+                    setPickup('Current GPS Location');
+                  } else {
+                    alert('Please wait for GPS to locate you, or enter manually.');
+                  }
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary-dark transition-colors"
                 title="Use Current Location"
               >
@@ -1163,16 +1173,16 @@ const PassengerHome = () => {
           }}>
             <span style={{
               width: 8, height: 8, borderRadius: '50%',
-              background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8',
-              boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'demo' ? '#f59e0b' : '#94a3b8'}`,
+              background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8',
+              boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8'}`,
               display: 'inline-block',
               flexShrink: 0,
             }} />
             <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: 700, letterSpacing: '0.01em' }}>
               {gpsStatus === 'live'
                 ? 'Tracking live location'
-                : gpsStatus === 'demo'
-                  ? 'Demo Mode: Showing default location (Trento ADS)'
+                : gpsStatus === 'error'
+                  ? 'GPS Error: Please enable location'
                   : 'Acquiring GPS…'}
             </span>
           </div>

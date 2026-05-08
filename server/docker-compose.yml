@@ -4,10 +4,10 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_pass
-      MYSQL_DATABASE: transport
-      MYSQL_USER: trike_user
-      MYSQL_PASSWORD: trike_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-transport}
+      MYSQL_USER: ${MYSQL_USER:-trike_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-trike_pass}
     ports:
       - "3306:3306"
     volumes:
