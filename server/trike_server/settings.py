@@ -139,6 +139,18 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ),
+    # ── Rate Limiting / Throttling ────────────────────────────────────────────
+    # Protects public auth endpoints from brute-force and bot spam.
+    # Scoped throttles are applied per-view; only the named scopes below are active.
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.ScopedRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'login':       '5/minute',    # Max 5 login attempts per IP per minute
+        'register':    '3/minute',    # Max 3 registrations per IP per minute
+        'check_field': '30/minute',   # Email/username availability checks (form typing)
+        'pin':         '5/minute',    # PIN set / update attempts per IP per minute
+    },
 }
 
 SIMPLE_JWT = {

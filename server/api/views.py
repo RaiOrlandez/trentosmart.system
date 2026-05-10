@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 from django.contrib.auth import get_user_model
 from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment
 from .serializers import (
@@ -46,6 +47,8 @@ def calculate_distance(lat1, lng1, lat2, lng2):
 
 class RegisterView(APIView):
     permission_classes = (AllowAny,)
+    throttle_classes    = (ScopedRateThrottle,)
+    throttle_scope      = 'register'
 
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
@@ -147,6 +150,9 @@ https://trentosmartsystem-production.up.railway.app/admin/
 
 class CheckEmailView(APIView):
     permission_classes = (AllowAny,)
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'check_field'
+
     def get(self, request):
         email = request.query_params.get('email', '')
         if not email:
@@ -156,6 +162,9 @@ class CheckEmailView(APIView):
 
 class CheckUsernameView(APIView):
     permission_classes = (AllowAny,)
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'check_field'
+
     def get(self, request):
         username = request.query_params.get('username', '')
         if not username:
@@ -165,7 +174,9 @@ class CheckUsernameView(APIView):
 
 class LoginView(TokenObtainPairView):
     permission_classes = (AllowAny,)
-    serializer_class = CustomTokenObtainPairSerializer
+    serializer_class   = CustomTokenObtainPairSerializer
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'login'
     
 
 class ProfileView(APIView):
@@ -1149,6 +1160,8 @@ class WalletViewSet(viewsets.ViewSet):
 
 class PINManagementView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'pin'
 
     def get(self, request):
         has_pin = TransactionPIN.objects.filter(user=request.user).exists()
