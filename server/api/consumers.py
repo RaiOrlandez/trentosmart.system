@@ -106,11 +106,41 @@ class RideConsumer(AsyncWebsocketConsumer):
 class AdminConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.group_name = 'admin_alerts'
+        
+        # Authenticate via Token
+        user = self.scope.get('user')
+        if not user or not user.is_authenticated:
+            try:
+                query_string = self.scope.get('query_string', b'').decode()
+                params = urllib.parse.parse_qs(query_string)
+                if 'token' in params:
+                    token = params['token'][0]
+                    user = await self.get_user_from_token(token)
+                    self.scope['user'] = user
+            except Exception as e:
+                print(f"Admin WebSocket Auth Error: {e}")
+
+        # Verify authentication AND admin role
+        if not user or not user.is_authenticated or user.role != 'admin':
+            print("Rejected non-admin connection attempt to AdminConsumer.")
+            await self.close()
+            return
+
         await self.channel_layer.group_add(
             self.group_name,
             self.channel_name
         )
         await self.accept()
+
+    @database_sync_to_async
+    def get_user_from_token(self, token_key):
+        try:
+            access_token = AccessToken(token_key)
+            user_id = access_token['user_id']
+            User = get_user_model()
+            return User.objects.get(id=user_id)
+        except Exception:
+            return None
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
