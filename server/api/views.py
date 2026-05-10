@@ -26,6 +26,63 @@ from .fraud_service import FraudDetectionService
 from django.contrib.auth.hashers import make_password, check_password
 from .models import TransactionPIN
 
+
+# ── PIN Lockout Helper ────────────────────────────────────────────────────────
+# MAX_PIN_ATTEMPTS: number of wrong tries before lockout
+# LOCKOUT_MINUTES : how long the account stays locked
+MAX_PIN_ATTEMPTS = 5
+LOCKOUT_MINUTES  = 15
+
+def verify_pin_with_lockout(pin_obj, pin_code):
+    """
+    Verifies a TransactionPIN against the provided plain-text pin_code.
+    Enforces lockout after MAX_PIN_ATTEMPTS consecutive failures.
+
+    Returns (ok: bool, error_message: str | None)
+    - ok=True  → PIN correct, failed_attempts reset to 0
+    - ok=False → wrong PIN or account locked, error_message explains why
+    """
+    now = timezone.now()
+
+    # 1. Check if currently locked
+    if pin_obj.is_locked:
+        if pin_obj.locked_until and now < pin_obj.locked_until:
+            remaining = int((pin_obj.locked_until - now).total_seconds() // 60) + 1
+            return False, (
+                f'PIN is locked due to too many failed attempts. '
+                f'Please try again in {remaining} minute(s).'
+            )
+        else:
+            # Lockout period has expired — auto-unlock
+            pin_obj.is_locked      = False
+            pin_obj.locked_until   = None
+            pin_obj.failed_attempts = 0
+            pin_obj.save(update_fields=['is_locked', 'locked_until', 'failed_attempts'])
+
+    # 2. Verify the PIN
+    if not check_password(pin_code, pin_obj.pin_hash):
+        pin_obj.failed_attempts += 1
+
+        if pin_obj.failed_attempts >= MAX_PIN_ATTEMPTS:
+            pin_obj.is_locked    = True
+            pin_obj.locked_until = now + timezone.timedelta(minutes=LOCKOUT_MINUTES)
+            pin_obj.save(update_fields=['failed_attempts', 'is_locked', 'locked_until'])
+            return False, (
+                f'Too many incorrect attempts. '
+                f'Your PIN has been locked for {LOCKOUT_MINUTES} minutes.'
+            )
+
+        attempts_left = MAX_PIN_ATTEMPTS - pin_obj.failed_attempts
+        pin_obj.save(update_fields=['failed_attempts'])
+        return False, f'Incorrect PIN. {attempts_left} attempt(s) remaining.'
+
+    # 3. Correct PIN — reset counter
+    if pin_obj.failed_attempts > 0:
+        pin_obj.failed_attempts = 0
+        pin_obj.save(update_fields=['failed_attempts'])
+
+    return True, None
+
 User = get_user_model()
 
 
@@ -1123,10 +1180,11 @@ class WalletViewSet(viewsets.ViewSet):
         
         try:
             pin_obj = TransactionPIN.objects.get(user=request.user)
-            if not check_password(pin_code, pin_obj.pin_hash):
-                 return Response({'detail': 'Invalid Security PIN'}, status=status.HTTP_400_BAD_REQUEST)
+            ok, err = verify_pin_with_lockout(pin_obj, pin_code)
+            if not ok:
+                return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
         except TransactionPIN.DoesNotExist:
-             return Response({'detail': 'No Transaction PIN set'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'No Transaction PIN set. Please set one in Security Settings.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not amount:
             return Response({'detail': 'Amount is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1184,23 +1242,27 @@ class PINManagementView(APIView):
         return Response({'detail': 'Security PIN successfully set!'}, status=status.HTTP_201_CREATED)
 
     def put(self, request):
-        # Update existing PIN
+        # Update existing PIN — full lockout enforcement
         old_pin = request.data.get('old_pin')
         new_pin = request.data.get('new_pin')
 
         if not new_pin or len(new_pin) != 6 or not new_pin.isdigit():
-            return Response({'detail': 'New PIN must be 6 digits.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'New PIN must be exactly 6 digits.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             pin_obj = TransactionPIN.objects.get(user=request.user)
-            if not check_password(old_pin, pin_obj.pin_hash):
-                return Response({'detail': 'Old PIN is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            pin_obj.pin_hash = make_password(new_pin)
+            ok, err = verify_pin_with_lockout(pin_obj, old_pin)
+            if not ok:
+                return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
+
+            pin_obj.pin_hash        = make_password(new_pin)
+            pin_obj.failed_attempts = 0
+            pin_obj.is_locked       = False
+            pin_obj.locked_until    = None
             pin_obj.save()
-            return Response({'detail': 'Security PIN updated.'})
+            return Response({'detail': 'Security PIN updated successfully.'})
         except TransactionPIN.DoesNotExist:
-            return Response({'detail': 'No PIN found to update.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'No PIN found. Please set one first.'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
@@ -1244,10 +1306,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         
         try:
             pin_obj = TransactionPIN.objects.get(user=user)
-            if not check_password(pin_code, pin_obj.pin_hash):
-                raise serializers.ValidationError("Invalid Security PIN.")
+            ok, err = verify_pin_with_lockout(pin_obj, pin_code)
+            if not ok:
+                raise serializers.ValidationError(err)
         except TransactionPIN.DoesNotExist:
-             raise serializers.ValidationError("Please set up your Transaction PIN first.")
+            raise serializers.ValidationError('Please set up your Transaction PIN first.')
 
         amount_str = self.request.data.get('amount', '0')
         try:
