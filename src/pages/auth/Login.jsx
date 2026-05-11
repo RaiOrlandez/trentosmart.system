@@ -24,6 +24,10 @@ const Login = () => {
       else if (user.role === 'admin') navigate('/admin');
       else navigate('/passenger');
     } catch (err) {
+      if (err.response?.data?.email_not_verified) {
+        navigate(`/verify-email?email=${email}`);
+        return;
+      }
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed. Check your credentials.';
       setError(errorMessage);
     } finally {

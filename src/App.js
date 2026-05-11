@@ -14,6 +14,7 @@ const EarningsDashboard = lazy(() => import('./pages/driver/EarningsDashboard'))
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const Login = lazy(() => import('./pages/auth/Login'));
 const Register = lazy(() => import('./pages/auth/Register'));
+const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const Wallet = lazy(() => import('./pages/Wallet'));
 const RideHistory = lazy(() => import('./pages/RideHistory'));
 const ScheduledRides = lazy(() => import('./pages/ScheduledRides'));
@@ -39,6 +40,7 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/track/:token" element={<PublicTracking />} />
 
               <Route path="/passenger" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />

@@ -186,8 +186,8 @@ const Register = () => {
         gender: gender,
         emergency_contact_name: emergencyContactName
       });
-      setMessage('Registration successful! Redirecting to login...');
-      setTimeout(() => navigate('/login'), 800);
+      setMessage('Registration successful! Please check your email for the verification code.');
+      setTimeout(() => navigate(`/verify-email?email=${email}`), 1500);
     } catch (err) {
       console.warn('Register failed', err);
       let errorMessage = 'Registration failed. Please try again.';
