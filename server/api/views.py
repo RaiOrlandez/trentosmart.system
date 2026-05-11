@@ -1697,6 +1697,16 @@ class LocationUpdateView(APIView):
 
         # Persist to user model (same fields used by the existing driver tracker)
         user = request.user
+        
+        # Security: Check for impossible travel / GPS Spoofing
+        from .fraud_service import FraudDetectionService
+        is_spoofed = FraudDetectionService.check_impossible_travel(user, lat, lng)
+        if is_spoofed:
+            return Response(
+                {'detail': 'Suspicious location activity detected. Your account has been flagged and forced offline.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         user.last_lat = lat
         user.last_lng = lng
         user.last_location_update = timezone.now()
