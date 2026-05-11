@@ -188,7 +188,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         
-        if not self.user.is_email_verified:
+        if not self.user.is_email_verified and self.user.role != 'admin':
             # Custom field for frontend to detect and show OTP screen
             raise serializers.ValidationError({
                 'detail': 'Email not verified. Please check your email for the verification code.',
