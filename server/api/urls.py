@@ -10,7 +10,7 @@ from .views import (
     LocationUpdateView, NearbyLocationsView,
 )
 from .fcm_views import update_fcm_token
-from .report_views import export_revenue_csv
+from .report_views import export_revenue_csv, get_admin_dashboard_stats
 
 
 router = DefaultRouter()
@@ -51,5 +51,6 @@ urlpatterns = [
     
     # ── Export & Reports ──────────────────────────────────────────────────────
     path('reports/export/', export_revenue_csv, name='export_revenue_csv'),
+    path('reports/stats/', get_admin_dashboard_stats, name='admin_stats'),
 ]
 

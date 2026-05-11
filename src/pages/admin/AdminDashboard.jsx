@@ -97,6 +97,7 @@ const AdminDashboard = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [demandPoints, setDemandPoints] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(null);
+  const [rideData, setRideData] = useState([]);
 
   const handleExportCSV = async () => {
     try {
@@ -116,26 +117,13 @@ const AdminDashboard = () => {
 
   const fetchStats = useCallback(async () => {
     try {
-      const usersRes = await api.get('/users/');
-      const ridesRes = await api.get('/rides/');
-      const incidentsRes = await api.get('/incidents/');
-
-      const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
-      const ridesData = Array.isArray(ridesRes.data) ? ridesRes.data : [];
-      const incidentsData = Array.isArray(incidentsRes.data) ? incidentsRes.data : [];
-
-      setStats({
-        drivers: usersData.filter(u => u.role === 'driver').length,
-        onlineDrivers: usersData.filter(u => u.role === 'driver' && u.is_online).length,
-        onlinePassengers: usersData.filter(u => u.role === 'passenger' && u.is_online).length,
-        activeRides: ridesData.filter(r => r.status === 'requested' || r.status === 'accepted' || r.status === 'on_route').length,
-        totalRidesToday: ridesData.filter(r => new Date(r.requested_at).toDateString() === new Date().toDateString()).length,
-        incidents: incidentsData.length,
-        totalRevenue: ridesData.filter(r => r.status === 'completed').reduce((sum, r) => sum + parseFloat(r.fare || 0), 0),
-        commission: ridesData.filter(r => r.status === 'completed').reduce((sum, r) => sum + parseFloat(r.fare || 0), 0) * 0.05 // Real 5%
-      });
+      const res = await api.get('/reports/stats/');
+      const { stats: fetchedStats, chartData } = res.data;
+      
+      setStats(fetchedStats);
+      setRideData(chartData);
     } catch (err) {
-      console.error("Failed to initial stats", err);
+      console.error("Failed to fetch dashboard stats", err);
     }
   }, []);
 
@@ -435,14 +423,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const rideData = [
-    { name: '6 AM', rides: 12 },
-    { name: '9 AM', rides: 45 },
-    { name: '12 PM', rides: 68 },
-    { name: '3 PM', rides: 52 },
-    { name: '6 PM', rides: 89 },
-    { name: '9 PM', rides: 34 },
-  ];
+
 
 
 
