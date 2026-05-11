@@ -57,6 +57,10 @@ class User(AbstractUser):
     
     wallet_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
+    # Email Verification
+    is_email_verified = models.BooleanField(default=False)
+    email_otp = models.CharField(max_length=6, blank=True, null=True)
+
     # Driver Operational Settings
     auto_accept_rides = models.BooleanField(default=False)
     receive_notifications = models.BooleanField(default=True)

@@ -83,6 +83,9 @@ def verify_pin_with_lockout(pin_obj, pin_code):
 
     return True, None
 
+import random
+import string
+
 User = get_user_model()
 
 
@@ -110,7 +113,13 @@ class RegisterView(APIView):
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        
+        # Generate 6-digit OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        
         user = ser.save()
+        user.email_otp = otp
+        user.save(update_fields=['email_otp'])
 
         # ── Fire all post-registration notifications in the background ────────
         # This ensures the API returns immediately (< 200ms) without waiting
@@ -119,23 +128,26 @@ class RegisterView(APIView):
         from django.core.mail import send_mail
         from django.conf import settings as django_settings
 
-        def send_notifications(username, email, role, date_joined):
-            # Welcome Email
+        def send_notifications(username, email, role, date_joined, otp_code):
+            # Welcome Email with OTP
             try:
                 send_mail(
-                    subject='Welcome to Trento Smart Tricycle System! 🛺',
+                    subject='Verify Your Trento Smart Account 🛺',
                     message=f"""Hi {username},
 
 Welcome to the Trento Smart Tricycle System!
 
-Your account has been successfully created.
+To complete your registration and prevent fake accounts, please verify your email address.
+
+Your Verification Code:
+{otp_code}
 
 Account Details:
   Username : {username}
   Email    : {email}
   Role     : {role.capitalize()}
 
-{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "You can now log in and start booking rides!"}
+{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "Once verified, you can log in and start booking rides!"}
 
 If you did not create this account, please contact us immediately.
 
@@ -195,7 +207,7 @@ https://trentosmartsystem-production.up.railway.app/admin/
 
         thread = threading.Thread(
             target=send_notifications,
-            args=(user.username, user.email, user.role, user.date_joined),
+            args=(user.username, user.email, user.role, user.date_joined, otp),
             daemon=True
         )
         thread.start()
@@ -1819,4 +1831,30 @@ class NearbyLocationsView(APIView):
             results.sort(key=lambda x: x['distance'] if x['distance'] is not None else 9999)
 
         return Response(results[:50])  # Cap at 50 results
+
+
+class VerifyEmailView(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+
+        if not email or not otp:
+            return Response({'detail': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email=email).first()
+        if not user:
+            return Response({'detail': 'User with this email not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.is_email_verified:
+            return Response({'detail': 'Email already verified.'}, status=status.HTTP_200_OK)
+
+        if user.email_otp == otp:
+            user.is_email_verified = True
+            user.email_otp = None  # Clear OTP after successful verification
+            user.save(update_fields=['is_email_verified', 'email_otp'])
+            return Response({'detail': 'Email verified successfully! You can now log in.'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'detail': 'Invalid OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
 

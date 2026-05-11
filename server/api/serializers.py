@@ -185,6 +185,18 @@ class ComplaintSerializer(serializers.ModelSerializer):
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        
+        if not self.user.is_email_verified:
+            # Custom field for frontend to detect and show OTP screen
+            raise serializers.ValidationError({
+                'detail': 'Email not verified. Please check your email for the verification code.',
+                'email_not_verified': True
+            })
+            
+        return data
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
