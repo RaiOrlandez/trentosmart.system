@@ -631,6 +631,47 @@ class RideViewSet(viewsets.ModelViewSet):
                     "Driver is On the Way! 🏁",
                     "Your ride has officially started. Enjoy the trip!"
                 )
+            elif new_status == 'cancelled' and old_status != 'cancelled':
+                if updated_ride.driver and self.request.user == updated_ride.passenger:
+                    from .models import WalletTransaction, FraudAlert
+                    from decimal import Decimal
+                    
+                    # Log cancellation
+                    updated_ride.cancelled_by = self.request.user
+                    updated_ride.cancellation_reason = self.request.data.get('cancellation_reason', 'Cancelled by passenger after driver accepted')
+                    updated_ride.save(update_fields=['cancelled_by', 'cancellation_reason'])
+                    
+                    # Check recent cancellations
+                    one_day_ago = timezone.now() - timezone.timedelta(hours=24)
+                    recent_cancels = Ride.objects.filter(
+                        passenger=self.request.user,
+                        status='cancelled',
+                        cancelled_by=self.request.user,
+                        driver__isnull=False,
+                        requested_at__gte=one_day_ago
+                    ).count()
+                    
+                    if recent_cancels >= 3:
+                        fee = Decimal('10.00')
+                        if self.request.user.wallet_balance >= fee:
+                            self.request.user.wallet_balance -= fee
+                            self.request.user.save()
+                            WalletTransaction.objects.create(
+                                user=self.request.user,
+                                amount=fee,
+                                transaction_type='payment',
+                                description='Cancellation Penalty Fee'
+                            )
+                            send_push_notification(self.request.user, "Cancellation Penalty", "You have been charged ₱10.00 for excessive ride cancellations.")
+                        else:
+                            FraudAlert.objects.create(
+                                user=self.request.user,
+                                reason="Excessive Cancellations",
+                                details=f"Passenger cancelled {recent_cancels} rides after driver acceptance in 24h.",
+                                severity='medium'
+                            )
+                            send_push_notification(self.request.user, "Warning: Excessive Cancellations", "You have cancelled multiple rides after a driver accepted. This hurts our drivers. Further cancellations may result in account suspension.")
+
             elif new_status == 'completed' and old_status != 'completed':
                 # CENTRALIZED COMPLETION LOGIC (ensure financial records are created)
                 # Only run if not already processed

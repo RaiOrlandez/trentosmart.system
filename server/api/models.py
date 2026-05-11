@@ -109,6 +109,10 @@ class Ride(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     share_token = models.UUIDField(default=uuid.uuid4, editable=False)
+    
+    # Cancellation tracking
+    cancellation_reason = models.TextField(blank=True)
+    cancelled_by = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='cancelled_rides')
 
     def __str__(self):
         return f"Ride {self.id} - {self.status}"
