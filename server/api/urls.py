@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, CheckEmailView, CheckUsernameView, LoginView, ProfileView, RideViewSet, driver_requests, 
     driver_accept, driver_reject, ride_complete, DriverVerificationView, WalletViewSet,
@@ -31,6 +32,7 @@ urlpatterns = [
     path('auth/check-username/', CheckUsernameView.as_view(), name='check-username'),
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
+    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('user/profile/', ProfileView.as_view(), name='profile'),
     path('', include(router.urls)),
     path('driver/requests/', driver_requests, name='driver_requests'),

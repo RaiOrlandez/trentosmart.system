@@ -23,19 +23,54 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle global API errors gracefully
+// Handle global API errors gracefully and auto-refresh JWT token
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Automatically log out if JWT token expires or is invalid
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      // Redirect to login only if not already there
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-        window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 Unauthorized and we haven't already retried
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      const refreshToken = localStorage.getItem('refresh');
+      
+      if (refreshToken) {
+        try {
+          // Send request to refresh endpoint
+          const response = await axios.post(`${API_BASE}/auth/token/refresh/`, {
+            refresh: refreshToken
+          });
+          
+          // Save the new access token
+          const newAccessToken = response.data.access;
+          localStorage.setItem('token', newAccessToken);
+          
+          // Update the authorization header for the original request
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          
+          // Retry the original request
+          return api(originalRequest);
+        } catch (refreshError) {
+          // If refresh fails (e.g. refresh token is expired), log out
+          localStorage.removeItem('token');
+          localStorage.removeItem('refresh');
+          localStorage.removeItem('user');
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+            window.location.href = '/login';
+          }
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // No refresh token available, normal logout
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+          window.location.href = '/login';
+        }
       }
     }
+    
     return Promise.reject(error);
   }
 );
