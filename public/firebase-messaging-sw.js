@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'trentosmart-cache-v2';
+const CACHE_NAME = 'trentosmart-cache-v3';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
