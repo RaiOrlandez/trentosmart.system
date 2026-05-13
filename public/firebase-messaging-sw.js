@@ -84,6 +84,9 @@ self.addEventListener('fetch', event => {
                 }
                 return response;
             })
-            .catch(() => caches.match(request))
+            .catch(async () => {
+                const cachedResponse = await caches.match(request);
+                return cachedResponse || new Response('Offline and not cached', { status: 503, statusText: 'Service Unavailable' });
+            })
     );
 });

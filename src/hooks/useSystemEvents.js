@@ -9,11 +9,11 @@ const useSystemEvents = () => {
     const socketRef = useRef(null);
 
     useEffect(() => {
-        let socketUrl;
         const token = localStorage.getItem('access');
-        
+        if (!token) return; // Wait until authenticated
+
         const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
-        socketUrl = `${wsBase}/system/?token=${token}`;
+        const socketUrl = `${wsBase}/system/?token=${token}`;
 
         socketRef.current = new WebSocket(socketUrl);
 
