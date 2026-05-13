@@ -192,7 +192,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             # Custom field for frontend to detect and show OTP screen
             raise serializers.ValidationError({
                 'detail': 'Email not verified. Please check your email for the verification code.',
-                'email_not_verified': True
+                'email_not_verified': True,
+                'user_email': self.user.email
             })
             
         return data

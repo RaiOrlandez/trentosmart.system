@@ -25,7 +25,8 @@ const Login = () => {
       else navigate('/passenger');
     } catch (err) {
       if (err.response?.data?.email_not_verified) {
-        navigate(`/verify-email?email=${email}`);
+        const userEmail = err.response.data.user_email || email;
+        navigate(`/verify-email?email=${userEmail}`);
         return;
       }
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed. Check your credentials.';
