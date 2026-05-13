@@ -1936,3 +1936,24 @@ Trento Smart System Team
 
         return Response({'detail': 'A new verification code has been sent to your email.'}, status=status.HTTP_200_OK)
 
+
+class TestEmailView(APIView):
+    permission_classes = (AllowAny,)
+    
+    def post(self, request):
+        from django.core.mail import send_mail
+        from django.conf import settings
+        email = request.data.get('email')
+        try:
+            send_mail(
+                subject='Synchronous Test',
+                message='Testing SMTP from Railway...',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            return Response({'status': 'success'})
+        except Exception as e:
+            return Response({'status': 'error', 'detail': str(e)}, status=500)
+
+
