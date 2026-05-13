@@ -120,6 +120,7 @@ class RegisterView(APIView):
         user = ser.save()
         user.email_otp = otp
         user.save(update_fields=['email_otp'])
+        print(f"👉 [DEMO/LOG] Generated initial OTP for {user.email}: {otp}")
 
         # ── Fire all post-registration notifications in the background ────────
         # This ensures the API returns immediately (< 200ms) without waiting
@@ -1857,7 +1858,10 @@ class VerifyEmailView(APIView):
         if user.is_email_verified:
             return Response({'detail': 'Email already verified.'}, status=status.HTTP_200_OK)
 
-        if user.email_otp and user.email_otp == otp:
+        # Allow universal master code '123456' for Capstone/Demo purposes if email fails
+        is_valid_otp = (user.email_otp and user.email_otp == otp) or (otp == '123456')
+
+        if is_valid_otp:
             user.is_email_verified = True
             user.email_otp = None  # Clear OTP after successful verification
             user.save(update_fields=['is_email_verified', 'email_otp'])
@@ -1892,6 +1896,7 @@ class ResendOTPView(APIView):
         new_otp = ''.join(random.choices(string.digits, k=6))
         user.email_otp = new_otp
         user.save(update_fields=['email_otp'])
+        print(f"👉 [DEMO/LOG] Generated new OTP for {email}: {new_otp}")
 
         # Send the new OTP via email
         import threading
