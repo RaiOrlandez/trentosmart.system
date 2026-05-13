@@ -150,6 +150,7 @@ REST_FRAMEWORK = {
         'register':    '3/minute',    # Max 3 registrations per IP per minute
         'check_field': '30/minute',   # Email/username availability checks (form typing)
         'pin':         '5/minute',    # PIN set / update attempts per IP per minute
+        'resend_otp':  '3/10minute',  # Max 3 resend requests per 10 minutes per IP
     },
 }
 

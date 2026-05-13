@@ -137,10 +137,13 @@ class RegisterView(APIView):
 
 Welcome to the Trento Smart Tricycle System!
 
-To complete your registration and prevent fake accounts, please verify your email address.
+To complete your registration, please verify your email address using the code below.
 
-Your Verification Code:
-{otp_code}
+━━━━━━━━━━━━━━━━━━━━━━━
+  Verification Code: {otp_code}
+━━━━━━━━━━━━━━━━━━━━━━━
+
+This code expires in 30 minutes. Do not share it with anyone.
 
 Account Details:
   Username : {username}
@@ -149,22 +152,25 @@ Account Details:
 
 {"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "Once verified, you can log in and start booking rides!"}
 
-If you did not create this account, please contact us immediately.
+If you did not create this account, please ignore this email or contact support immediately.
 
 Best regards,
 Trento Smart System Team
 """,
                     from_email=django_settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[email],
-                    fail_silently=True,
+                    fail_silently=False,
                 )
+                print(f"[Email] ✅ Verification OTP sent to {email}")
             except Exception as e:
-                print(f"[Email] Welcome email failed: {e}")
+                print(f"[Email] ❌ Welcome email FAILED for {email}: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Admin Notification Email
             try:
                 admin_email = django_settings.ADMIN_NOTIFICATION_EMAIL
-                if admin_email:
+                if admin_email and admin_email != email:  # Don't double-email if same address
                     send_mail(
                         subject=f'🆕 New {role.capitalize()} Registered — {username}',
                         message=f"""A new user has registered on the Trento Smart System.
@@ -183,10 +189,11 @@ https://trentosmartsystem-production.up.railway.app/admin/
 """,
                         from_email=django_settings.DEFAULT_FROM_EMAIL,
                         recipient_list=[admin_email],
-                        fail_silently=True,
+                        fail_silently=False,
                     )
+                    print(f"[Email] ✅ Admin notification sent to {admin_email}")
             except Exception as e:
-                print(f"[Email] Admin notification failed: {e}")
+                print(f"[Email] ❌ Admin notification FAILED: {e}")
 
             # WebSocket Broadcast
             try:
@@ -1843,18 +1850,89 @@ class VerifyEmailView(APIView):
         if not email or not otp:
             return Response({'detail': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(email__iexact=email).first()
         if not user:
             return Response({'detail': 'User with this email not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if user.is_email_verified:
             return Response({'detail': 'Email already verified.'}, status=status.HTTP_200_OK)
 
-        if user.email_otp == otp:
+        if user.email_otp and user.email_otp == otp:
             user.is_email_verified = True
             user.email_otp = None  # Clear OTP after successful verification
             user.save(update_fields=['is_email_verified', 'email_otp'])
             return Response({'detail': 'Email verified successfully! You can now log in.'}, status=status.HTTP_200_OK)
         else:
-            return Response({'detail': 'Invalid OTP code.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Invalid OTP code. Please check your email or request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResendOTPView(APIView):
+    """
+    Resends a fresh 6-digit OTP to the user's registered email.
+    Rate-limited to prevent abuse.
+    """
+    permission_classes = (AllowAny,)
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'resend_otp'
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if not user:
+            # Don't reveal whether the email exists (security best practice)
+            return Response({'detail': 'If this email is registered, a new code has been sent.'}, status=status.HTTP_200_OK)
+
+        if user.is_email_verified:
+            return Response({'detail': 'This email is already verified. Please log in.'}, status=status.HTTP_200_OK)
+
+        # Generate a fresh 6-digit OTP
+        new_otp = ''.join(random.choices(string.digits, k=6))
+        user.email_otp = new_otp
+        user.save(update_fields=['email_otp'])
+
+        # Send the new OTP via email
+        import threading
+        from django.core.mail import send_mail
+        from django.conf import settings as django_settings
+
+        def _send_resend_email(username, email_addr, otp_code):
+            try:
+                send_mail(
+                    subject='Your New Trento Smart Verification Code 🛺',
+                    message=f"""Hi {username},
+
+You requested a new verification code for your Trento Smart account.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+  Verification Code: {otp_code}
+━━━━━━━━━━━━━━━━━━━━━━━
+
+This code expires in 30 minutes. Do not share it with anyone.
+
+If you did not request this, please ignore this email.
+
+Best regards,
+Trento Smart System Team
+""",
+                    from_email=django_settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email_addr],
+                    fail_silently=False,
+                )
+                print(f"[Email] ✅ Resend OTP sent to {email_addr}")
+            except Exception as e:
+                print(f"[Email] ❌ Resend OTP FAILED for {email_addr}: {e}")
+                import traceback
+                traceback.print_exc()
+
+        thread = threading.Thread(
+            target=_send_resend_email,
+            args=(user.username, user.email, new_otp),
+            daemon=True
+        )
+        thread.start()
+
+        return Response({'detail': 'A new verification code has been sent to your email.'}, status=status.HTTP_200_OK)
 

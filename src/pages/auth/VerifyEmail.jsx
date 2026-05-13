@@ -68,17 +68,35 @@ const VerifyEmail = () => {
         }
     };
 
+    const [resendCooldown, setResendCooldown] = useState(0);
+
+    // Cooldown timer for resend button
+    useEffect(() => {
+        if (resendCooldown <= 0) return;
+        const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [resendCooldown]);
+
     const handleResend = async () => {
+        if (resendCooldown > 0) return;
+        if (!emailFromQuery) {
+            setResendMessage('No email address found. Please register again.');
+            return;
+        }
         setResending(true);
         setResendMessage(null);
         try {
-            // We use the register endpoint again but it will detect the existing user 
-            // and trigger a resend if we implement it, or we could have a specific resend endpoint.
-            // For now, let's just show a simulated success or implement a simple resend logic if available.
-            await api.get(`/auth/check-email/?email=${emailFromQuery}`);
-            setResendMessage('A new code has been sent to your email.');
+            const res = await api.post('/auth/resend-otp/', { email: emailFromQuery });
+            setResendMessage(res.data.detail || 'A new code has been sent to your email.');
+            setResendCooldown(60); // 60-second cooldown between resends
+            setOtp(['', '', '', '', '', '']); // Clear old code
+            document.getElementById('otp-0')?.focus();
         } catch (err) {
-            setResendMessage('Failed to resend code. Please try again later.');
+            if (err.response?.status === 429) {
+                setResendMessage('Too many requests. Please wait a few minutes before trying again.');
+            } else {
+                setResendMessage(err.response?.data?.detail || 'Failed to resend code. Please try again.');
+            }
         } finally {
             setResending(false);
         }
@@ -143,13 +161,15 @@ const VerifyEmail = () => {
                             <button
                                 type="button"
                                 onClick={handleResend}
-                                disabled={resending}
-                                className="text-sm font-bold text-slate-400 hover:text-primary transition-colors flex items-center gap-2 mx-auto"
+                                disabled={resending || resendCooldown > 0}
+                                className="text-sm font-bold text-slate-400 hover:text-primary transition-colors flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {resending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw size={14} />}
-                                Resend Verification Code
+                                {resendCooldown > 0
+                                    ? `Resend available in ${resendCooldown}s`
+                                    : 'Resend Verification Code'}
                             </button>
-                            {resendMessage && <p className="text-[10px] font-bold text-primary mt-2">{resendMessage}</p>}
+                            {resendMessage && <p className={`text-[10px] font-bold mt-2 ${resendMessage.includes('sent') ? 'text-primary' : 'text-red-500'}`}>{resendMessage}</p>}
                         </div>
                     </form>
                 )}

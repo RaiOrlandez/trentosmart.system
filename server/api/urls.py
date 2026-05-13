@@ -7,7 +7,7 @@ from .views import (
     ReviewViewSet, IncidentViewSet, ComplaintViewSet, UserViewSet,
     DriverAnalyticsView, SavedPlaceViewSet, SystemConfigViewSet, BroadcastViewSet,
     WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride,
-    LocationUpdateView, NearbyLocationsView, VerifyEmailView,
+    LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
 )
 from .fcm_views import update_fcm_token
 from .report_views import export_revenue_csv, get_admin_dashboard_stats
@@ -29,6 +29,7 @@ router.register(r'maintenance-logs', MaintenanceLogViewSet, basename='maintenanc
 urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/verify-email/', VerifyEmailView.as_view(), name='verify-email'),
+    path('auth/resend-otp/', ResendOTPView.as_view(), name='resend-otp'),
     path('auth/check-email/', CheckEmailView.as_view(), name='check-email'),
     path('auth/check-username/', CheckUsernameView.as_view(), name='check-username'),
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
