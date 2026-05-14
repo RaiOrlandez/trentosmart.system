@@ -130,6 +130,23 @@ def verify_pin_with_lockout(pin_obj, pin_code):
 
     return True, None
 
+def check_admin_pin(request):
+    if request.user.role != 'admin':
+        return False, "Forbidden - Admin access required."
+    
+    # Try header first, then body
+    pin_code = request.headers.get('X-Admin-PIN') or request.data.get('pin')
+    if not pin_code:
+        return False, "Security PIN is required for this action."
+    
+    try:
+        from .models import TransactionPIN
+        pin_obj = TransactionPIN.objects.get(user=request.user)
+        return verify_pin_with_lockout(pin_obj, pin_code)
+    except Exception:
+        return False, "Please set up your 6-digit Security PIN in your Profile first."
+
+
 import random
 import string
 
@@ -445,6 +462,11 @@ class UserViewSet(viewsets.ModelViewSet):
             instance = self.get_object()
             print(f"Delete request from {request.user.username} (Role: {request.user.role}) for user {instance.username}")
 
+            if request.user.role == 'admin':
+                ok, err = check_admin_pin(request)
+                if not ok:
+                    return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
+
             # Strict permission check
             if request.user.role != 'admin' and request.user.id != instance.id:
                 return Response({'detail': 'Forbidden: You can only delete your own account.'}, status=status.HTTP_403_FORBIDDEN)
@@ -540,7 +562,9 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def reject_driver(self, request, pk=None):
         try:
-            if request.user.role != 'admin': return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            ok, err = check_admin_pin(request)
+            if not ok: return Response({'detail': err}, status=status.HTTP_403_FORBIDDEN)
+            
             user = self.get_object()
             if user.role != 'driver': return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
             user.is_verified_driver = False
@@ -553,7 +577,9 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def suspend_driver(self, request, pk=None):
         try:
-            if request.user.role != 'admin': return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+            ok, err = check_admin_pin(request)
+            if not ok: return Response({'detail': err}, status=status.HTTP_403_FORBIDDEN)
+
             user = self.get_object()
             if user.role != 'driver': return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
             user.is_verified_driver = False
@@ -1802,6 +1828,11 @@ class BroadcastViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at')
 
     def perform_create(self, serializer):
+        ok, err = check_admin_pin(self.request)
+        if not ok:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(detail=err)
+
         broadcast = serializer.save(user=self.request.user)
         
         # Broadcast via WebSockets

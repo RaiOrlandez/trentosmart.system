@@ -41,6 +41,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import UserDetailModal from '../../components/UserDetailModal';
 import CreateUserModal from '../../components/CreateUserModal';
+import AdminActionPinModal from '../../components/AdminActionPinModal';
 import useSystemEvents from '../../hooks/useSystemEvents';
 
 const AdminDashboard = () => {
@@ -59,6 +60,7 @@ const AdminDashboard = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pinModalConfig, setPinModalConfig] = useState({ isOpen: false, actionName: '', onConfirm: null });
   const { driverLocation, newRide, newSignup, emergencyAlert, systemEvent } = useSystemEvents();
   const [activeSOS, setActiveSOS] = useState(null);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
@@ -398,35 +400,55 @@ const AdminDashboard = () => {
     }
   };
 
-  const rejectDriver = async (userId) => {
-    try {
-      await api.post(`/users/${userId}/reject_driver/`);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
-      alert('Driver rejected.');
-      await fetchUsers(true);
-    } catch (err) { alert('Action failed'); }
+  const rejectDriver = (userId) => {
+    setPinModalConfig({
+      isOpen: true,
+      actionName: 'Reject Driver Application',
+      onConfirm: async (pin) => {
+        try {
+          await api.post(`/users/${userId}/reject_driver/`, { pin });
+          setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
+          alert('Driver rejected.');
+          await fetchUsers(true);
+        } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
+      }
+    });
   };
 
-  const suspendDriver = async (userId) => {
-    try {
-      if (!window.confirm("Suspend this driver? They will not be able to accept rides.")) return;
-      await api.post(`/users/${userId}/suspend_driver/`);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
-      alert('Driver suspended.');
-      await fetchUsers(true);
-    } catch (err) { alert('Action failed'); }
+  const suspendDriver = (userId) => {
+    if (!window.confirm("Suspend this driver? They will not be able to accept rides.")) return;
+    setPinModalConfig({
+      isOpen: true,
+      actionName: 'Suspend Driver Account',
+      onConfirm: async (pin) => {
+        try {
+          await api.post(`/users/${userId}/suspend_driver/`, { pin });
+          setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
+          alert('Driver suspended.');
+          await fetchUsers(true);
+        } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
+      }
+    });
   };
 
-  const deleteUser = async (id) => {
+  const deleteUser = (id) => {
     if (!window.confirm("Permanently delete this account? All associated data will be lost.")) return;
-    try {
-      await api.delete(`/users/${id}/`);
-      setUsers(prev => prev.filter(u => u.id !== id));
-      fetchStats(); // Update counters
-    } catch (err) {
-      const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
-      alert(`Failed to delete user record. Reason: ${serverMsg}`);
-    }
+    setPinModalConfig({
+      isOpen: true,
+      actionName: 'Permanently Delete User',
+      onConfirm: async (pin) => {
+        try {
+          // Send PIN in data for DELETE request
+          await api.delete(`/users/${id}/`, { data: { pin } });
+          setUsers(prev => prev.filter(u => u.id !== id));
+          fetchStats(); // Update counters
+          alert('User deleted.');
+        } catch (err) {
+          const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
+          alert(`Failed to delete user record. Reason: ${serverMsg}`);
+        }
+      }
+    });
   };
 
 
@@ -1093,7 +1115,7 @@ const AdminDashboard = () => {
 
       {activeTab === 'safety' && <SafetyHubTab />}
       {activeTab === 'economy' && <FinanceTab stats={stats} />}
-      {activeTab === 'broadcast' && <BroadcastTab />}
+      {activeTab === 'broadcast' && <BroadcastTab setPinModalConfig={setPinModalConfig} />}
       {activeTab === 'audit' && <AuditLogTab alerts={liveAlerts} />}
       {activeTab === 'fares' && <FareControlTab />}
 
@@ -1140,11 +1162,18 @@ const AdminDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AdminActionPinModal 
+        isOpen={pinModalConfig.isOpen} 
+        actionName={pinModalConfig.actionName} 
+        onClose={() => setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null })} 
+        onConfirm={pinModalConfig.onConfirm} 
+      />
     </div>
   );
 };
 
-const BroadcastTab = () => {
+const BroadcastTab = ({ setPinModalConfig }) => {
   const [broadcasts, setBroadcasts] = useState([]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -1171,29 +1200,37 @@ const BroadcastTab = () => {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    try {
-      const payload = {
-        title,
-        message,
-        target_role: target,
-        is_critical: isCritical
-      };
 
-      if (editingId) {
-        await api.patch(`/broadcasts/${editingId}/`, payload);
-      } else {
-        await api.post('/broadcasts/', payload);
+    setPinModalConfig({
+      isOpen: true,
+      actionName: editingId ? 'Update Broadcast' : 'Send LGU Broadcast',
+      onConfirm: async (pin) => {
+        try {
+          const payload = {
+            title,
+            message,
+            target_role: target,
+            is_critical: isCritical,
+            pin
+          };
+
+          if (editingId) {
+            await api.patch(`/broadcasts/${editingId}/`, payload);
+          } else {
+            await api.post('/broadcasts/', payload);
+          }
+
+          setTitle('');
+          setMessage('');
+          setTarget('all');
+          setIsCritical(false);
+          setEditingId(null);
+          fetchBroadcasts();
+        } catch (err) {
+          alert("Failed to save broadcast");
+        }
       }
-
-      setTitle('');
-      setMessage('');
-      setTarget('all');
-      setIsCritical(false);
-      setEditingId(null);
-      fetchBroadcasts();
-    } catch (err) {
-      alert("Failed to save broadcast");
-    }
+    });
   };
 
   const handleEdit = (b) => {
@@ -1205,14 +1242,20 @@ const BroadcastTab = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
     if (!window.confirm("Are you sure you want to delete this broadcast? This cannot be undone.")) return;
-    try {
-      await api.delete(`/broadcasts/${id}/`);
-      fetchBroadcasts();
-    } catch (err) {
-      alert("Failed to delete broadcast");
-    }
+    setPinModalConfig({
+      isOpen: true,
+      actionName: 'Delete Broadcast',
+      onConfirm: async (pin) => {
+        try {
+          await api.delete(`/broadcasts/${id}/`, { data: { pin } });
+          fetchBroadcasts();
+        } catch (err) {
+          alert("Failed to delete broadcast");
+        }
+      }
+    });
   };
 
   if (loading) return <div className="p-20 text-center font-bold text-slate-400">LOADING BROADCASTS...</div>;
