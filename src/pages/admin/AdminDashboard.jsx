@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import UserDetailModal from '../../components/UserDetailModal';
 import CreateUserModal from '../../components/CreateUserModal';
 import AdminActionPinModal from '../../components/AdminActionPinModal';
+import MaskedData from '../../components/MaskedData';
 import useSystemEvents from '../../hooks/useSystemEvents';
 
 const AdminDashboard = () => {
@@ -711,7 +712,7 @@ const AdminDashboard = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-secondary dark:text-white text-sm truncate">{driver.username}</p>
-                        <p className="text-xs text-slate-400 truncate">{driver.email}</p>
+                        <MaskedData value={driver.email} type="email" fallback="No Email" className="text-xs text-slate-400" />
                       </div>
                       <div className={`w-2 h-2 rounded-full shrink-0 ${driver.is_online ? 'status-online' : 'status-offline'}`} />
                     </div>
@@ -780,7 +781,7 @@ const AdminDashboard = () => {
                             </span>
                           </div>
                         </td>
-                        <td className="py-4 text-sm font-medium text-slate-500 dark:text-slate-400">{driver.email}</td>
+                        <td className="py-4 text-sm font-medium text-slate-500 dark:text-slate-400"><MaskedData value={driver.email} type="email" /></td>
                         <td className="py-4 text-xs font-bold text-slate-400 flex items-center gap-1">
                           <Clock size={12} /> {new Date(driver.date_joined).toLocaleDateString()}
                         </td>
@@ -946,7 +947,7 @@ const AdminDashboard = () => {
                           <span className="bg-primary/20 text-primary-dark text-[8px] font-black px-1.5 py-0.5 rounded border border-primary/30 uppercase tracking-tighter">New User</span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mb-1">{user.email}</p>
+                      <div className="mb-1"><MaskedData value={user.email} type="email" className="text-xs text-slate-500" /></div>
                       <div className="flex items-center gap-2">
                         <span className={user.is_online ? 'badge-live' : 'badge-offline'}>
                           {user.is_online ? 'Currently Online' : 'Regular Passenger'}

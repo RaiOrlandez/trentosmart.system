@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star } from 'lucide-react';
 import api from '../api/axios';
 import { ensureImageUrl } from '../utils/url';
+import MaskedData from './MaskedData';
 
 const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [notes, setNotes] = useState(user?.verification_notes || '');
@@ -76,14 +77,14 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                     <Mail size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Email Address</p>
-                                        <p className="text-sm font-bold truncate dark:text-white">{user.email || 'N/A'}</p>
+                                        <MaskedData value={user.email} type="email" fallback="N/A" className="text-sm font-bold dark:text-white" />
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
                                     <Phone size={18} className="text-primary shrink-0" />
                                     <div className="min-w-0">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
-                                        <p className="text-sm font-bold truncate dark:text-white">{user.phone_number || 'No contact info'}</p>
+                                        <MaskedData value={user.phone_number} type="phone" fallback="No contact info" className="text-sm font-bold dark:text-white" />
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5">
@@ -220,7 +221,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                         <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-xl shadow-slate-200/50">
                                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Emergency Contact Relationship</h4>
                                             <p className="text-xs font-black text-secondary dark:text-white uppercase mb-1">{user.emergency_contact_name || 'N/A'}</p>
-                                            <p className="text-sm font-bold text-primary">{user.emergency_contact_phone || 'None provided'}</p>
+                                            <MaskedData value={user.emergency_contact_phone} type="phone" fallback="None provided" className="text-sm font-bold text-primary" />
                                         </div>
                                     </div>
                                 </div>
