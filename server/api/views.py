@@ -27,6 +27,47 @@ from django.contrib.auth.hashers import make_password, check_password
 from .models import TransactionPIN
 
 
+import os
+import requests
+from django.conf import settings
+
+def send_brevo_email(recipient_email, recipient_name, subject, html_content):
+    url = "https://api.brevo.com/v3/smtp/email"
+    # Read key from environment variables
+    api_key = os.environ.get('BREVO_API_KEY', '')
+    
+    payload = {
+        "sender": {
+            "name": "Trento Smart System",
+            "email": getattr(settings, 'DEFAULT_FROM_EMAIL', 'ryanmorlandez@adssu.edu.ph')
+        },
+        "to": [
+            {
+                "email": recipient_email,
+                "name": recipient_name
+            }
+        ],
+        "subject": subject,
+        "htmlContent": html_content
+    }
+    
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        response.raise_for_status()
+        return True, response.json()
+    except Exception as e:
+        print(f"[Brevo API Error] {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"[Brevo API Details] {e.response.text}")
+        return False, str(e)
+
+
 # ── PIN Lockout Helper ────────────────────────────────────────────────────────
 # MAX_PIN_ATTEMPTS: number of wrong tries before lockout
 # LOCKOUT_MINUTES : how long the account stays locked
@@ -132,69 +173,68 @@ class RegisterView(APIView):
         def send_notifications(username, email, role, date_joined, otp_code):
             # Welcome Email with OTP
             try:
-                send_mail(
-                    subject='Verify Your Trento Smart Account 🛺',
-                    message=f"""Hi {username},
-
-Welcome to the Trento Smart Tricycle System!
-
-To complete your registration, please verify your email address using the code below.
-
-━━━━━━━━━━━━━━━━━━━━━━━
-  Verification Code: {otp_code}
-━━━━━━━━━━━━━━━━━━━━━━━
-
-This code expires in 30 minutes. Do not share it with anyone.
-
-Account Details:
-  Username : {username}
-  Email    : {email}
-  Role     : {role.capitalize()}
-
-{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "Once verified, you can log in and start booking rides!"}
-
-If you did not create this account, please ignore this email or contact support immediately.
-
-Best regards,
-Trento Smart System Team
-""",
-                    from_email=django_settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[email],
-                    fail_silently=False,
-                )
-                print(f"[Email] ✅ Verification OTP sent to {email}")
+                html_msg = f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2>Verify Your Trento Smart Account 🛺</h2>
+                    <p>Hi {username},</p>
+                    <p>Welcome to the Trento Smart Tricycle System!</p>
+                    <p>To complete your registration, please verify your email address using the code below.</p>
+                    <div style="background-color: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                        <h1 style="font-size: 36px; letter-spacing: 8px; color: #2563eb; margin: 0;">{otp_code}</h1>
+                    </div>
+                    <p>This code expires in 30 minutes. Do not share it with anyone.</p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                        <p style="margin:0 0 10px 0;"><b>Account Details:</b></p>
+                        <ul style="margin:0; padding-left: 20px;">
+                            <li>Username: {username}</li>
+                            <li>Email: {email}</li>
+                            <li>Role: {role.capitalize()}</li>
+                        </ul>
+                    </div>
+                    <p>{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "Once verified, you can log in and start booking rides!"}</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                    <p style="color: #64748b; font-size: 12px; text-align: center;">If you did not create this account, please ignore this email or contact support immediately.</p>
+                </div>
+                """
+                success, response = send_brevo_email(email, username, 'Verify Your Trento Smart Account 🛺', html_msg)
+                if success:
+                    print(f"[Email] ✅ Verification OTP sent to {email}")
+                else:
+                    print(f"[Email] ❌ Welcome email FAILED for {email}: {response}")
             except Exception as e:
-                print(f"[Email] ❌ Welcome email FAILED for {email}: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"[Email] ❌ Welcome email Exception: {e}")
 
             # Admin Notification Email
             try:
-                admin_email = django_settings.ADMIN_NOTIFICATION_EMAIL
+                admin_email = getattr(django_settings, 'ADMIN_NOTIFICATION_EMAIL', getattr(django_settings, 'DEFAULT_FROM_EMAIL', None))
                 if admin_email and admin_email != email:  # Don't double-email if same address
-                    send_mail(
-                        subject=f'🆕 New {role.capitalize()} Registered — {username}',
-                        message=f"""A new user has registered on the Trento Smart System.
-
-User Details:
-  Username  : {username}
-  Email     : {email}
-  Role      : {role.capitalize()}
-  Joined At : {date_joined.strftime('%B %d, %Y at %I:%M %p') if date_joined else 'N/A'}
-  {"⚠️  This driver account requires your verification approval." if role == 'driver' else ""}
-
-Log in to the Admin Dashboard to manage this user:
-https://trentosmartsystem-production.up.railway.app/admin/
-
-— Trento Smart Automated System
-""",
-                        from_email=django_settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[admin_email],
-                        fail_silently=False,
-                    )
-                    print(f"[Email] ✅ Admin notification sent to {admin_email}")
+                    html_msg = f"""
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                        <h2>🆕 New {role.capitalize()} Registered — {username}</h2>
+                        <p>A new user has registered on the Trento Smart System.</p>
+                        <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                            <p style="margin:0 0 10px 0;"><b>User Details:</b></p>
+                            <ul style="margin:0; padding-left: 20px;">
+                                <li>Username: {username}</li>
+                                <li>Email: {email}</li>
+                                <li>Role: {role.capitalize()}</li>
+                                <li>Joined At: {date_joined.strftime('%B %d, %Y at %I:%M %p') if date_joined else 'N/A'}</li>
+                            </ul>
+                        </div>
+                        <p style="color: #ef4444; font-weight: bold;">{"⚠️ This driver account requires your verification approval." if role == 'driver' else ""}</p>
+                        <p>Log in to the Admin Dashboard to manage this user:</p>
+                        <a href="https://trentosmartsystem-production.up.railway.app/admin/" style="display: inline-block; background-color: #0f172a; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 10px;">Open Admin Dashboard</a>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                        <p style="color: #64748b; font-size: 12px; text-align: center;">Trento Smart Automated System</p>
+                    </div>
+                    """
+                    success, response = send_brevo_email(admin_email, "Admin", f'🆕 New {role.capitalize()} Registered — {username}', html_msg)
+                    if success:
+                        print(f"[Email] ✅ Admin notification sent to {admin_email}")
+                    else:
+                        print(f"[Email] ❌ Admin notification FAILED: {response}")
             except Exception as e:
-                print(f"[Email] ❌ Admin notification FAILED: {e}")
+                print(f"[Email] ❌ Admin notification Exception: {e}")
 
             # WebSocket Broadcast
             try:
@@ -1905,32 +1945,26 @@ class ResendOTPView(APIView):
 
         def _send_resend_email(username, email_addr, otp_code):
             try:
-                send_mail(
-                    subject='Your New Trento Smart Verification Code 🛺',
-                    message=f"""Hi {username},
-
-You requested a new verification code for your Trento Smart account.
-
-━━━━━━━━━━━━━━━━━━━━━━━
-  Verification Code: {otp_code}
-━━━━━━━━━━━━━━━━━━━━━━━
-
-This code expires in 30 minutes. Do not share it with anyone.
-
-If you did not request this, please ignore this email.
-
-Best regards,
-Trento Smart System Team
-""",
-                    from_email=django_settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[email_addr],
-                    fail_silently=False,
-                )
-                print(f"[Email] ✅ Resend OTP sent to {email_addr}")
+                html_msg = f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2>Your New Trento Smart Verification Code 🛺</h2>
+                    <p>Hi {username},</p>
+                    <p>You requested a new verification code for your Trento Smart account.</p>
+                    <div style="background-color: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                        <h1 style="font-size: 36px; letter-spacing: 8px; color: #2563eb; margin: 0;">{otp_code}</h1>
+                    </div>
+                    <p>This code expires in 30 minutes. Do not share it with anyone.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                    <p style="color: #64748b; font-size: 12px; text-align: center;">If you did not request this, please ignore this email or contact support immediately.</p>
+                </div>
+                """
+                success, response = send_brevo_email(email_addr, username, 'Your New Trento Smart Verification Code 🛺', html_msg)
+                if success:
+                    print(f"[Email] ✅ Resend OTP sent to {email_addr}")
+                else:
+                    print(f"[Email] ❌ Resend OTP FAILED for {email_addr}: {response}")
             except Exception as e:
-                print(f"[Email] ❌ Resend OTP FAILED for {email_addr}: {e}")
-                import traceback
-                traceback.print_exc()
+                print(f"[Email] ❌ Resend OTP Exception: {e}")
 
         thread = threading.Thread(
             target=_send_resend_email,
@@ -1946,18 +1980,13 @@ class TestEmailView(APIView):
     permission_classes = (AllowAny,)
     
     def post(self, request):
-        from django.core.mail import send_mail
-        from django.conf import settings
         email = request.data.get('email')
         try:
-            send_mail(
-                subject='Synchronous Test',
-                message='Testing SMTP from Railway...',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            return Response({'status': 'success'})
+            success, response = send_brevo_email(email, "Tester", "Brevo API Test", "<p>Testing Brevo API integration from Railway.</p>")
+            if success:
+                return Response({'status': 'success', 'data': response})
+            else:
+                return Response({'status': 'error', 'detail': response}, status=500)
         except Exception as e:
             return Response({'status': 'error', 'detail': str(e)}, status=500)
 
