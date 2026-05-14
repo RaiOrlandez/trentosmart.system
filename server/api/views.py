@@ -37,10 +37,15 @@ def send_brevo_email(recipient_email, recipient_name, subject, html_content):
     # Read key from environment variables
     api_key = os.environ.get('BREVO_API_KEY', '')
     
+    if not api_key:
+        print("[Brevo] ❌ BREVO_API_KEY environment variable is NOT SET! Emails will NOT be sent.")
+        print("[Brevo] ❌ Add BREVO_API_KEY to your Railway environment variables.")
+        return False, "BREVO_API_KEY not configured"
+    
     payload = {
         "sender": {
             "name": "Trento Smart System",
-            "email": getattr(settings, 'DEFAULT_FROM_EMAIL', 'ryanmorlandez@adssu.edu.ph')
+            "email": "ryanmorlandez@adssu.edu.ph"  # Must match a verified sender in Brevo
         },
         "to": [
             {
