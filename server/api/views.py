@@ -317,6 +317,115 @@ class ProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ChangePasswordView(APIView):
+    """Allows authenticated users to change their password by providing the current one."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current_password = request.data.get('current_password', '')
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not current_password or not new_password:
+            return Response({'detail': 'Current password and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(current_password):
+            return Response({'detail': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({'detail': 'New passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 6:
+            return Response({'detail': 'New password must be at least 6 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if current_password == new_password:
+            return Response({'detail': 'New password must be different from the current one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        print(f"[Security] ✅ Password changed for {request.user.username}")
+        return Response({'detail': 'Password changed successfully! Please log in again with your new password.'}, status=status.HTTP_200_OK)
+
+
+class ChangeEmailView(APIView):
+    """Allows authenticated users to change their email. Sends OTP to new email for verification."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import random, string
+
+        new_email = request.data.get('new_email', '').strip().lower()
+        password = request.data.get('password', '')
+
+        if not new_email or not password:
+            return Response({'detail': 'New email and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(password):
+            return Response({'detail': 'Password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_email == request.user.email:
+            return Response({'detail': 'This is already your current email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if email is already taken by another user
+        if User.objects.filter(email__iexact=new_email).exclude(id=request.user.id).exists():
+            return Response({'detail': 'This email is already in use by another account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate OTP and save to user
+        otp = ''.join(random.choices(string.digits, k=6))
+        request.user.email_otp = otp
+        request.user.save(update_fields=['email_otp'])
+        print(f"👉 [DEMO/LOG] Email change OTP for {request.user.username} -> {new_email}: {otp}")
+
+        # Send OTP to the NEW email
+        import threading
+        def _send_change_email_otp(username, target_email, otp_code):
+            html_msg = f"""
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h2>Confirm Your New Email Address 🛺</h2>
+                <p>Hi {username},</p>
+                <p>You requested to change your Trento Smart email to <b>{target_email}</b>.</p>
+                <p>Enter this code in the app to confirm:</p>
+                <div style="background-color: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                    <h1 style="font-size: 36px; letter-spacing: 8px; color: #2563eb; margin: 0;">{otp_code}</h1>
+                </div>
+                <p>This code expires in 30 minutes. If you didn't request this, ignore this email.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                <p style="color: #64748b; font-size: 12px; text-align: center;">Trento Smart System</p>
+            </div>
+            """
+            success, response = send_brevo_email(target_email, username, 'Confirm Your New Email — Trento Smart 🛺', html_msg)
+            if success:
+                print(f"[Email] ✅ Email change OTP sent to {target_email}")
+            else:
+                print(f"[Email] ❌ Email change OTP FAILED: {response}")
+
+        thread = threading.Thread(target=_send_change_email_otp, args=(request.user.username, new_email, otp), daemon=True)
+        thread.start()
+
+        return Response({'detail': f'A verification code has been sent to {new_email}.'}, status=status.HTTP_200_OK)
+
+
+class ConfirmEmailChangeView(APIView):
+    """Confirms the email change by verifying the OTP sent to the new email."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        new_email = request.data.get('new_email', '').strip().lower()
+        otp = request.data.get('otp', '').strip()
+
+        if not new_email or not otp:
+            return Response({'detail': 'New email and verification code are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.email_otp and request.user.email_otp == otp:
+            old_email = request.user.email
+            request.user.email = new_email
+            request.user.email_otp = None
+            request.user.save(update_fields=['email', 'email_otp'])
+            print(f"[Security] ✅ Email changed for {request.user.username}: {old_email} -> {new_email}")
+            return Response({'detail': 'Email updated successfully!'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserSerializer

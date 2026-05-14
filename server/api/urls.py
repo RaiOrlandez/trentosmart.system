@@ -8,6 +8,7 @@ from .views import (
     DriverAnalyticsView, SavedPlaceViewSet, SystemConfigViewSet, BroadcastViewSet,
     WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride,
     LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
+    ChangePasswordView, ChangeEmailView, ConfirmEmailChangeView,
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
@@ -38,6 +39,9 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('user/profile/', ProfileView.as_view(), name='profile'),
+    path('user/change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('user/change-email/', ChangeEmailView.as_view(), name='change-email'),
+    path('user/confirm-email-change/', ConfirmEmailChangeView.as_view(), name='confirm-email-change'),
     path('', include(router.urls)),
     path('driver/requests/', driver_requests, name='driver_requests'),
     path('driver/accept/<int:ride_id>/', driver_accept, name='driver_accept'),

@@ -18,7 +18,13 @@ import {
     Car,
     Home,
     Calendar,
-    Lock
+    Lock,
+    KeyRound,
+    MailCheck,
+    Eye,
+    EyeOff,
+    X,
+    Loader2
 } from 'lucide-react';
 import SecurityPINModal from '../components/SecurityPINModal';
 import AvatarUploadModal from '../components/AvatarUploadModal';
@@ -45,6 +51,21 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [showAvatarModal, setShowAvatarModal] = useState(false);
+
+    // Change Password state
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
+    const [showCurrentPw, setShowCurrentPw] = useState(false);
+    const [showNewPw, setShowNewPw] = useState(false);
+
+    // Change Email state
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [emailStep, setEmailStep] = useState(1); // 1 = enter new email, 2 = enter OTP
+    const [emailForm, setEmailForm] = useState({ new_email: '', password: '', otp: '' });
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [emailMsg, setEmailMsg] = useState({ type: '', text: '' });
 
     useEffect(() => {
         fetchProfile();
@@ -163,6 +184,58 @@ const Profile = () => {
             alert("Update Failed: " + (err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message));
         } finally {
             setSaving(false);
+        }
+    };
+
+    // ── Change Password Handler ──
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setPasswordMsg({ type: '', text: '' });
+        setPasswordLoading(true);
+        try {
+            const res = await api.post('/user/change-password/', passwordForm);
+            setPasswordMsg({ type: 'success', text: res.data.detail });
+            setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+            setTimeout(() => { setShowPasswordModal(false); setPasswordMsg({ type: '', text: '' }); logout(); }, 2500);
+        } catch (err) {
+            setPasswordMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to change password.' });
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
+    // ── Change Email Handler (Step 1: Send OTP) ──
+    const handleRequestEmailChange = async (e) => {
+        e.preventDefault();
+        setEmailMsg({ type: '', text: '' });
+        setEmailLoading(true);
+        try {
+            const res = await api.post('/user/change-email/', { new_email: emailForm.new_email, password: emailForm.password });
+            setEmailMsg({ type: 'success', text: res.data.detail });
+            setEmailStep(2);
+        } catch (err) {
+            setEmailMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to request email change.' });
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
+    // ── Change Email Handler (Step 2: Verify OTP) ──
+    const handleConfirmEmailChange = async (e) => {
+        e.preventDefault();
+        setEmailMsg({ type: '', text: '' });
+        setEmailLoading(true);
+        try {
+            const res = await api.post('/user/confirm-email-change/', { new_email: emailForm.new_email, otp: emailForm.otp });
+            setEmailMsg({ type: 'success', text: res.data.detail });
+            setEmailForm({ new_email: '', password: '', otp: '' });
+            await getProfile();
+            fetchProfile();
+            setTimeout(() => { setShowEmailModal(false); setEmailStep(1); setEmailMsg({ type: '', text: '' }); }, 2000);
+        } catch (err) {
+            setEmailMsg({ type: 'error', text: err.response?.data?.detail || 'Invalid verification code.' });
+        } finally {
+            setEmailLoading(false);
         }
     };
 
@@ -301,12 +374,11 @@ const Profile = () => {
                                         </label>
                                         <input
                                             type="email"
-                                            name="email"
                                             value={profile.email}
-                                            onChange={handleChange}
-                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                            disabled={!isEditing}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-slate-500 cursor-not-allowed"
+                                            disabled
                                         />
+                                        <p className="text-[10px] text-slate-400 pl-3 font-medium">Use "Change Email" in Security section below</p>
                                     </div>
                                     <div className="space-y-3">
                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3 flex items-center gap-2">
@@ -558,11 +630,108 @@ const Profile = () => {
                                     <ArrowUpRight size={16} />
                                 </div>
                             </button>
+
+                            <button
+                                onClick={() => { setShowPasswordModal(true); setPasswordMsg({ type: '', text: '' }); setPasswordForm({ current_password: '', new_password: '', confirm_password: '' }); }}
+                                className="w-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-secondary dark:text-white font-black py-4 rounded-2xl border-2 border-slate-100 dark:border-white/5 transition-all flex items-center justify-between px-6 group mt-3"
+                            >
+                                <span className="uppercase tracking-widest text-sm flex items-center gap-2"><KeyRound size={16} /> Change Password</span>
+                                <div className="w-8 h-8 bg-white dark:bg-white/10 rounded-full flex items-center justify-center text-slate-400 group-hover:text-secondary dark:group-hover:text-white transition-colors">
+                                    <ArrowUpRight size={16} />
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => { setShowEmailModal(true); setEmailMsg({ type: '', text: '' }); setEmailStep(1); setEmailForm({ new_email: '', password: '', otp: '' }); }}
+                                className="w-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-secondary dark:text-white font-black py-4 rounded-2xl border-2 border-slate-100 dark:border-white/5 transition-all flex items-center justify-between px-6 group mt-3"
+                            >
+                                <span className="uppercase tracking-widest text-sm flex items-center gap-2"><MailCheck size={16} /> Change Email</span>
+                                <div className="w-8 h-8 bg-white dark:bg-white/10 rounded-full flex items-center justify-center text-slate-400 group-hover:text-secondary dark:group-hover:text-white transition-colors">
+                                    <ArrowUpRight size={16} />
+                                </div>
+                            </button>
                         </motion.div>
                     </div>
                 </div>
             </div>
             <SecurityPINModal isOpen={showPinModal} onClose={() => setShowPinModal(false)} />
+
+            {/* ── Change Password Modal ── */}
+            <AnimatePresence>
+                {showPasswordModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 relative">
+                            <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X size={20} /></button>
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-12 h-12 bg-primary/20 text-primary rounded-2xl flex items-center justify-center"><KeyRound size={24} /></div>
+                                <div>
+                                    <h3 className="text-lg font-black text-secondary dark:text-white">Change Password</h3>
+                                    <p className="text-xs text-slate-400 font-bold">You'll be logged out after changing</p>
+                                </div>
+                            </div>
+                            <form onSubmit={handleChangePassword} className="space-y-4">
+                                <div className="relative">
+                                    <input type={showCurrentPw ? 'text' : 'password'} value={passwordForm.current_password} onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})} placeholder="Current Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                    <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showCurrentPw ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                                </div>
+                                <div className="relative">
+                                    <input type={showNewPw ? 'text' : 'password'} value={passwordForm.new_password} onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})} placeholder="New Password (min 6 chars)" required minLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                    <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showNewPw ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                                </div>
+                                <input type="password" value={passwordForm.confirm_password} onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})} placeholder="Confirm New Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                {passwordMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${passwordMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{passwordMsg.text}</div>}
+                                <button type="submit" disabled={passwordLoading} className="w-full bg-secondary dark:bg-white text-white dark:text-secondary font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {passwordLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <><KeyRound size={18} /> Update Password</>}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Change Email Modal ── */}
+            <AnimatePresence>
+                {showEmailModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 relative">
+                            <button onClick={() => setShowEmailModal(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"><X size={20} /></button>
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center"><MailCheck size={24} /></div>
+                                <div>
+                                    <h3 className="text-lg font-black text-secondary dark:text-white">Change Email</h3>
+                                    <p className="text-xs text-slate-400 font-bold">Current: {profile.email}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 my-4">
+                                <div className={`flex-1 h-1 rounded-full ${emailStep >= 1 ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                                <div className={`flex-1 h-1 rounded-full ${emailStep >= 2 ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'}`}></div>
+                            </div>
+
+                            {emailStep === 1 ? (
+                                <form onSubmit={handleRequestEmailChange} className="space-y-4">
+                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Step 1: Enter your new email and confirm your password</p>
+                                    <input type="email" value={emailForm.new_email} onChange={(e) => setEmailForm({...emailForm, new_email: e.target.value.toLowerCase()})} placeholder="New Email Address" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    <input type="password" value={emailForm.password} onChange={(e) => setEmailForm({...emailForm, password: e.target.value})} placeholder="Confirm Your Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    {emailMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${emailMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{emailMsg.text}</div>}
+                                    <button type="submit" disabled={emailLoading} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                                        {emailLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending Code...</> : <>Send Verification Code</>}
+                                    </button>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleConfirmEmailChange} className="space-y-4">
+                                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Step 2: Enter the 6-digit code sent to <span className="text-blue-600 dark:text-blue-400">{emailForm.new_email}</span></p>
+                                    <input type="text" value={emailForm.otp} onChange={(e) => setEmailForm({...emailForm, otp: e.target.value.replace(/\D/g, '').slice(0, 6)})} placeholder="6-digit verification code" required maxLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-4 font-black text-2xl text-center tracking-[0.5em] text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    {emailMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${emailMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{emailMsg.text}</div>}
+                                    <button type="submit" disabled={emailLoading || emailForm.otp.length < 6} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                                        {emailLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><MailCheck size={18} /> Confirm Email Change</>}
+                                    </button>
+                                    <button type="button" onClick={() => { setEmailStep(1); setEmailMsg({ type: '', text: '' }); }} className="w-full text-slate-500 font-bold text-sm hover:text-secondary dark:hover:text-white transition-colors">← Go Back</button>
+                                </form>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <AvatarUploadModal
                 isOpen={showAvatarModal}
                 onClose={() => setShowAvatarModal(false)}
