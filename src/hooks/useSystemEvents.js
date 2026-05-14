@@ -12,7 +12,8 @@ const useSystemEvents = () => {
         const token = localStorage.getItem('access');
         if (!token) return; // Wait until authenticated
 
-        const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
+        const apiBase = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api';
+        const wsBase = process.env.REACT_APP_WS_BASE || apiBase.replace('http', 'ws').replace('/api', '/ws');
         const socketUrl = `${wsBase}/system/?token=${token}`;
 
         socketRef.current = new WebSocket(socketUrl);

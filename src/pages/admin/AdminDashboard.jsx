@@ -475,7 +475,7 @@ const AdminDashboard = () => {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute left-0 mt-4 w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
+                  className="absolute right-0 sm:right-auto sm:left-0 mt-4 w-[90vw] max-w-[20rem] sm:w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
                 >
                   <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
                     <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">System Activity</h3>
