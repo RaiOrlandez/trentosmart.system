@@ -579,7 +579,7 @@ const AdminDashboard = () => {
               </select>
             </div>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={rideData}>
                   <defs>
                     <linearGradient id="colorRides" x1="0" y1="0" x2="0" y2="1">
@@ -1365,7 +1365,7 @@ const FinanceTab = ({ stats }) => {
             </div>
           </div>
           <div className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={financeData}>
                 <defs>
                   <linearGradient id="financeSales" x1="0" y1="0" x2="0" y2="1">
