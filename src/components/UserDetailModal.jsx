@@ -7,6 +7,7 @@ import { ensureImageUrl } from '../utils/url';
 const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [notes, setNotes] = useState(user?.verification_notes || '');
     const [saving, setSaving] = useState(false);
+    const [showAvatarViewer, setShowAvatarViewer] = useState(false);
 
     if (!user) return null;
 
@@ -31,6 +32,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     };
 
     return (
+        <>
         <AnimatePresence>
             {isOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -53,7 +55,10 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                 <X size={24} className="text-slate-600 dark:text-slate-400" />
                             </button>
 
-                            <div className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-800 shadow-2xl p-2 mb-4 mt-8 md:mt-2 relative group overflow-hidden shrink-0">
+                            <div 
+                                className="w-32 h-32 rounded-[2.5rem] bg-white dark:bg-slate-800 shadow-2xl p-2 mb-4 mt-8 md:mt-2 relative group overflow-hidden shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setShowAvatarViewer(true)}
+                            >
                                 <img
                                     src={ensureImageUrl(user.profile_picture, user.username)}
                                     alt="Avatar"
@@ -225,6 +230,37 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                 </div>
             )}
         </AnimatePresence>
+
+        {/* ── Full Screen Avatar Viewer (for User Detail) ── */}
+        <AnimatePresence>
+            {showAvatarViewer && user && (
+                <motion.div 
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    exit={{ opacity: 0 }} 
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+                    onClick={() => setShowAvatarViewer(false)}
+                >
+                    <button 
+                        className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                        onClick={() => setShowAvatarViewer(false)}
+                    >
+                        <X size={24} />
+                    </button>
+                    <motion.img
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.8, opacity: 0 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        src={ensureImageUrl(user.profile_picture, user.username)}
+                        alt="User Full Size Avatar"
+                        className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </motion.div>
+            )}
+        </AnimatePresence>
+        </>
     );
 };
 
