@@ -24,7 +24,8 @@ import {
   MapPin,
   ClipboardList,
   Star,
-  Download
+  Download,
+  X
 } from 'lucide-react';
 import {
   XAxis,
@@ -63,6 +64,10 @@ const AdminDashboard = () => {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
   const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
+
+  // Avatar Viewer State
+  const [showAvatarViewer, setShowAvatarViewer] = useState(false);
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState('');
 
   // Live Alerts & Notifications State
   const [liveAlerts, setLiveAlerts] = useState(() => {
@@ -1091,9 +1096,6 @@ const AdminDashboard = () => {
       {activeTab === 'broadcast' && <BroadcastTab />}
       {activeTab === 'audit' && <AuditLogTab alerts={liveAlerts} />}
       {activeTab === 'fares' && <FareControlTab />}
-
-      <SystemConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
-      <BroadcastModal isOpen={showBroadcastModal} onClose={() => setShowBroadcastModal(false)} />
 
       <UserDetailModal
         isOpen={showDetailModal}
