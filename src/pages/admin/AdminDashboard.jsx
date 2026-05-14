@@ -672,7 +672,13 @@ const AdminDashboard = () => {
                 .map(driver => (
                   <div key={driver.id} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/5 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-100 dark:border-white/10 relative shrink-0">
+                      <div 
+                        className="w-10 h-10 rounded-full overflow-hidden border border-slate-100 dark:border-white/10 relative shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          setSelectedAvatarUrl(ensureImageUrl(driver.profile_picture, driver.username));
+                          setShowAvatarViewer(true);
+                        }}
+                      >
                         <img src={ensureImageUrl(driver.profile_picture, driver.username)} alt="avatar" className="w-full h-full object-cover" />
                         {isNew(driver.date_joined) && <div className="absolute top-0 right-0 w-3 h-3 bg-primary border-2 border-white rounded-full" />}
                       </div>
@@ -728,7 +734,13 @@ const AdminDashboard = () => {
                     .map(driver => (
                       <tr key={driver.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                         <td className="py-4 pl-4 font-bold text-secondary dark:text-white flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-sm border border-slate-100 dark:border-white/10">
+                          <div 
+                            className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-sm border border-slate-100 dark:border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => {
+                              setSelectedAvatarUrl(ensureImageUrl(driver.profile_picture, driver.username));
+                              setShowAvatarViewer(true);
+                            }}
+                          >
                             <img src={ensureImageUrl(driver.profile_picture, driver.username)} alt="avatar" className="w-full h-full object-cover" />
                             {isNew(driver.date_joined) && (
                               <div className="absolute top-0 right-0 w-3 h-3 bg-primary border-2 border-white dark:border-slate-900 rounded-full" title="New Signup"></div>
@@ -886,7 +898,13 @@ const AdminDashboard = () => {
               .map(user => (
                 <div key={user.id} className="p-3 md:p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between group shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full p-1 shadow-sm relative overflow-hidden border border-slate-100 dark:border-white/10">
+                    <div 
+                      className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full p-1 shadow-sm relative overflow-hidden border border-slate-100 dark:border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => {
+                        setSelectedAvatarUrl(ensureImageUrl(user.profile_picture, user.username));
+                        setShowAvatarViewer(true);
+                      }}
+                    >
                       <img src={ensureImageUrl(user.profile_picture, user.username)} alt="avatar" className="w-full h-full rounded-full object-cover" />
                       {isNew(user.date_joined) && (
                         <div className="absolute -top-1 -right-1 p-1 bg-primary text-secondary rounded-full shadow-lg animate-bounce z-10">
@@ -1074,6 +1092,9 @@ const AdminDashboard = () => {
       {activeTab === 'audit' && <AuditLogTab alerts={liveAlerts} />}
       {activeTab === 'fares' && <FareControlTab />}
 
+      <SystemConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} />
+      <BroadcastModal isOpen={showBroadcastModal} onClose={() => setShowBroadcastModal(false)} />
+
       <UserDetailModal
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
@@ -1087,7 +1108,37 @@ const AdminDashboard = () => {
         onClose={() => setShowCreateModal(false)}
         onRefresh={fetchUsers}
       />
-    </div >
+
+      {/* ── Full Screen Avatar Viewer ── */}
+      <AnimatePresence>
+        {showAvatarViewer && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+            onClick={() => setShowAvatarViewer(false)}
+          >
+            <button 
+              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+              onClick={() => setShowAvatarViewer(false)}
+            >
+              <X size={24} />
+            </button>
+            <motion.img
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              src={selectedAvatarUrl}
+              alt="User Full Size Avatar"
+              className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
