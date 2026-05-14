@@ -318,11 +318,13 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Only admins can see all users
+        # Always build a fresh queryset from the DB to avoid stale cache issues.
+        # Using self.queryset directly can return a cached, stale result which
+        # causes "No User matches the given query" errors on delete/update.
         if self.request.user.role == 'admin':
-            return self.queryset
+            return User.objects.all().order_by('-date_joined')
         # Users can only see themselves (though usually handled by ProfileView)
-        return self.queryset.filter(id=self.request.user.id)
+        return User.objects.filter(id=self.request.user.id).order_by('-date_joined')
 
     def destroy(self, request, *args, **kwargs):
         try:
