@@ -67,6 +67,9 @@ const Profile = () => {
     const [emailLoading, setEmailLoading] = useState(false);
     const [emailMsg, setEmailMsg] = useState({ type: '', text: '' });
 
+    // Full screen picture viewer
+    const [showPictureViewer, setShowPictureViewer] = useState(false);
+
     useEffect(() => {
         fetchProfile();
     }, []);
@@ -262,7 +265,10 @@ const Profile = () => {
 
                             <div className="relative z-10">
                                 <div className="w-32 h-32 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full p-1 shadow-2xl mb-4 relative group">
-                                    <div className="w-full h-full rounded-full overflow-hidden bg-white dark:bg-slate-700">
+                                    <div 
+                                        className="w-full h-full rounded-full overflow-hidden bg-white dark:bg-slate-700 cursor-pointer hover:opacity-80 transition-opacity"
+                                        onClick={() => setShowPictureViewer(true)}
+                                    >
                                         <img
                                             id="profile-preview"
                                             src={ensureImageUrl(profile.profile_picture, profile.username, profile.profile_picture_url)}
@@ -729,6 +735,36 @@ const Profile = () => {
                                 </form>
                             )}
                         </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Full Screen Picture Viewer ── */}
+            <AnimatePresence>
+                {showPictureViewer && (
+                    <motion.div 
+                        initial={{ opacity: 0 }} 
+                        animate={{ opacity: 1 }} 
+                        exit={{ opacity: 0 }} 
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
+                        onClick={() => setShowPictureViewer(false)}
+                    >
+                        <button 
+                            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                            onClick={() => setShowPictureViewer(false)}
+                        >
+                            <X size={24} />
+                        </button>
+                        <motion.img
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            src={ensureImageUrl(profile.profile_picture, profile.username, profile.profile_picture_url)}
+                            alt="Profile Full Size"
+                            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
+                            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking the image itself
+                        />
                     </motion.div>
                 )}
             </AnimatePresence>
