@@ -100,12 +100,39 @@ class DriverVerificationSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
+    # Trusted email domains (must match frontend whitelist)
+    ALLOWED_EMAIL_DOMAINS = [
+        'gmail.com',
+        'yahoo.com', 'yahoo.com.ph', 'yahoo.co.uk', 'yahoo.co.jp',
+        'ymail.com', 'rocketmail.com',
+        'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+        'icloud.com', 'me.com', 'mac.com',
+        'protonmail.com', 'proton.me', 'zoho.com', 'aol.com',
+        'mail.com', 'gmx.com', 'tutanota.com',
+    ]
+
     class Meta:
         model = User
         fields = (
             'username', 'email', 'password', 'role', 'phone_number', 
             'address', 'date_of_birth', 'gender', 'emergency_contact_name'
         )
+
+    def validate_email(self, value):
+        """Only accept emails from trusted providers or institutional domains."""
+        if not value or '@' not in value:
+            raise serializers.ValidationError("A valid email address is required.")
+        domain = value.split('@')[1].lower()
+        is_allowed = (
+            domain in self.ALLOWED_EMAIL_DOMAINS
+            or domain.endswith('.edu') or domain.endswith('.edu.ph')
+            or domain.endswith('.gov') or domain.endswith('.gov.ph')
+        )
+        if not is_allowed:
+            raise serializers.ValidationError(
+                f"\"@{domain}\" is not accepted. Please use Gmail, Yahoo, Outlook, or a school/government email."
+            )
+        return value.lower()
 
     def create(self, validated_data):
         user = User(
@@ -192,8 +219,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             # Custom field for frontend to detect and show OTP screen
             raise serializers.ValidationError({
                 'detail': 'Email not verified. Please check your email for the verification code.',
-                'email_not_verified': True,
-                'user_email': self.user.email
+                'email_not_verified': True
             })
             
         return data

@@ -26,10 +26,36 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Availability states
-  const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid
+  const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid, bad_domain
+  const [emailErrorMsg, setEmailErrorMsg] = useState('');
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken
   const [dobStatus, setDobStatus] = useState('idle'); // idle, valid, invalid
   const [dobErrorMsg, setDobErrorMsg] = useState('');
+
+  // Whitelist of trusted email domains
+  const ALLOWED_EMAIL_DOMAINS = [
+    // Google
+    'gmail.com',
+    // Yahoo
+    'yahoo.com', 'yahoo.com.ph', 'yahoo.co.uk', 'yahoo.co.jp',
+    'ymail.com', 'rocketmail.com',
+    // Microsoft
+    'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+    // Apple
+    'icloud.com', 'me.com', 'mac.com',
+    // Other major providers
+    'protonmail.com', 'proton.me', 'zoho.com', 'aol.com',
+    'mail.com', 'gmx.com', 'tutanota.com',
+  ];
+
+  // Also allow any .edu, .edu.ph, .gov, .gov.ph domain (institutional emails)
+  const isAllowedDomain = (domain) => {
+    const lower = domain.toLowerCase();
+    if (ALLOWED_EMAIL_DOMAINS.includes(lower)) return true;
+    if (lower.endsWith('.edu') || lower.endsWith('.edu.ph')) return true;
+    if (lower.endsWith('.gov') || lower.endsWith('.gov.ph')) return true;
+    return false;
+  };
 
   const navigate = useNavigate();
 
@@ -37,20 +63,32 @@ const Register = () => {
   useEffect(() => {
     if (!email) {
       setEmailStatus('idle');
+      setEmailErrorMsg('');
       return;
     }
 
     // Basic regex check
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailStatus('invalid');
+      setEmailErrorMsg('Invalid email format');
+      return;
+    }
+
+    // Extract domain and validate against whitelist
+    const domain = email.split('@')[1];
+    if (!isAllowedDomain(domain)) {
+      setEmailStatus('bad_domain');
+      setEmailErrorMsg(`"@${domain}" is not accepted. Use Gmail, Yahoo, Outlook, or a school email.`);
       return;
     }
 
     const timer = setTimeout(async () => {
       setEmailStatus('checking');
+      setEmailErrorMsg('');
       try {
         const res = await api.get(`/auth/check-email/?email=${email}`);
         setEmailStatus(res.data.available ? 'available' : 'taken');
+        if (!res.data.available) setEmailErrorMsg('Email already exists');
       } catch (err) {
         setEmailStatus('idle');
       }
@@ -148,8 +186,8 @@ const Register = () => {
       return;
     }
 
-    if (emailStatus === 'invalid') {
-      setError('Please enter a valid email address');
+    if (emailStatus === 'invalid' || emailStatus === 'bad_domain') {
+      setError(emailErrorMsg || 'Please enter a valid email address from a trusted provider (Gmail, Yahoo, Outlook, etc.)');
       return;
     }
 
@@ -255,17 +293,18 @@ const Register = () => {
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
-                type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                placeholder="Email Address"
-                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${emailStatus === 'taken' || emailStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
+                type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required
+                placeholder="Email Address (Gmail, Yahoo, Outlook)"
+                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${emailStatus === 'taken' || emailStatus === 'invalid' || emailStatus === 'bad_domain' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
                 {emailStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
                 {emailStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
                 {emailStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
                 {emailStatus === 'invalid' && <span className="text-[9px] font-black text-red-400 uppercase tracking-tighter">Format!</span>}
+                {emailStatus === 'bad_domain' && <XCircle className="w-4 h-4 text-orange-500" />}
               </div>
-              {emailStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">Email already exists</p>}
+              {(emailStatus === 'taken' || emailStatus === 'bad_domain') && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{emailErrorMsg}</p>}
             </div>
           </div>
 
