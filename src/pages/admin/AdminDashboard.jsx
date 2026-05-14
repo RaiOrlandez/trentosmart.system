@@ -419,7 +419,8 @@ const AdminDashboard = () => {
       setUsers(prev => prev.filter(u => u.id !== id));
       fetchStats(); // Update counters
     } catch (err) {
-      alert("Failed to delete user record.");
+      const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
+      alert(`Failed to delete user record. Reason: ${serverMsg}`);
     }
   };
 

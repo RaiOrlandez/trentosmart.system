@@ -21,6 +21,7 @@ from asgiref.sync import async_to_sync
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.utils import timezone
 from .fraud_service import FraudDetectionService
 from django.contrib.auth.hashers import make_password, check_password
@@ -343,12 +344,16 @@ class UserViewSet(viewsets.ModelViewSet):
             print(f"User {instance.username} deleted successfully")
             return Response(status=status.HTTP_204_NO_CONTENT)
             
+        except Http404:
+            raise
         except Exception as e:
             print(f"Error deleting user: {e}")
             import traceback
+            tb = traceback.format_exc()
             traceback.print_exc()
             return Response({
                 'detail': f'Failed to delete user: {str(e)}',
+                'traceback': tb,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
