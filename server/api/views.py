@@ -34,8 +34,8 @@ from django.conf import settings
 
 def send_brevo_email(recipient_email, recipient_name, subject, html_content):
     url = "https://api.brevo.com/v3/smtp/email"
-    # Read key from environment variables
-    api_key = os.environ.get('BREVO_API_KEY', '')
+    # Read key from environment variables (strip to remove accidental whitespace/newline)
+    api_key = os.environ.get('BREVO_API_KEY', '').strip()
     
     if not api_key:
         print("[Brevo] ❌ BREVO_API_KEY environment variable is NOT SET! Emails will NOT be sent.")
