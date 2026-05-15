@@ -26,15 +26,15 @@ const Register = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1);
 
-  const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && password === confirmPassword;
-  const canGoNextStep2 = phoneNumber && dobStatus === 'valid' && gender;
-
   // Availability states
   const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid, bad_domain
   const [emailErrorMsg, setEmailErrorMsg] = useState('');
   const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken
   const [dobStatus, setDobStatus] = useState('idle'); // idle, valid, invalid
   const [dobErrorMsg, setDobErrorMsg] = useState('');
+
+  const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && password === confirmPassword;
+  const canGoNextStep2 = phoneNumber && dobStatus === 'valid' && gender;
 
   // Whitelist of trusted email domains
   const ALLOWED_EMAIL_DOMAINS = [
