@@ -455,7 +455,22 @@ const DriverHome = () => {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-10 bg-slate-100 px-6">
+    <div className="min-h-screen pt-24 pb-10 bg-slate-100 px-4 md:px-6 relative">
+      {/* Top Navigation Bar */}
+      <div className="absolute top-0 left-0 w-full p-4 sm:p-6 z-[100] pointer-events-none">
+        <div className="max-w-[1400px] mx-auto flex justify-between items-start">
+          <Link to="/profile" className="bg-white/95 backdrop-blur-md px-6 py-3 rounded-[2rem] shadow-xl flex items-center space-x-4 border border-slate-100 hover:scale-105 transition-transform cursor-pointer pointer-events-auto">
+            <div className="w-10 h-10 bg-primary/20 text-primary-dark rounded-xl flex items-center justify-center font-black">
+              {user?.username?.[0] || 'D'}
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service Area</p>
+              <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
+            </div>
+          </Link>
+        </div>
+      </div>
+
       <LocationPermissionModal 
           isOpen={gpsStatus === 'error'} 
           error={gpsError} 
@@ -1057,20 +1072,9 @@ const DriverHome = () => {
             </div>
           </div>
 
-          {/* Map Overlays */}
-          <div className="absolute top-8 left-8">
-            <Link to="/profile" className="bg-white/95 backdrop-blur-md px-6 py-4 rounded-3xl shadow-xl flex items-center space-x-4 border border-slate-100 hover:scale-105 transition-transform cursor-pointer">
-              <div className="w-10 h-10 bg-primary/20 text-primary-dark rounded-xl flex items-center justify-center font-black">
-                {user?.username?.[0] || 'D'}
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service Area</p>
-                <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
-              </div>
-            </Link>
-          </div>
+          {/* Map Overlays (Removed Profile Link from here) */}
 
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3">
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-[1000] w-[90%] md:w-auto justify-center">
             {selectedRequest && (
               <button
                 onClick={() => {
@@ -1114,7 +1118,7 @@ const DriverHome = () => {
             )}
           </div>
 
-          <div className="absolute top-8 right-8 flex flex-col gap-3">
+          <div className="absolute top-8 right-8 flex flex-col gap-3 z-[1000]">
             <button
               onClick={() => setShowSettingsModal(true)}
               className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-slate-600 hover:text-primary transition-colors border border-slate-100"
