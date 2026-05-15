@@ -468,7 +468,7 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col px-3 md:px-6 max-w-[1600px] mx-auto transition-colors duration-500">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative z-[100]">
         <div className="flex items-center gap-6">
           <div>
             <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tight">Authority Console</h1>
