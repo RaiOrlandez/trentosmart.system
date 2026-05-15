@@ -1,25 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
-import { motion } from 'framer-motion';
-import { ShieldCheck, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldCheck, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft, Camera, Image as ImageIcon, ChevronRight, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {
+    // Text Inputs
     const [licenseNum, setLicenseNum] = useState('');
     const [permitNum, setPermitNum] = useState('');
-    const [licenseImg, setLicenseImg] = useState(null); // File object for upload
-    const [permitImg, setPermitImg] = useState(null);   // File object for upload
+    
+    // File Inputs
+    const [licenseImg, setLicenseImg] = useState(null);
+    const [permitImg, setPermitImg] = useState(null);
     const [nbiClearanceImg, setNbiClearanceImg] = useState(null);
     const [barangayResidencyImg, setBarangayResidencyImg] = useState(null);
-    const [existingLicenseImg, setExistingLicenseImg] = useState(null); // URL string
-    const [existingPermitImg, setExistingPermitImg] = useState(null);   // URL string
+    
+    // Existing URLs
+    const [existingLicenseImg, setExistingLicenseImg] = useState(null);
+    const [existingPermitImg, setExistingPermitImg] = useState(null);
     const [existingNbiClearanceImg, setExistingNbiClearanceImg] = useState(null);
     const [existingBarangayResidencyImg, setExistingBarangayResidencyImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
     const [verificationStatus, setVerificationStatus] = useState(null);
     const [msg, setMsg] = useState('');
-    const [isEditing, setIsEditing] = useState(true); // default open for new drivers
+    const [isEditing, setIsEditing] = useState(true);
+    
+    // UI State for Hub
+    const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances'
 
     useEffect(() => {
         fetchData();
@@ -35,9 +43,9 @@ const DriverVerification = () => {
             setExistingPermitImg(data.permit_image_url || data.permit_image);
             setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
             setExistingBarangayResidencyImg(data.barangay_residency_image_url || data.barangay_residency_image);
-            setVerificationStatus(data.is_verified_driver);
-            // Only lock the form if the driver is currently approved — pending drivers should always be editable
+            
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
+            setVerificationStatus(isApproved);
             setIsEditing(!isApproved);
             setStatus('idle');
         } catch (err) {
@@ -59,315 +67,303 @@ const DriverVerification = () => {
         if (nbiClearanceImg) formData.append('nbi_clearance_image', nbiClearanceImg);
         if (barangayResidencyImg) formData.append('barangay_residency_image', barangayResidencyImg);
 
-        console.log('Submitting verification data:', {
-            license_number: licenseNum,
-            permit_number: permitNum,
-            has_license_image: !!licenseImg,
-            has_permit_image: !!permitImg
-        });
-        console.log('API Base URL:', api.defaults.baseURL);
-
         try {
             const response = await api.post('/driver/verify/', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            console.log('Verification SUCCESS:', response.data);
             setStatus('success');
             setVerificationStatus(false);
             setMsg(response.data.detail || 'Your documents have been submitted for review.');
-            // Refresh to show the uploaded images
             setTimeout(() => fetchData(), 1500);
         } catch (err) {
-            console.error('=== VERIFICATION ERROR ===');
-            console.error('Full error object:', err);
-            console.error('Error message:', err.message);
-            console.error('Error response:', err.response);
-            console.error('Error config:', err.config);
-            console.error('Request URL:', err.config?.url);
-            console.error('Base URL:', err.config?.baseURL);
             setStatus('error');
-
-            // Detailed error diagnosis
-            let errorMsg = 'Failed to submit documents. ';
-
-            if (!err.response) {
-                // Network error - request never reached server
-                console.error('NO RESPONSE - Network error or CORS issue');
-                if (err.message.includes('Network Error')) {
-                    errorMsg += 'Cannot connect to server. Please ensure the backend is running on http://127.0.0.1:8000. Check browser console for CORS errors.';
-                } else if (err.code === 'ECONNABORTED') {
-                    errorMsg += 'Request timeout. Server took too long to respond.';
-                } else {
-                    errorMsg += `Network error: ${err.message}. Backend may not be running.`;
-                }
-            } else if (err.response.status === 404) {
-                errorMsg += `Endpoint not found (404). URL: ${err.config?.url}. Check if /api/driver/verify/ exists.`;
-            } else if (err.response.status === 403) {
-                errorMsg += 'Permission denied (403). You must be logged in as a driver.';
-            } else if (err.response.status === 401) {
-                errorMsg += 'Authentication failed (401). Please log in again.';
-            } else if (err.response.status === 400) {
-                // Validation errors
-                if (err.response.data?.errors) {
-                    const errors = err.response.data.errors;
-                    const errorDetails = Object.entries(errors)
-                        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-                        .join('; ');
-                    errorMsg += errorDetails;
-                } else if (err.response.data?.detail) {
-                    errorMsg += err.response.data.detail;
-                } else {
-                    errorMsg += 'Validation failed. Please check all required fields.';
-                }
-            } else if (err.response.status >= 500) {
-                errorMsg += `Server error (${err.response.status}). Backend crashed or misconfigured.`;
-            } else {
-                errorMsg += `HTTP ${err.response.status}: ${err.response.data?.detail || 'Unknown error'}`;
-            }
-
-            setMsg(errorMsg);
+            setMsg(err.response?.data?.detail || 'Failed to submit documents. Please check required fields.');
         }
     };
 
+    // Calculate progress
+    const items = [
+        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) },
+        { ready: permitNum.length > 3 && (permitImg || existingPermitImg) },
+        { ready: (nbiClearanceImg || existingNbiClearanceImg) },
+        { ready: (barangayResidencyImg || existingBarangayResidencyImg) }
+    ];
+    const completedCount = items.filter(i => i.ready).length;
+    const progressPercent = (completedCount / 4) * 100;
+
     if (status === 'loading') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-100">
-                <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         );
     }
 
-    return (
-        <div className="min-h-screen pt-24 pb-12 bg-slate-100 flex items-center justify-center px-6">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="max-w-xl w-full glass-card p-10 rounded-[3rem] shadow-2xl bg-white relative overflow-hidden"
-            >
-                {/* Decorative Background */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-[5rem] -z-0"></div>
-
-                <Link to="/profile" className="absolute top-8 left-8 text-slate-400 hover:text-secondary transition-colors z-10">
-                    <ArrowLeft size={24} />
-                </Link>
-
-                <div className="text-center mb-10 relative z-10">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${verificationStatus && !isEditing ? 'bg-green-600 text-white shadow-lg shadow-green-200' : 'bg-primary/20 text-primary-dark animate-pulse'}`}>
-                        <ShieldCheck size={32} />
+    const DocumentUploadField = ({ id, label, file, existingUrl, setFile }) => (
+        <div className="relative group cursor-pointer mt-4">
+            <input 
+                id={id} 
+                type="file" 
+                className="hidden" 
+                onChange={(e) => setFile(e.target.files[0])} 
+                accept="image/*" 
+                disabled={!isEditing}
+            />
+            <label htmlFor={id} className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-3xl transition-all ${!isEditing ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-80' : 'border-primary/30 bg-primary/5 hover:border-primary cursor-pointer'}`}>
+                {file ? (
+                    <div className="text-center p-4">
+                        <CheckCircle size={32} className="mx-auto text-green-500 mb-2" />
+                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate block max-w-[200px]">{file.name}</span>
+                        <span className="text-xs text-slate-500 mt-1">Tap to change</span>
                     </div>
-                    <h1 className="text-2xl font-black text-secondary uppercase tracking-tight">
-                        {verificationStatus && !isEditing ? 'Verified Driver Profile' : 'Document Submission'}
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">
-                        {verificationStatus && !isEditing
-                            ? 'Your credentials are active and verified by Trento LGU.'
-                            : 'Update your driver credentials for administrative review.'}
-                    </p>
+                ) : existingUrl ? (
+                    <div className="text-center p-4">
+                        <img src={existingUrl} alt={label} className="h-16 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
+                        <span className="text-[10px] font-black uppercase text-green-500 tracking-widest bg-green-100 px-2 py-1 rounded-full">File Uploaded</span>
+                    </div>
+                ) : (
+                    <div className="text-center p-4 text-slate-400 group-hover:text-primary transition-colors">
+                        <Camera size={32} className="mx-auto mb-3" />
+                        <span className="text-sm font-bold block">Snap or Upload {label}</span>
+                    </div>
+                )}
+            </label>
+        </div>
+    );
+
+    return (
+        <div className="min-h-screen pt-24 pb-12 bg-slate-50 dark:bg-slate-950 flex flex-col items-center px-4 md:px-6 transition-colors duration-500">
+            <div className="w-full max-w-2xl">
+                {/* Header */}
+                <div className="flex items-center gap-4 mb-8">
+                    <Link to="/profile" className="w-12 h-12 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-sm text-slate-400 hover:text-secondary dark:hover:text-primary transition-colors">
+                        <ArrowLeft size={20} />
+                    </Link>
+                    <div>
+                        <h1 className="text-2xl font-black text-secondary dark:text-white uppercase tracking-tight">Verification Hub</h1>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Complete your driver profile to get on the road.</p>
+                    </div>
+                </div>
+
+                {/* Status Hero Card */}
+                <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-xl p-8 mb-8 border border-slate-100 dark:border-slate-800 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-bl-full -z-0"></div>
+                    <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+                        {/* Circular Progress */}
+                        <div className="relative w-32 h-32 flex-shrink-0">
+                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" className="stroke-slate-100 dark:stroke-slate-800" strokeWidth="8" fill="none" />
+                                <circle cx="50" cy="50" r="40" className="stroke-primary transition-all duration-1000 ease-out" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * progressPercent) / 100} strokeLinecap="round" />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-3xl font-black text-secondary dark:text-white">{completedCount}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">of 4</span>
+                            </div>
+                        </div>
+
+                        <div className="text-center md:text-left flex-1">
+                            {verificationStatus && !isEditing ? (
+                                <>
+                                    <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3">
+                                        <CheckCircle size={14} /> Approved Driver
+                                    </div>
+                                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">You're ready to drive!</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Your documents have been verified by Trento LGU. Stay safe on the road.</p>
+                                    <button onClick={() => setIsEditing(true)} className="mt-4 text-primary font-bold text-sm hover:underline">Update Documents?</button>
+                                </>
+                            ) : completedCount === 4 ? (
+                                <>
+                                    <div className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3">
+                                        <ShieldCheck size={14} /> Ready to Submit
+                                    </div>
+                                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">All tasks completed</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">Scroll down to submit your profile for administrator review.</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3">
+                                        <AlertCircle size={14} /> Action Required
+                                    </div>
+                                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Almost there!</h2>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">You need to complete {4 - completedCount} more task{4 - completedCount !== 1 ? 's' : ''} before you can submit your profile.</p>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {status === 'success' ? (
-                    <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-center p-8 bg-green-50 rounded-3xl border border-green-100 relative z-10">
-                        <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
-                        <h2 className="text-lg font-bold text-green-800 mb-2">Update Sent!</h2>
-                        <p className="text-green-700 text-sm">{msg}</p>
-                        <button
-                            onClick={() => window.location.href = '/driver'}
-                            className="mt-6 w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-lg"
-                        >
+                    <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100 dark:border-slate-800">
+                        <div className="w-24 h-24 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
+                            <CheckCircle size={48} />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 dark:text-white mb-3">Submission Received</h2>
+                        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-sm mx-auto">{msg}</p>
+                        <Link to="/driver" className="inline-block w-full py-4 bg-secondary dark:bg-primary text-white dark:text-secondary font-black rounded-2xl hover:opacity-90 transition-all shadow-xl">
                             Return to Dashboard
-                        </button>
+                        </Link>
                     </motion.div>
                 ) : (
-                    <form onSubmit={handleUpload} className="space-y-6 relative z-10">
-                        {status === 'error' && (
-                            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-sm font-bold">
-                                <div className="flex items-start gap-3">
-                                    <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                    <form onSubmit={handleUpload} className="space-y-4">
+                        {/* Task 1: LTO License */}
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
+                            <button 
+                                type="button" 
+                                onClick={() => setActiveSection(activeSection === 'license' ? null : 'license')}
+                                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[0].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {items[0].ready ? <Check size={20} /> : <span className="font-black">1</span>}
+                                    </div>
                                     <div>
-                                        <p className="font-black mb-1">ERROR:</p>
-                                        <p className="text-xs leading-relaxed">{msg}</p>
-                                        <p className="text-xs mt-2 opacity-75">Check browser console (F12) for detailed logs.</p>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">LTO Driver's License</h3>
+                                        <p className="text-slate-500 text-xs">Professional or Non-Pro license details</p>
                                     </div>
                                 </div>
-                            </div>
+                                <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'license' ? 'rotate-90' : ''}`} />
+                            </button>
+                            
+                            <AnimatePresence>
+                                {activeSection === 'license' && (
+                                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                            <div className="space-y-4 mt-4">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">License Number</label>
+                                                    <input
+                                                        type="text" value={licenseNum} onChange={(e) => setLicenseNum(e.target.value)} required disabled={!isEditing}
+                                                        placeholder="e.g. D12-34-567890"
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">License Photo</label>
+                                                    <DocumentUploadField id="upload-license" label="License" file={licenseImg} existingUrl={existingLicenseImg} setFile={setLicenseImg} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Task 2: Franchise Permit */}
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
+                            <button 
+                                type="button" 
+                                onClick={() => setActiveSection(activeSection === 'permit' ? null : 'permit')}
+                                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[1].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {items[1].ready ? <Check size={20} /> : <span className="font-black">2</span>}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">LGU Franchise Permit</h3>
+                                        <p className="text-slate-500 text-xs">Official Trento MTOP credentials</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'permit' ? 'rotate-90' : ''}`} />
+                            </button>
+                            
+                            <AnimatePresence>
+                                {activeSection === 'permit' && (
+                                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                            <div className="space-y-4 mt-4">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Operator Permit ID</label>
+                                                    <input
+                                                        type="text" value={permitNum} onChange={(e) => setPermitNum(e.target.value)} required disabled={!isEditing}
+                                                        placeholder="e.g. TR-2025-001"
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Permit Photo</label>
+                                                    <DocumentUploadField id="upload-permit" label="Permit" file={permitImg} existingUrl={existingPermitImg} setFile={setPermitImg} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Task 3: Clearances */}
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
+                            <button 
+                                type="button" 
+                                onClick={() => setActiveSection(activeSection === 'clearances' ? null : 'clearances')}
+                                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${(items[2].ready && items[3].ready) ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {(items[2].ready && items[3].ready) ? <Check size={20} /> : <span className="font-black">3</span>}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Safety Clearances</h3>
+                                        <p className="text-slate-500 text-xs">NBI & Barangay Certifications</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'clearances' ? 'rotate-90' : ''}`} />
+                            </button>
+                            
+                            <AnimatePresence>
+                                {activeSection === 'clearances' && (
+                                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">NBI Clearance</label>
+                                                    <DocumentUploadField id="upload-nbi" label="NBI" file={nbiClearanceImg} existingUrl={existingNbiClearanceImg} setFile={setNbiClearanceImg} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Barangay Clearance</label>
+                                                    <DocumentUploadField id="upload-brgy" label="Brgy ID" file={barangayResidencyImg} existingUrl={existingBarangayResidencyImg} setFile={setBarangayResidencyImg} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Error Message */}
+                        {status === 'error' && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-sm font-bold border border-red-100 dark:border-red-900/30 flex items-start gap-3">
+                                <AlertCircle size={18} className="shrink-0 mt-0.5" /> 
+                                <span className="leading-tight">{msg}</span>
+                            </motion.div>
                         )}
 
-                        {verificationStatus && !isEditing && (
-                            <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3 text-blue-700 text-xs font-bold mb-4">
-                                <ShieldCheck size={18} />
-                                <span>Your account is currently verified. Changes will trigger a re-audit.</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEditing(true)}
-                                    className="ml-auto text-blue-600 underline hover:text-blue-800"
-                                >
-                                    Update?
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">License Number</label>
-                                <input
-                                    type="text"
-                                    value={licenseNum}
-                                    onChange={(e) => setLicenseNum(e.target.value)}
-                                    placeholder="e.g. D12-34-567890"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all font-bold text-secondary disabled:bg-slate-100 disabled:text-slate-400"
-                                    required
-                                    disabled={!isEditing}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Operator Permit ID</label>
-                                <input
-                                    type="text"
-                                    value={permitNum}
-                                    onChange={(e) => setPermitNum(e.target.value)}
-                                    placeholder="e.g. TR-2025-001"
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 focus:ring-4 focus:ring-primary/20 focus:border-primary outline-none transition-all font-bold text-secondary disabled:bg-slate-100 disabled:text-slate-400"
-                                    required
-                                    disabled={!isEditing}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Driver's License</label>
-                                <label htmlFor="upload-license" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
-                                    {licenseImg ? (
-                                        <div className="text-secondary font-bold text-xs truncate w-full">
-                                            <FileText size={24} className="mx-auto text-primary mb-2" />
-                                            {licenseImg.name}
-                                        </div>
-                                    ) : existingLicenseImg ? (
-                                        <div className="text-secondary font-bold text-xs w-full">
-                                            <img src={existingLicenseImg} alt="License" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
-                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
-                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
-                                        </>
-                                    )}
-                                    <input id="upload-license" type="file" className="hidden" onChange={(e) => setLicenseImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
-                                </label>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Tricycle Permit</label>
-                                <label htmlFor="upload-permit" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
-                                    {permitImg ? (
-                                        <div className="text-secondary font-bold text-xs truncate w-full">
-                                            <FileText size={24} className="mx-auto text-primary mb-2" />
-                                            {permitImg.name}
-                                        </div>
-                                    ) : existingPermitImg ? (
-                                        <div className="text-secondary font-bold text-xs w-full">
-                                            <img src={existingPermitImg} alt="Permit" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
-                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
-                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
-                                        </>
-                                    )}
-                                    <input id="upload-permit" type="file" className="hidden" onChange={(e) => setPermitImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">NBI Clearance</label>
-                                <label htmlFor="upload-nbi" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
-                                    {nbiClearanceImg ? (
-                                        <div className="text-secondary font-bold text-xs truncate w-full">
-                                            <FileText size={24} className="mx-auto text-primary mb-2" />
-                                            {nbiClearanceImg.name}
-                                        </div>
-                                    ) : existingNbiClearanceImg ? (
-                                        <div className="text-secondary font-bold text-xs w-full">
-                                            <img src={existingNbiClearanceImg} alt="NBI Clearance" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
-                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
-                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
-                                        </>
-                                    )}
-                                    <input id="upload-nbi" type="file" className="hidden" onChange={(e) => setNbiClearanceImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
-                                </label>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Barangay Residency</label>
-                                <label htmlFor="upload-brgy" className={`flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50 rounded-2 group hover:border-primary/50 transition-all p-8 text-center rounded-3xl ${!isEditing ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}>
-                                    {barangayResidencyImg ? (
-                                        <div className="text-secondary font-bold text-xs truncate w-full">
-                                            <FileText size={24} className="mx-auto text-primary mb-2" />
-                                            {barangayResidencyImg.name}
-                                        </div>
-                                    ) : existingBarangayResidencyImg ? (
-                                        <div className="text-secondary font-bold text-xs w-full">
-                                            <img src={existingBarangayResidencyImg} alt="Brgy Residency" className="h-20 mx-auto mb-2 object-contain rounded-lg shadow-sm" />
-                                            <span className="text-primary text-[10px] uppercase font-black">Verified Image</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <Upload size={24} className="text-slate-300 mb-2 group-hover:text-primary transition-colors" />
-                                            <span className="text-xs font-bold text-slate-400">Click to upload photo</span>
-                                        </>
-                                    )}
-                                    <input id="upload-brgy" type="file" className="hidden" onChange={(e) => setBarangayResidencyImg(e.target.files[0])} accept="image/*" disabled={!isEditing} />
-                                </label>
-                            </div>
-                        </div>
-
-                        {isEditing ? (
-                            <div className="pt-4 space-y-4">
+                        {/* Submit Button */}
+                        {isEditing && (
+                            <div className="pt-6">
                                 <button
                                     type="submit"
-                                    disabled={status === 'uploading'}
-                                    className="w-full bg-secondary text-white font-black py-5 rounded-[2rem] hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50"
+                                    disabled={status === 'uploading' || completedCount < 4}
+                                    className="w-full bg-secondary dark:bg-primary text-white dark:text-secondary font-black py-5 rounded-3xl hover:opacity-90 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
                                     {status === 'uploading' ? (
                                         <>
-                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            <span>Submitting Update...</span>
+                                            <div className="w-5 h-5 border-2 border-white dark:border-secondary border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Encrypting & Submitting...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <ShieldCheck size={20} className="text-primary" />
-                                            <span>Save & Request Review</span>
+                                            <span>Submit Profile for Review</span>
+                                            <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                                         </>
                                     )}
                                 </button>
-                                {verificationStatus && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsEditing(false)}
-                                        className="w-full text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-secondary transition-colors"
-                                    >
-                                        Cancel & Stay Verified
-                                    </button>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="p-6 bg-slate-50 text-slate-500 text-[10px] font-black text-center rounded-[2rem] border border-slate-100 uppercase tracking-[0.2em] leading-relaxed">
-                                <CheckCircle size={16} className="mx-auto mb-2 text-green-500" />
-                                Account Fully Verified
-                                <br />
-                                <span className="opacity-50">Standard Audit Complete</span>
+                                <p className="text-center text-xs text-slate-500 mt-4 font-medium">By submitting, you consent to Trento LGU verifying these documents.</p>
                             </div>
                         )}
                     </form>
                 )}
-
-            </motion.div>
+            </div>
         </div>
     );
 };
