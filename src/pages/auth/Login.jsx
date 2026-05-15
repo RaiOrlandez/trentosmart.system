@@ -72,6 +72,12 @@ const Login = () => {
             </button>
           </div>
 
+          <div className="flex justify-end pt-1">
+            <Link to="/forgot-password" className="text-[11px] font-black uppercase tracking-widest text-secondary dark:text-primary hover:underline">
+              Forgot Password?
+            </Link>
+          </div>
+
           {error && (
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-sm font-bold border border-red-100 dark:border-red-900/30 flex items-center gap-2">
               <AlertCircle size={16} /> {error}
