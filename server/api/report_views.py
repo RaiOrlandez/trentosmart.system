@@ -9,8 +9,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from .models import Ride, User, FraudAlert
 
+from rest_framework.permissions import BasePermission
+
+class IsAdminRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
+
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAdminRole])
 def export_revenue_csv(request):
     # ... (existing code)
     response = HttpResponse(content_type='text/csv')
@@ -56,7 +62,7 @@ def export_revenue_csv(request):
     return response
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAdminRole])
 def get_admin_dashboard_stats(request):
     """
     Returns real-time KPIs and chart data for the Admin Dashboard.

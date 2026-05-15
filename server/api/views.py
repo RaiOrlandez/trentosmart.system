@@ -7,6 +7,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.throttling import ScopedRateThrottle
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import BasePermission
+
+class IsAdminRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
 from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment
 from .serializers import (
     UserSerializer, RegisterSerializer, RideSerializer, 
@@ -708,8 +713,15 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class RideViewSet(viewsets.ModelViewSet):
-    queryset = Ride.objects.select_related('passenger', 'driver', 'targeted_driver').order_by('-requested_at')
     serializer_class = RideSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        base_qs = Ride.objects.select_related('passenger', 'driver', 'targeted_driver').order_by('-requested_at')
+        if user.role == 'admin':
+            return base_qs
+        from django.db import models
+        return base_qs.filter(models.Q(passenger=user) | models.Q(driver=user))
 
     def get_permissions(self):
         if self.action in ['create']:
@@ -1611,6 +1623,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        if self.request.user.role != 'admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only admins can update withdrawal status.")
         instance = self.get_object()
         old_status = instance.status
         withdrawal = serializer.save()
@@ -1636,7 +1651,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
     serializer_class = IncidentSerializer
 
     def get_queryset(self):
-        return Incident.objects.all().order_by('-created_at')
+        user = self.request.user
+        if user.role == 'admin':
+            return Incident.objects.all().order_by('-created_at')
+        return Incident.objects.filter(user=user).order_by('-created_at')
 
     def perform_create(self, serializer):
         incident = serializer.save(user=self.request.user)
@@ -1792,7 +1810,8 @@ class SystemConfigViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        # In a real app, only Admins should be able to update
+        if self.action in ['update', 'partial_update', 'create', 'destroy']:
+            return [IsAuthenticated(), IsAdminRole()]
         return [IsAuthenticated()]
 
     def perform_update(self, serializer):
@@ -1923,6 +1942,48 @@ class LocationUpdateView(APIView):
         user.last_lng = lng
         user.last_location_update = timezone.now()
         user.save(update_fields=['last_lat', 'last_lng', 'last_location_update'])
+
+        # Route Anomaly Detection
+        if user.role == 'driver':
+            from .models import FraudAlert
+            active_ride = Ride.objects.filter(driver=user, status='on_route').first()
+            if active_ride and active_ride.dest_lat and active_ride.dest_lng:
+                dist_to_dest = calculate_distance(lat, lng, float(active_ride.dest_lat), float(active_ride.dest_lng))
+                # For a typical local tricycle ride, being >10km away while on route is highly anomalous
+                if dist_to_dest > 10.0:
+                    FraudAlert.objects.create(
+                        user=user,
+                        reason="Route Anomaly Detection",
+                        details=f"Driver is {dist_to_dest:.2f}km away from destination while on route for Ride #{active_ride.id}.",
+                        severity='critical'
+                    )
+                    try:
+                        channel_layer = get_channel_layer()
+                        async_to_sync(channel_layer.group_send)(
+                            'global_system',
+                            {
+                                'type': 'system_event',
+                                'event': {
+                                    'type': 'route_anomaly',
+                                    'message': f"⚠️ Route Anomaly: Driver {user.username} is significantly off-route (Ride #{active_ride.id}).",
+                                    'timestamp': timezone.now().isoformat()
+                                }
+                            }
+                        )
+                        # Alert Passenger
+                        async_to_sync(channel_layer.group_send)(
+                            f'user_{active_ride.passenger.id}',
+                            {
+                                'type': 'system_event',
+                                'event': {
+                                    'type': 'safety_alert',
+                                    'message': "Route Anomaly Detected: Your driver appears to be off-route. Are you okay? Use the SOS button if you need help.",
+                                    'severity': 'high'
+                                }
+                            }
+                        )
+                    except Exception as e:
+                        print(f"Failed to broadcast route anomaly: {e}")
 
         # For drivers: push real-time update to WebSocket channel so the
         # admin live map and passenger tracking panels refresh immediately.

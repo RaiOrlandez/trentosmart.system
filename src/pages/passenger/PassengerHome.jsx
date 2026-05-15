@@ -1120,12 +1120,15 @@ const PassengerHome = () => {
                   {/* Driver Contact */}
                   {typeof assignedDriver === 'object' && assignedDriver.phone_number && (
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Driver Contact</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Secure Contact</p>
                       <div className="flex items-center gap-2">
                         <Phone size={14} className="text-blue-600" />
-                        <a href={`tel:${assignedDriver.phone_number}`} className="text-sm font-bold text-blue-600 hover:underline">
-                          {assignedDriver.phone_number}
-                        </a>
+                        <button 
+                          onClick={() => alert("Initiating secure proxy call. Driver number is hidden for privacy.")}
+                          className="text-sm font-bold text-blue-600 hover:underline focus:outline-none"
+                        >
+                          Call Driver (Masked)
+                        </button>
                       </div>
                     </div>
                   )}

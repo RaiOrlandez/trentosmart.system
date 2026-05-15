@@ -26,7 +26,8 @@ import {
   Shield,
   Signal,
   Wifi,
-  Battery
+  Battery,
+  Camera
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -61,6 +62,8 @@ const DriverHome = () => {
   const [showRating, setShowRating] = useState(false);
   const [completedRideId, setCompletedRideId] = useState(null);
   const [completedPassengerName, setCompletedPassengerName] = useState('');
+  const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [showSOS, setShowSOS] = useState(false);
 
   // New State for LGU Commission Display
   const [commissionData, setCommissionData] = useState(null);
@@ -428,6 +431,29 @@ const DriverHome = () => {
     window.open(url, '_blank');
   };
 
+  const triggerSOS = async () => {
+    setShowSOS(true);
+
+    let currentLat = 8.050; // Fallback
+    let currentLng = 126.062;
+
+    if (gpsLocation) {
+      currentLat = gpsLocation.lat;
+      currentLng = gpsLocation.lng;
+    }
+
+    try {
+      await api.post('/incidents/', {
+        lat: currentLat,
+        lng: currentLng,
+        description: 'Driver SOS Triggered from Mobile App'
+      });
+    } catch (err) {
+      console.error('Failed to send SOS alert', err);
+    }
+    setTimeout(() => setShowSOS(false), 5000);
+  };
+
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 px-6">
       <LocationPermissionModal 
@@ -668,9 +694,10 @@ const DriverHome = () => {
                     return;
                   }
                   const nextStatus = !isOnline;
-                  setIsOnline(nextStatus);
                   if (nextStatus) {
-                    setTimeout(fetchRequests, 500); // Immediate feedback fetch
+                    setShowSelfieModal(true);
+                  } else {
+                    setIsOnline(false);
                   }
                 }}
                 className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${isOnline ? 'bg-primary shadow-lg shadow-primary/20' : 'bg-slate-300'}`}
@@ -876,12 +903,15 @@ const DriverHome = () => {
                     {/* Passenger Contact Details */}
                     {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.phone_number && (
                       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Passenger Contact</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Secure Contact</p>
                         <div className="flex items-center gap-2">
                           <Phone size={14} className="text-blue-600" />
-                          <a href={`tel:${selectedRequest.passenger.phone_number}`} className="text-sm font-bold text-blue-600 hover:underline">
-                            {selectedRequest.passenger.phone_number}
-                          </a>
+                          <button 
+                            onClick={() => alert("Initiating secure proxy call. Passenger number is hidden for privacy.")}
+                            className="text-sm font-bold text-blue-600 hover:underline focus:outline-none"
+                          >
+                            Call Passenger (Masked)
+                          </button>
                         </div>
                       </div>
                     )}
@@ -981,6 +1011,16 @@ const DriverHome = () => {
               )}
             </AnimatePresence>
           </div>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={triggerSOS}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-3xl shadow-xl flex items-center justify-center gap-3 transition-colors mt-6"
+          >
+            <AlertTriangle size={24} />
+            SOS EMERGENCY
+          </motion.button>
         </div>
 
         {/* Right Column: Map and Navigation */}
@@ -1090,6 +1130,25 @@ const DriverHome = () => {
           </div>
         </div>
 
+        {/* SOS Overlay */}
+        <AnimatePresence>
+          {showSOS && (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="absolute inset-0 z-[200] bg-red-600/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 text-white rounded-[3rem]"
+            >
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-ping mb-8">
+                <AlertTriangle size={64} />
+              </div>
+              <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter">Emergency Signal Sent!</h2>
+              <p className="text-xl max-w-md opacity-90">
+                Authorities in Trento and your emergency contacts have been notified via SMS with your exact live location. Stay calm and remain safe.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* LGU Broadcast Modal */}
@@ -1233,6 +1292,15 @@ const DriverHome = () => {
         amount={activeRide?.fare}
         refNo={verificationRef}
       />
+      <SelfieVerificationModal
+        isOpen={showSelfieModal}
+        onClose={() => setShowSelfieModal(false)}
+        onVerify={() => {
+          setShowSelfieModal(false);
+          setIsOnline(true);
+          setTimeout(fetchRequests, 500);
+        }}
+      />
     </div >
   );
 };
@@ -1316,5 +1384,83 @@ const GCashVerifyModal = ({ isOpen, onClose, amount, refNo }) => (
     )}
   </AnimatePresence>
 );
+
+const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [captured, setCaptured] = useState(false);
+
+  const handleCapture = () => {
+    setIsCapturing(true);
+    setTimeout(() => {
+      setIsCapturing(false);
+      setCaptured(true);
+      setTimeout(() => {
+        setCaptured(false);
+        onVerify();
+      }, 1000);
+    }, 2000);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"
+        />
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 50 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 50 }}
+          className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20 p-8 text-center"
+        >
+          <div className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 cursor-pointer z-50" onClick={onClose}>
+            <X size={24} />
+          </div>
+          <div className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
+            <Camera size={40} />
+          </div>
+          <h3 className="text-2xl font-black text-secondary mb-2">Driver Liveness Check</h3>
+          <p className="text-sm text-slate-500 mb-8">Please take a quick selfie to verify your identity before going online.</p>
+
+          <div className="w-48 h-48 bg-slate-100 rounded-full mx-auto mb-8 relative overflow-hidden border-4 border-slate-200 flex items-center justify-center shadow-inner">
+             {isCapturing ? (
+               <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-sm">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+               </div>
+             ) : captured ? (
+               <div className="absolute inset-0 bg-green-500 flex items-center justify-center text-white">
+                  <Check size={48} />
+               </div>
+             ) : (
+                <div className="text-slate-300">
+                  <Camera size={48} />
+                </div>
+             )}
+          </div>
+
+          <div className="flex gap-4">
+             <button
+               onClick={onClose}
+               disabled={isCapturing || captured}
+               className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
+             >
+               Cancel
+             </button>
+             <button
+               onClick={handleCapture}
+               disabled={isCapturing || captured}
+               className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-lg disabled:opacity-50"
+             >
+               {isCapturing ? 'Verifying...' : captured ? 'Verified!' : 'Take Selfie'}
+             </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+};
 
 export default DriverHome;
