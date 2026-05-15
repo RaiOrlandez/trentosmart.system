@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 
 const Register = () => {
   const location = useLocation();
@@ -24,6 +24,10 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [step, setStep] = useState(1);
+
+  const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && password === confirmPassword;
+  const canGoNextStep2 = phoneNumber && dobStatus === 'valid' && gender;
 
   // Availability states
   const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid, bad_domain
@@ -255,171 +259,257 @@ const Register = () => {
 
 
   return (
-    <div className="min-h-screen pt-20 pb-10 flex items-center justify-center px-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-slate-50 to-slate-100 dark:from-slate-900/50 dark:via-slate-950 dark:to-slate-950 transition-colors duration-500">
+    <div className="min-h-screen pt-20 pb-10 flex items-center justify-center px-4 md:px-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-slate-50 to-slate-100 dark:from-slate-900/50 dark:via-slate-950 dark:to-slate-950 transition-colors duration-500">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 md:p-12 relative overflow-hidden border border-slate-100 dark:border-slate-800"
+        className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-6 md:p-12 relative overflow-hidden border border-slate-100 dark:border-slate-800"
       >
         <div className="absolute top-0 right-0 p-8 opacity-5">
           <Zap size={120} />
         </div>
 
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl rotate-3">
-            <Zap size={32} className="text-secondary" />
-          </div>
-          <h2 className="text-3xl font-black text-secondary dark:text-white tracking-tight">Join the Network</h2>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Create your Trento Smart account</p>
-        </div>
-
-        <form onSubmit={submit} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
-                placeholder="Username"
-                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${usernameStatus === 'taken' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
-                {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
-                {usernameStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+        {/* Progress Bar */}
+        <div className="mb-8 relative mt-2 md:mt-0">
+          <div className="flex justify-between mb-2 relative z-10 px-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-300 ${step >= i ? 'bg-primary text-secondary shadow-lg shadow-primary/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                {step > i ? <Check size={14} /> : i}
               </div>
-              {usernameStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">Username taken</p>}
-            </div>
-
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required
-                placeholder="Email Address (Gmail, Yahoo, Outlook)"
-                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${emailStatus === 'taken' || emailStatus === 'invalid' || emailStatus === 'bad_domain' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                {emailStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
-                {emailStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
-                {emailStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
-                {emailStatus === 'invalid' && <span className="text-[9px] font-black text-red-400 uppercase tracking-tighter">Format!</span>}
-                {emailStatus === 'bad_domain' && <XCircle className="w-4 h-4 text-orange-500" />}
-              </div>
-              {(emailStatus === 'taken' || emailStatus === 'bad_domain') && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{emailErrorMsg}</p>}
-            </div>
+            ))}
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
-                placeholder="Password"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-12 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
-              />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
-                placeholder="Confirm"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-12 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
-              />
-              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="Phone Number"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
-              />
-            </div>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text" value={dateOfBirth} onChange={handleDateChange} required
-                placeholder="DD / MM / YYYY" maxLength="10"
-                className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-bold text-slate-900 dark:text-white ${dobStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                {dobStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
-                {dobStatus === 'invalid' && <XCircle className="w-4 h-4 text-red-500" />}
-              </div>
-              {dobStatus === 'invalid' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{dobErrorMsg}</p>}
-            </div>
-          </div>
-
-          <div className="relative">
-            <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text" value={address} onChange={(e) => setAddress(e.target.value)}
-              placeholder="Residential House/Street Address"
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+          <div className="absolute top-4 left-6 right-6 h-1 bg-slate-100 dark:bg-slate-800 rounded-full -z-0 -translate-y-1/2">
+            <motion.div 
+              className="h-full bg-primary rounded-full"
+              initial={{ width: '0%' }}
+              animate={{ width: `${(step - 1) * 50}%` }}
+              transition={{ duration: 0.3 }}
             />
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                type="text" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)}
-                placeholder="Emergency Contact Name"
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
-              />
-            </div>
-            <div className="relative">
-              <select
-                value={gender} onChange={(e) => setGender(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white appearance-none"
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-black text-secondary dark:text-white tracking-tight">
+            {step === 1 ? 'Join the Network' : step === 2 ? 'Personal Details' : 'Safety & Compliance'}
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+            {step === 1 ? 'Create your Trento Smart account' : step === 2 ? 'Tell us a bit about yourself' : 'Finalize your account setup'}
+          </p>
+        </div>
+
+        <form onSubmit={submit} className="space-y-6 relative min-h-[340px]">
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 50, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6 absolute w-full"
               >
-                <option value="">Select Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-          </div>
+                {/* Role Selection */}
+                <div className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded-[1.25rem] border border-slate-200 dark:border-slate-700 flex shadow-inner">
+                  <button
+                    type="button" onClick={() => setRole('passenger')}
+                    className={`flex-1 py-3.5 rounded-xl transition-all font-black text-sm ${role === 'passenger' ? 'bg-secondary text-white shadow-md' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                  >
+                    Passenger
+                  </button>
+                  <button
+                    type="button" onClick={() => setRole('driver')}
+                    className={`flex-1 py-3.5 rounded-xl transition-all font-black text-sm ${role === 'driver' ? 'bg-primary text-secondary shadow-md' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                  >
+                    Driver
+                  </button>
+                </div>
 
-          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
-            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block pl-1">I want to register as</label>
-            <div className="flex gap-3">
-              <button
-                type="button" onClick={() => setRole('passenger')}
-                className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold text-sm ${role === 'passenger' ? 'border-secondary bg-secondary text-white' : 'border-white dark:border-white/5 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 shadow-sm'}`}
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text" value={username} onChange={(e) => setUsername(e.target.value)} required
+                    placeholder="Username"
+                    className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${usernameStatus === 'taken' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                    {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                    {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                    {usernameStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+                  </div>
+                  {usernameStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">Username taken</p>}
+                </div>
+
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required
+                    placeholder="Email Address"
+                    className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${emailStatus === 'taken' || emailStatus === 'invalid' || emailStatus === 'bad_domain' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                    {emailStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                    {emailStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
+                    {emailStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+                    {emailStatus === 'invalid' && <span className="text-[9px] font-black text-red-400 uppercase tracking-tighter">Format!</span>}
+                    {emailStatus === 'bad_domain' && <XCircle className="w-4 h-4 text-orange-500" />}
+                  </div>
+                  {(emailStatus === 'taken' || emailStatus === 'bad_domain') && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">{emailErrorMsg}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
+                      placeholder="Password"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-12 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required
+                      placeholder="Confirm"
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${confirmPassword && password !== confirmPassword ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                    {confirmPassword && password !== confirmPassword && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">Passwords do not match</p>}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 50, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6 absolute w-full"
               >
-                Passenger
-              </button>
-              <button
-                type="button" onClick={() => setRole('driver')}
-                className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold text-sm ${role === 'driver' ? 'border-primary bg-primary text-secondary' : 'border-white dark:border-white/5 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 shadow-sm'}`}
+                <div className="relative flex items-center">
+                  <div className="absolute left-4 flex items-center gap-2 pointer-events-none text-slate-500 font-black">
+                    🇵🇭 <span className="text-slate-300 ml-1">|</span> <span className="text-secondary dark:text-slate-300 ml-1">+63</span>
+                  </div>
+                  <input
+                    type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                    placeholder="912 345 6789"
+                    maxLength="10"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-28 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-bold text-slate-900 dark:text-white tracking-wider"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text" value={dateOfBirth} onChange={handleDateChange} required
+                    placeholder="Date of Birth (DD / MM / YYYY)" maxLength="10"
+                    className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-bold text-slate-900 dark:text-white ${dobStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                    {dobStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
+                    {dobStatus === 'invalid' && <XCircle className="w-4 h-4 text-red-500" />}
+                  </div>
+                  {dobStatus === 'invalid' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">{dobErrorMsg}</p>}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block pl-1">Gender Identity</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {['male', 'female', 'other'].map(g => (
+                      <button
+                        key={g} type="button" onClick={() => setGender(g)}
+                        className={`py-4 rounded-2xl border-2 transition-all font-bold text-sm capitalize flex flex-col items-center justify-center gap-1 ${gender === g ? 'border-primary bg-primary/10 text-primary-dark shadow-md' : 'border-slate-100 dark:border-slate-700 text-slate-500 bg-white dark:bg-slate-800 hover:border-primary/30 shadow-sm'}`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ x: -50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 50, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6 absolute w-full"
               >
-                Tricycle Driver
-              </button>
-            </div>
-          </div>
+                <div className="relative">
+                  <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text" value={address} onChange={(e) => setAddress(e.target.value)} required={role === 'driver'}
+                    placeholder="Residential House/Street Address"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                  />
+                </div>
 
-          {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100 italic">{error}</motion.div>}
-          {message && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-green-50 text-green-600 rounded-2xl text-sm font-bold border border-green-100 flex items-center gap-2"><CheckCircle size={16} /> {message}</motion.div>}
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} required
+                    placeholder="Emergency Contact Name"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                  />
+                </div>
 
-          <button
-            type="submit" disabled={loading}
-            className="w-full bg-secondary text-white font-black py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-xl flex items-center justify-center gap-2 group"
-          >
-            {loading ? 'Creating Account...' : 'Continue to Dashboard'}
-            <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </button>
+                {role === 'driver' && (
+                  <div className="bg-amber-50 dark:bg-amber-900/20 p-5 rounded-2xl border border-amber-200 dark:border-amber-700 mt-2 flex items-start gap-3">
+                    <Zap size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs font-bold text-amber-800 dark:text-amber-200 leading-relaxed">
+                      Note: Since you are registering as a Driver, you will be required to upload your LGU franchise and license documents after verifying your email.
+                    </p>
+                  </div>
+                )}
+                
+                {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100 flex items-start gap-2"><XCircle size={18} className="shrink-0 mt-0.5" /> <span>{error}</span></motion.div>}
+                {message && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-green-50 text-green-600 rounded-2xl text-sm font-bold border border-green-100 flex items-start gap-2"><CheckCircle size={18} className="shrink-0 mt-0.5" /> <span>{message}</span></motion.div>}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </form>
 
+        <div className="flex gap-4 mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+          {step > 1 && (
+            <button
+              type="button" onClick={() => setStep(step - 1)}
+              className="w-14 h-14 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 shadow-sm"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          
+          {step < 3 ? (
+            <button
+              type="button" 
+              onClick={() => setStep(step + 1)}
+              disabled={step === 1 ? !canGoNextStep1 : !canGoNextStep2}
+              className="flex-1 bg-secondary text-white font-black py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              Next Step
+              <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            </button>
+          ) : (
+            <button
+              type="submit" onClick={submit} disabled={loading}
+              className="flex-1 bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-primary-dark transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 group"
+            >
+              {loading ? <Loader2 className="animate-spin" size={20} /> : 'Complete Registration'}
+              {!loading && <CheckCircle size={20} />}
+            </button>
+          )}
+        </div>
 
-        <div className="mt-8 text-center pt-8 border-t border-slate-100 dark:border-slate-800">
+        <div className="mt-8 text-center">
           <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">
             Already part of Trento Smart? <Link to="/login" className="text-secondary dark:text-primary font-black hover:underline ml-1">Sign In</Link>
           </p>
