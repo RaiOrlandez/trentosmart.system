@@ -2203,4 +2203,98 @@ class TestEmailView(APIView):
         except Exception as e:
             return Response({'status': 'error', 'detail': str(e)}, status=500)
 
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+import threading
+
+class PasswordResetRequestView(APIView):
+    permission_classes = (AllowAny,)
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'resend_otp'
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        User = get_user_model()
+        user = User.objects.filter(email__iexact=email).first()
+        
+        # Always return success to prevent email enumeration
+        response_msg = {'detail': 'If this email is registered, a password reset link has been sent.'}
+        
+        if user:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            
+            # Combine uid-token
+            combined_token = f'{uid}-{token}'
+            
+            # Pass this combined_token to the frontend URL
+            reset_link = f'https://trentosmart-system.vercel.app/reset-password?token={combined_token}'
+            
+            def _send_reset_email(username, email_addr, link):
+                try:
+                    html_msg = f"""
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                        <h2>Password Reset Request 🔐</h2>
+                        <p>Hi {username},</p>
+                        <p>We received a request to reset your password for Trento Smart. Click the button below to choose a new password.</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{link}" style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Reset Password</a>
+                        </div>
+                        <p>This link expires in a few hours. If you did not request a password reset, please ignore this email.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                        <p style="color: #64748b; font-size: 12px; text-align: center;">Trento Smart Admin</p>
+                    </div>
+                    """
+                    success, resp = send_brevo_email(email_addr, username, 'Trento Smart Password Reset', html_msg)
+                    if success:
+                        print(f"[Email] ✅ Password reset sent to {email_addr}")
+                    else:
+                        print(f"[Email] ❌ Password reset FAILED for {email_addr}: {resp}")
+                except Exception as e:
+                    print(f"[Email] ❌ Password reset Exception: {e}")
+
+            thread = threading.Thread(
+                target=_send_reset_email,
+                args=(user.username, user.email, reset_link),
+                daemon=True
+            )
+            thread.start()
+
+        return Response(response_msg, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+
+        if not token or not new_password:
+            return Response({'detail': 'Token and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid_b64, reset_token = token.rsplit('-', 1)
+            uid = force_str(urlsafe_base64_decode(uid_b64))
+            
+            User = get_user_model()
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({'detail': 'Invalid or malformed token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, reset_token):
+            return Response({'detail': 'Token is invalid or has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 8:
+            return Response({'detail': 'Password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({'detail': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+
 

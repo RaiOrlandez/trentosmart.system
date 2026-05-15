@@ -9,6 +9,7 @@ from .views import (
     WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride,
     LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
     ChangePasswordView, ChangeEmailView, ConfirmEmailChangeView,
+    PasswordResetRequestView, PasswordResetConfirmView,
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
@@ -35,6 +36,8 @@ urlpatterns = [
     path('auth/test-email/', TestEmailView.as_view(), name='test-email'),
     path('auth/check-email/', CheckEmailView.as_view(), name='check-email'),
     path('auth/check-username/', CheckUsernameView.as_view(), name='check-username'),
+    path('auth/password-reset-request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('auth/password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
