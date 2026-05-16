@@ -73,21 +73,23 @@ const useGeoLocation = (options = {}) => {
         const onSuccess = (pos) => {
             clearTimeout(fallbackTimerRef.current);
             hasGotLocationRef.current = true;
-            let lat, lng, acc;
+            let lat, lng, acc, head;
             if (pos.coords) { // Web API
                 lat = pos.coords.latitude;
                 lng = pos.coords.longitude;
                 acc = pos.coords.accuracy;
+                head = pos.coords.heading;
             } else { // Capacitor native plugin
                 lat = pos.latitude;
                 lng = pos.longitude;
                 acc = pos.accuracy;
+                head = pos.heading;
             }
             setLocation({
                 lat: lat,
                 lng: lng,
                 accuracy: acc,
-                accuracy: acc,
+                heading: head
             });
             setStatus('live');
             setError(null);

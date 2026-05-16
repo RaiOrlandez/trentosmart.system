@@ -229,7 +229,7 @@ const DriverHome = () => {
 
       // Only send live location to passenger over WebSocket if ride active
       if (activeRide) {
-        sendLocation(gpsLocation.lat, gpsLocation.lng);
+        sendLocation(gpsLocation.lat, gpsLocation.lng, gpsLocation.heading);
       }
     }
   }, [gpsLocation, isOnline, activeRide, sendLocation]);
@@ -424,11 +424,20 @@ const DriverHome = () => {
   };
 
   const openNativeNavigation = (lat, lng, label = 'Destination') => {
-    // The universal Google Maps URL scheme perfectly deep-links into the
-    // native Google Maps app on both Android and iOS when clicked from a web browser,
-    // and seamlessly falls back to the browser tab if the app isn't installed.
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-    window.open(url, '_blank');
+    // Check for platform to use appropriate defaults
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    // Create URLs for different apps
+    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+    const appleMapsUrl = `maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+
+    // Professional Choice Modal / Action Sheet logic
+    // For now, we'll try to open Waze if installed, fallback to Google Maps
+    // Real professional apps often allow users to choose in settings.
+    
+    // We'll open a simple custom choice window or just use Google Maps with better params
+    window.open(googleMapsUrl, '_blank');
   };
 
   const triggerSOS = async () => {
@@ -826,18 +835,21 @@ const DriverHome = () => {
                     </div>
 
                     <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          const target = activeRide.status === 'on_route'
-                            ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
-                            : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
-                          openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
-                        }}
-                        className="flex-1 bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
-                      >
-                        <Navigation2 size={20} className="text-primary" />
-                        <span>Navigate</span>
-                      </button>
+                        <div className="flex-1 flex flex-col gap-2">
+                          <button
+                            onClick={() => {
+                              const target = activeRide.status === 'on_route'
+                                ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
+                                : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
+                              openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
+                            }}
+                            className="w-full bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
+                          >
+                            <Navigation2 size={20} className="text-primary" />
+                            <span>Navigate</span>
+                          </button>
+                          <p className="text-[8px] text-center text-white/40 uppercase font-black tracking-tighter">Opens Google Maps</p>
+                        </div>
 
                       {activeRide.status === 'accepted' || activeRide.status === 'matched' ? (
                         <button

@@ -102,19 +102,37 @@ const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], h
     markersRef.current = [];
 
     markers.forEach((m) => {
+      // Use a custom icon if it's a driver
+      let icon = null;
+      if (m.isDriver) {
+        icon = {
+          path: 'M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z', // Professional Navigation Arrow
+          fillColor: '#FFD700',
+          fillOpacity: 1,
+          strokeWeight: 2,
+          strokeColor: '#000',
+          scale: 1.5,
+          anchor: new window.google.maps.Point(12, 12),
+          rotation: m.heading || 0
+        };
+      } else if (m.isPickup) {
+        icon = {
+          url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
+        };
+      } else if (m.isDestination) {
+        icon = {
+          url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+        };
+      }
+
       const marker = new window.google.maps.Marker({
         position: { lat: m.lat, lng: m.lng },
         map: mapRef.current,
         title: m.title || '',
-        icon: m.isDriver ? {
-          path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-          scale: 5,
-          fillColor: "#FFD700",
-          fillOpacity: 1,
-          strokeWeight: 2,
-          rotation: 0
-        } : null
+        icon: icon,
+        optimized: true
       });
+
       if (m.info) {
         const infowindow = new window.google.maps.InfoWindow({ content: m.info });
         marker.addListener('click', () => infowindow.open(mapRef.current, marker));
@@ -123,10 +141,16 @@ const Map = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], h
     });
 
     if (markers.length > 0) {
-      const focusMarker = markers.find(m => m.forceFocus);
+      const focusMarker = markers.find(m => m.forceFocus || m.isTracking);
       if (focusMarker) {
-        mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
-        mapRef.current.setZoom(16);
+        // If forceFocus is a timestamp (from button click), we do a hard zoom and pan
+        // If it's isTracking (continuous), we just pan smoothly
+        if (typeof focusMarker.forceFocus === 'number') {
+           mapRef.current.setZoom(17);
+           mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
+        } else {
+           mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
+        }
       } else {
         const bounds = new window.google.maps.LatLngBounds();
         markers.forEach((m) => bounds.extend({ lat: m.lat, lng: m.lng }));

@@ -76,7 +76,7 @@ const PassengerHome = () => {
   const [proximityAlert, setProximityAlert] = useState(false);
   const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
   const [showFallbackButton, setShowFallbackButton] = useState(false);
-
+  const [isTracking, setIsTracking] = useState(false);
   // ── Real-time GPS tracking (falls back to Trento ADS demo if denied) ────────
   const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
 
@@ -503,9 +503,6 @@ const PassengerHome = () => {
         // Keep pickup and dest, update driver
         const otherMarkers = current.filter(m => m.title !== 'Driver');
 
-        // Find if we should auto-focus (first time driver appears or if we have a "Follow Mode" active)
-        const shouldFocus = !current.find(m => m.title === 'Driver');
-
         return [
           ...otherMarkers,
           {
@@ -514,12 +511,13 @@ const PassengerHome = () => {
             title: 'Driver',
             info: 'On the way to you!',
             isDriver: true,
-            forceFocus: shouldFocus ? Date.now() : undefined
+            heading: wsData.heading || 0,
+            isTracking: isTracking
           }
         ];
       });
     }
-  }, [wsData, status]);
+  }, [wsData, status, isTracking]);
 
   const requestRide = async (e) => {
     e.preventDefault();
@@ -678,6 +676,21 @@ const PassengerHome = () => {
           error={gpsError} 
           onRetry={retryGps} 
       />
+
+      {/* Floating Live Tracking Indicator */}
+      <AnimatePresence>
+        {isTracking && (status === 'matched' || status === 'ongoing') && (
+          <motion.div
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] bg-primary text-secondary px-6 py-2 rounded-full shadow-2xl border-2 border-white flex items-center gap-3"
+          >
+            <div className="w-2 h-2 bg-secondary rounded-full animate-ping" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Live Tracking Active</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* LGU Announcements */}
       <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
@@ -1242,15 +1255,16 @@ const PassengerHome = () => {
           {(status === 'matched' || status === 'ongoing') && (
             <button
               onClick={() => {
+                setIsTracking(!isTracking);
                 const driverMarker = markers.find(m => m.title === 'Driver');
                 if (driverMarker) {
-                  setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, forceFocus: Date.now() } : m)]);
+                  setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, isTracking: !isTracking, forceFocus: !isTracking ? Date.now() : null } : m)]);
                 }
               }}
-              className="bg-secondary text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10"
+              className={`${isTracking ? 'bg-primary text-secondary ring-4 ring-primary/30' : 'bg-secondary text-white'} p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10`}
             >
-              <Navigation size={20} className="text-primary" />
-              <span className="text-sm font-bold">Track Driver</span>
+              <Navigation size={20} className={isTracking ? 'text-secondary animate-pulse' : 'text-primary'} />
+              <span className="text-sm font-bold">{isTracking ? 'Following Driver...' : 'Track Driver'}</span>
             </button>
           )}
 

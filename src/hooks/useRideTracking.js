@@ -60,9 +60,9 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
     }, [rideId, isDriver, isGuest, shareToken]);
 
     // Function to send location (used by driver)
-    const sendLocation = useCallback((lat, lng) => {
+    const sendLocation = useCallback((lat, lng, heading = 0) => {
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            socketRef.current.send(JSON.stringify({ type: 'location', lat, lng }));
+            socketRef.current.send(JSON.stringify({ type: 'location', lat, lng, heading }));
         }
     }, []);
 
