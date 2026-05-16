@@ -672,93 +672,15 @@ const PassengerHome = () => {
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-50 dark:bg-slate-950 overflow-hidden transition-colors duration-500">
+    <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col md:flex-row gap-6 px-6 max-w-[1400px] mx-auto transition-colors duration-500">
       <LocationPermissionModal 
           isOpen={gpsStatus === 'error'} 
           error={gpsError} 
           onRetry={retryGps} 
       />
 
-      {/* FULL SCREEN MAP BACKGROUND */}
-      <div className="absolute inset-0 z-0">
-        <Map center={userCenter} markers={markers} routeCoordinates={routeCoordinates} />
-        
-        {/* Map Overlays (GPS status, etc) */}
-        <div className="absolute top-24 left-4 z-10 pointer-events-none">
-          <div className="bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${gpsStatus === 'live' ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`} />
-            <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">
-              {gpsStatus === 'live' ? 'GPS Live' : 'Acquiring GPS...'}
-            </span>
-          </div>
-        </div>
-
-        {/* Floating Action Buttons (Right Side) */}
-        <div className="absolute top-24 right-4 flex flex-col gap-3 z-10">
-          <AnimatePresence>
-            {proximityAlert && status === 'matched' && (
-              <motion.div
-                initial={{ x: 100, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 100, opacity: 0 }}
-                className="bg-primary text-secondary p-4 rounded-2xl shadow-2xl flex items-center gap-4 border-2 border-white animate-bounce"
-              >
-                <Navigation className="text-secondary animate-pulse" size={20} />
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-tighter">He's here!</p>
-                  <p className="text-sm font-bold">Driver Arriving</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {(status === 'matched' || status === 'ongoing') && (
-            <button
-              onClick={() => {
-                const driverMarker = markers.find(m => m.title === 'Driver');
-                if (driverMarker) {
-                  setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, forceFocus: Date.now() } : m)]);
-                }
-              }}
-              className="w-12 h-12 bg-white dark:bg-slate-900 rounded-2xl shadow-xl flex items-center justify-center text-slate-600 dark:text-white border border-slate-100 dark:border-white/5"
-            >
-              <Navigation size={20} />
-            </button>
-          )}
-
-          <button
-            onClick={triggerSOS}
-            className="w-12 h-12 bg-red-600 rounded-2xl shadow-xl flex items-center justify-center text-white border-2 border-white/20"
-          >
-            <AlertTriangle size={20} />
-          </button>
-        </div>
-
-        {/* SOS Overlay */}
-        <AnimatePresence>
-          {showSOS && (
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 z-[100] bg-red-600/90 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8 text-white"
-            >
-              <AlertTriangle size={80} className="mb-6 animate-ping" />
-              <h2 className="text-4xl font-black mb-4 uppercase tracking-tighter">Emergency Sent</h2>
-              <p className="text-lg max-w-md">Your live location has been shared with local authorities.</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* INTERACTIVE BOTTOM SHEET / SIDEBAR PANEL */}
-      <div className="relative z-10 pointer-events-none min-h-screen flex flex-col md:flex-row pt-20 md:pt-24 px-0 md:px-8">
-        <div className="pointer-events-auto w-full md:w-[400px] mt-auto md:mt-0 bg-white dark:bg-slate-900 rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl border-t md:border border-slate-100 dark:border-white/5 flex flex-col max-h-[85vh] md:max-h-[calc(100vh-140px)] overflow-hidden">
-          
-          {/* Mobile Drag Handle */}
-          <div className="w-full flex justify-center py-4 md:hidden">
-            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full" />
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 pt-2 md:pt-6 space-y-6 pb-12 custom-scrollbar">
+      {/* LGU Announcements */}
+      <div className="w-full md:w-1/3 lg:w-1/4 space-y-6">
         {Array.isArray(broadcasts) && broadcasts.length > 0 && (
           <div className="space-y-4">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 flex items-center gap-2">
@@ -972,42 +894,20 @@ const PassengerHome = () => {
                     )}
                   </div>
 
-                  {/* Service Type Selection */}
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary/80">Select Service</p>
-                      <span className="text-[9px] bg-white/20 px-2 py-0.5 rounded-full font-bold">Standard Fare</span>
-                    </div>
-                    <div className="bg-white/10 border border-white/20 rounded-2xl p-4 flex items-center gap-4 cursor-default">
-                      <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-secondary shadow-lg">
-                        <Store size={24} />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-black text-sm uppercase italic">Trento Trike</p>
-                        <p className="text-[10px] font-bold opacity-60 uppercase">Max 4 Passengers • LGU Regulated</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-black italic">₱{fare}.00</p>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('cash')}
-                      className={`py-4 px-1 rounded-2xl text-xs font-black flex flex-col items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'cash' ? 'bg-primary text-secondary border-primary shadow-lg' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'cash' ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
                     >
-                      <Wallet size={20} />
-                      <span>CASH</span>
+                      <Wallet size={16} /> CASH
                     </button>
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('gcash')}
-                      className={`py-4 px-1 rounded-2xl text-xs font-black flex flex-col items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'gcash' ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'gcash' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
                     >
-                      <CreditCard size={20} />
-                      <span>GCASH</span>
+                      <CreditCard size={16} /> GCASH
                     </button>
                   </div>
                 </div>
@@ -1256,8 +1156,152 @@ const PassengerHome = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Main Map View — centred on live GPS position */}
+      <div className="flex-1 min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
+        <Map center={userCenter} markers={markers} routeCoordinates={routeCoordinates} />
+
+        {/* GPS status badge */}
+        <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
+          <div style={{
+            background: 'rgba(15,23,42,0.82)',
+            backdropFilter: 'blur(10px)',
+            borderRadius: 999,
+            padding: '6px 14px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8',
+              boxShadow: `0 0 6px ${gpsStatus === 'live' ? '#22c55e' : gpsStatus === 'error' ? '#ef4444' : '#94a3b8'}`,
+              display: 'inline-block',
+              flexShrink: 0,
+            }} />
+            <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: 700, letterSpacing: '0.01em' }}>
+              {gpsStatus === 'live'
+                ? 'Tracking live location'
+                : gpsStatus === 'error'
+                  ? 'GPS Error: Please enable location'
+                  : 'Acquiring GPS…'}
+            </span>
+          </div>
         </div>
+
+        {/* Floating Info */}
+        <div className="absolute top-6 right-6 flex flex-col gap-3">
+          <AnimatePresence>
+            {proximityAlert && status === 'matched' && (
+              <motion.div
+                initial={{ x: 100, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 100, opacity: 0 }}
+                className="bg-primary text-secondary p-4 rounded-2xl shadow-2xl flex items-center gap-4 border-2 border-white animate-bounce"
+              >
+                <div className="w-10 h-10 bg-secondary/10 rounded-full flex items-center justify-center">
+                  <Navigation className="text-secondary animate-pulse" size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-tighter">He's here!</p>
+                  <p className="text-sm font-bold">Driver is arriving now</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {status === 'completed' && (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-green-500 text-white p-4 rounded-2xl shadow-lg flex items-center gap-3"
+            >
+              <CheckCircle2 size={24} />
+              <span className="font-bold">Ride Completed!</span>
+            </motion.div>
+          )}
+          <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+              <MapPin size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Service Area</p>
+              <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
+            </div>
+          </div>
+          <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4">
+            <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
+              <Clock size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Estimated Time</p>
+              <p className="text-sm font-bold text-secondary">4 mins away</p>
+            </div>
+          </div>
+          {(status === 'matched' || status === 'ongoing') && (
+            <button
+              onClick={() => {
+                const driverMarker = markers.find(m => m.title === 'Driver');
+                if (driverMarker) {
+                  setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, forceFocus: Date.now() } : m)]);
+                }
+              }}
+              className="bg-secondary text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10"
+            >
+              <Navigation size={20} className="text-primary" />
+              <span className="text-sm font-bold">Track Driver</span>
+            </button>
+          )}
+
+          {/* Share Ride Button */}
+          {(status === 'matched' || status === 'ongoing') && activeRideId && (
+            <button
+              onClick={async () => {
+                // In a real app, we would fetch the token from the ACTIVE ride object.
+                // For now, we need to fetch the ride details to get the token or assume we have it.
+                // Let's quickly fetch it or use a placeholder if not in state.
+                // Better approach: We should have 'activeRide' state object that includes 'share_token'.
+                // BUT to save time, let's fetch it on click.
+                try {
+                  const res = await api.get(`/rides/${activeRideId}/`);
+                  const token = res.data.share_token;
+                  const url = `${window.location.origin}/track/${token}`;
+                  await navigator.clipboard.writeText(url);
+                  alert("Tracking link copied to clipboard! Share it with family.");
+                } catch (e) {
+                  alert("Could not generate link.");
+                }
+              }}
+              className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10"
+            >
+              <Share2 size={20} />
+              <span className="text-sm font-bold">Share Ride</span>
+            </button>
+          )}
+        </div>
+
+        {/* SOS Overlay */}
+        <AnimatePresence>
+          {showSOS && (
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="absolute inset-0 z-50 bg-red-600/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 text-white"
+            >
+              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-ping mb-8">
+                <AlertTriangle size={64} />
+              </div>
+              <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter">Emergency Signal Sent!</h2>
+              <p className="text-xl max-w-md opacity-90">
+                Authorities in Trento and your emergency contacts have been notified via SMS with your exact live location. Stay calm and remain where you are.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
       <PaymentModal
         isOpen={showPayment}
         onClose={() => setShowPayment(false)}
