@@ -81,3 +81,12 @@
 .badge-offline {
   @apply px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter bg-slate-100 text-slate-500 border border-slate-200;
 }
+
+/* Hide scrollbar for horizontal scroll containers */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

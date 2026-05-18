@@ -212,16 +212,89 @@ const Login = () => {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md relative z-10"
         >
-          {/* Mobile-only brand header (shows below lg breakpoint) */}
-          <div className="lg:hidden text-center mb-8">
-            <Link to="/" className="inline-flex items-center space-x-3 group mb-4">
-              <div className="w-11 h-11 bg-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 shadow-lg shadow-primary/20">
-                <Zap size={24} className="text-secondary" />
+          {/* Mobile-only brand showcase (shows below lg breakpoint) */}
+          <div className="lg:hidden mb-8">
+            {/* Mobile hero card with background image */}
+            <div className="relative rounded-[2rem] overflow-hidden mb-6 shadow-xl">
+              <img
+                src="/hero.png"
+                alt="Trento Smart Tricycle"
+                className="w-full h-48 sm:h-56 object-cover"
+              />
+              {/* Dark overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-secondary/95 via-secondary/70 to-secondary/40"></div>
+              
+              {/* Content on top of image */}
+              <div className="absolute inset-0 flex flex-col justify-end p-5">
+                {/* Logo */}
+                <Link to="/" className="flex items-center space-x-2 mb-3">
+                  <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
+                    <Zap size={18} className="text-secondary" />
+                  </div>
+                  <span className="text-white font-black text-lg tracking-[0.12em] uppercase">
+                    TRENTO <span className="text-primary">SMART</span>
+                  </span>
+                </Link>
+                
+                {/* Headline */}
+                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight mb-2">
+                  Your Smart Ride <span className="text-primary">Awaits.</span>
+                </h1>
+
+                {/* Animated tagline */}
+                <div className="h-8 relative">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={taglineIndex}
+                      initial={{ y: 12, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -12, opacity: 0 }}
+                      transition={{ duration: 0.35 }}
+                      className="absolute inset-0 flex items-center gap-2"
+                    >
+                      {(() => {
+                        const IconComp = TAGLINES[taglineIndex].icon;
+                        return (
+                          <>
+                            <IconComp size={14} className="text-primary shrink-0" />
+                            <p className="text-sm text-slate-300 font-medium truncate">
+                              {TAGLINES[taglineIndex].text}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+                {/* Progress dots */}
+                <div className="flex gap-1 mt-1">
+                  {TAGLINES.map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-0.5 rounded-full transition-all duration-500 ${i === taglineIndex ? 'w-5 bg-primary' : 'w-1.5 bg-white/20'}`}
+                    />
+                  ))}
+                </div>
               </div>
-              <span className="text-secondary dark:text-white font-black text-xl tracking-[0.15em] uppercase">
-                TRENTO <span className="text-primary-dark dark:text-primary">SMART</span>
-              </span>
-            </Link>
+            </div>
+
+            {/* Mobile feature pills — horizontal scroll */}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+              {FEATURES.map((feat, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/50 shadow-sm shrink-0"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <feat.icon size={13} className="text-primary-dark dark:text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-secondary dark:text-white font-bold text-[11px] leading-tight">{feat.label}</p>
+                    <p className="text-slate-400 text-[9px] font-medium">{feat.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Form header */}
