@@ -371,62 +371,77 @@ class GoogleLoginView(APIView):
 
         # 3. Find or create the Django user
         try:
-            user = User.objects.get(email__iexact=google_email)
-            # Existing user — ensure email is verified (they proved ownership via Google)
-            if not user.is_email_verified:
-                user.is_email_verified = True
-                user.save(update_fields=['is_email_verified'])
-                print(f"[Google Auth] ✅ Auto-verified email for existing user: {user.username}")
+            user = User.objects.filter(email__iexact=google_email).first()
+            
+            if user:
+                # Existing user — ensure email is verified (they proved ownership via Google)
+                if not user.is_email_verified:
+                    user.is_email_verified = True
+                    user.save(update_fields=['is_email_verified'])
+                    print(f"[Google Auth] ✅ Auto-verified email for existing user: {user.username}")
+            else:
+                # New user — create account automatically
+                # Generate a unique username from the email prefix
+                base_username = google_email.split('@')[0]
+                username = base_username
+                counter = 1
+                while User.objects.filter(username__iexact=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
 
-        except User.DoesNotExist:
-            # New user — create account automatically
-            # Generate a unique username from the email prefix
-            base_username = google_email.split('@')[0]
-            username = base_username
-            counter = 1
-            while User.objects.filter(username__iexact=username).exists():
-                username = f"{base_username}{counter}"
-                counter += 1
+                # Create user with unusable password (Google-only auth)
+                user = User(
+                    username=username,
+                    email=google_email,
+                    role='passenger',  # Default role for Google sign-ups
+                    is_email_verified=True,  # Email is verified via Google
+                )
+                user.set_unusable_password()
+                user.save()
 
-            # Create user with unusable password (Google-only auth)
-            user = User(
-                username=username,
-                email=google_email,
-                role='passenger',  # Default role for Google sign-ups
-                is_email_verified=True,  # Email is verified via Google
+                print(f"[Google Auth] 🆕 Created new user via Google: {username} ({google_email})")
+
+                # Send admin notification in background (non-blocking)
+                import threading
+                from django.conf import settings as django_settings
+
+                def _notify_admin_google_signup(uname, uemail):
+                    try:
+                        admin_email = getattr(django_settings, 'ADMIN_NOTIFICATION_EMAIL', getattr(django_settings, 'DEFAULT_FROM_EMAIL', None))
+                        if admin_email:
+                            html_msg = f"""
+                            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                                <h2>🆕 New Google Sign-Up — {uname}</h2>
+                                <p>A new passenger registered via Google Sign-In.</p>
+                                <ul>
+                                    <li>Username: {uname}</li>
+                                    <li>Email: {uemail}</li>
+                                    <li>Method: Google OAuth</li>
+                                </ul>
+                            </div>
+                            """
+                            send_brevo_email(admin_email, "Admin", f'🆕 New Google Sign-Up — {uname}', html_msg)
+                    except Exception as e:
+                        print(f"[Google Auth] Admin notification failed (non-critical): {e}")
+
+                threading.Thread(target=_notify_admin_google_signup, args=(username, google_email), daemon=True).start()
+
+        except Exception as e:
+            import traceback
+            print(f"[Google Auth] CRITICAL ERROR finding/creating user:\n{traceback.format_exc()}")
+            return Response(
+                {'detail': f'Error creating user account: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-            user.set_unusable_password()
-            user.save()
-
-            print(f"[Google Auth] 🆕 Created new user via Google: {username} ({google_email})")
-
-            # Send admin notification in background (non-blocking)
-            import threading
-            from django.conf import settings as django_settings
-
-            def _notify_admin_google_signup(uname, uemail):
-                try:
-                    admin_email = getattr(django_settings, 'ADMIN_NOTIFICATION_EMAIL', getattr(django_settings, 'DEFAULT_FROM_EMAIL', None))
-                    if admin_email:
-                        html_msg = f"""
-                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                            <h2>🆕 New Google Sign-Up — {uname}</h2>
-                            <p>A new passenger registered via Google Sign-In.</p>
-                            <ul>
-                                <li>Username: {uname}</li>
-                                <li>Email: {uemail}</li>
-                                <li>Method: Google OAuth</li>
-                            </ul>
-                        </div>
-                        """
-                        send_brevo_email(admin_email, "Admin", f'🆕 New Google Sign-Up — {uname}', html_msg)
-                except Exception as e:
-                    print(f"[Google Auth] Admin notification failed (non-critical): {e}")
-
-            threading.Thread(target=_notify_admin_google_signup, args=(username, google_email), daemon=True).start()
 
         # 4. Generate JWT tokens (same format as normal login)
-        refresh = RefreshToken.for_user(user)
+        try:
+            refresh = RefreshToken.for_user(user)
+        except Exception as e:
+            return Response(
+                {'detail': f'Error generating token: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
         # Add custom claims to match CustomTokenObtainPairSerializer
         refresh['role'] = user.role
