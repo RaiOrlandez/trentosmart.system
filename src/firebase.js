@@ -4,13 +4,13 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 
 // TODO: Replace with your actual Firebase config from the Firebase Console Let
 const firebaseConfig = {
-  apiKey: "AIzaSyCK0TPCAL3DCkZcbi5mm05Owu_wwr-Pnyo",
-  authDomain: "transmart-c8c7b.firebaseapp.com",
-  projectId: "transmart-c8c7b",
-  storageBucket: "transmart-c8c7b.firebasestorage.app",
-  messagingSenderId: "928911803916",
-  appId: "1:928911803916:web:bd2f00673587c1c2039029",
-  measurementId: "G-MZJ9HQCFDN"
+  apiKey: "AIzaSyCEdKp5Ta7grB7tHEUpG9vj1Y2HtFgDmK8",
+  authDomain: "trentosmart-22f0d.firebaseapp.com",
+  projectId: "trentosmart-22f0d",
+  storageBucket: "trentosmart-22f0d.firebasestorage.app",
+  messagingSenderId: "817458673311",
+  appId: "1:817458673311:web:60ce694ad8f2c7be2c94aa",
+  measurementId: "G-CMR7P33HFX"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -24,7 +24,7 @@ export const requestForToken = async () => {
     if (permission === 'granted') {
         const currentToken = await getToken(messaging, { 
             // You get the VAPID key in Project Settings > Cloud Messaging > Web configuration
-            vapidKey: 'BGR1CoKMxoH1sLjTg4vDqzKL0tnHx55yf7xgfiC-pq00wrhWPSANJaBkl78UBDxRv87-NQtwC6LRyDCqdUOp23g' 
+            vapidKey: 'BNdDIWlhUtP-t_g6hqSLpqxkT0ycHkcbGVC2FyKn4wq0U6jq1f5gYR56xqO6i7Me2DR0t64KbdIk7GG_bSbMmlM' 
         });
         if (currentToken) {
             console.log('FCM Token:', currentToken);

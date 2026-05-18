@@ -2,15 +2,30 @@ import firebase_admin
 from firebase_admin import credentials, messaging, auth as firebase_auth
 import os
 
+import json
+
 # Initialize Firebase App
 cred_path = os.path.join(os.path.dirname(__file__), '../../firebase-key.json')
-# For safety, we only initialize if the credential file exists
-if os.path.exists(cred_path):
-    cred = credentials.Certificate(cred_path)
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-else:
-    print("WARNING: firebase-key.json not found! Push notifications will fail.")
+env_cred = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
+
+if not firebase_admin._apps:
+    if env_cred:
+        try:
+            cred_dict = json.loads(env_cred)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            print("Successfully initialized Firebase Admin from environment variable.")
+        except Exception as e:
+            print(f"Failed to initialize Firebase Admin from environment variable: {e}")
+    elif os.path.exists(cred_path):
+        try:
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            print("Successfully initialized Firebase Admin from firebase-key.json.")
+        except Exception as e:
+            print(f"Failed to initialize Firebase Admin from file: {e}")
+    else:
+        print("WARNING: firebase-key.json or FIREBASE_SERVICE_ACCOUNT_JSON not found! Push notifications and Google login will fail.")
 
 def send_push_notification(user, title, body, data=None):
     """
