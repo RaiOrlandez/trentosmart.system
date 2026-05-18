@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    RegisterView, CheckEmailView, CheckUsernameView, LoginView, ProfileView, RideViewSet, driver_requests, 
+    RegisterView, CheckEmailView, CheckUsernameView, LoginView, GoogleLoginView, ProfileView, RideViewSet, driver_requests, 
     driver_accept, driver_reject, ride_complete, DriverVerificationView, WalletViewSet,
     ReviewViewSet, IncidentViewSet, ComplaintViewSet, UserViewSet,
     DriverAnalyticsView, SavedPlaceViewSet, SystemConfigViewSet, BroadcastViewSet,
@@ -40,6 +40,7 @@ urlpatterns = [
     path('auth/password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
+    path('auth/google-login/', GoogleLoginView.as_view(), name='google_login'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('user/profile/', ProfileView.as_view(), name='profile'),
     path('user/change-password/', ChangePasswordView.as_view(), name='change-password'),

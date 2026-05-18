@@ -324,6 +324,127 @@ class LoginView(TokenObtainPairView):
     throttle_scope     = 'login'
     
 
+class GoogleLoginView(APIView):
+    """
+    Handles Google Sign-In via Firebase.
+    
+    Flow:
+    1. Frontend signs in with Google via Firebase Auth (popup)
+    2. Frontend sends the Firebase ID token to this endpoint
+    3. Backend verifies the token using Firebase Admin SDK
+    4. Backend finds or creates a Django user for this Google account
+    5. Backend returns JWT access/refresh tokens (same as normal login)
+    """
+    permission_classes = (AllowAny,)
+    throttle_classes   = (ScopedRateThrottle,)
+    throttle_scope     = 'login'
+
+    def post(self, request):
+        id_token = request.data.get('token')
+        if not id_token:
+            return Response(
+                {'detail': 'Firebase ID token is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 1. Verify the Firebase ID token
+        try:
+            from .firebase_utils import verify_google_token
+            decoded = verify_google_token(id_token)
+        except ValueError as e:
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # 2. Extract Google profile info
+        google_email = decoded.get('email', '').lower()
+        google_name  = decoded.get('name', '')
+        google_photo = decoded.get('picture', '')
+        firebase_uid = decoded.get('uid', '')
+
+        if not google_email:
+            return Response(
+                {'detail': 'Google account does not have an email address.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 3. Find or create the Django user
+        try:
+            user = User.objects.get(email__iexact=google_email)
+            # Existing user — ensure email is verified (they proved ownership via Google)
+            if not user.is_email_verified:
+                user.is_email_verified = True
+                user.save(update_fields=['is_email_verified'])
+                print(f"[Google Auth] ✅ Auto-verified email for existing user: {user.username}")
+
+        except User.DoesNotExist:
+            # New user — create account automatically
+            # Generate a unique username from the email prefix
+            base_username = google_email.split('@')[0]
+            username = base_username
+            counter = 1
+            while User.objects.filter(username__iexact=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            # Create user with unusable password (Google-only auth)
+            user = User(
+                username=username,
+                email=google_email,
+                role='passenger',  # Default role for Google sign-ups
+                is_email_verified=True,  # Email is verified via Google
+            )
+            user.set_unusable_password()
+            user.save()
+
+            print(f"[Google Auth] 🆕 Created new user via Google: {username} ({google_email})")
+
+            # Send admin notification in background (non-blocking)
+            import threading
+            from django.conf import settings as django_settings
+
+            def _notify_admin_google_signup(uname, uemail):
+                try:
+                    admin_email = getattr(django_settings, 'ADMIN_NOTIFICATION_EMAIL', getattr(django_settings, 'DEFAULT_FROM_EMAIL', None))
+                    if admin_email:
+                        html_msg = f"""
+                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                            <h2>🆕 New Google Sign-Up — {uname}</h2>
+                            <p>A new passenger registered via Google Sign-In.</p>
+                            <ul>
+                                <li>Username: {uname}</li>
+                                <li>Email: {uemail}</li>
+                                <li>Method: Google OAuth</li>
+                            </ul>
+                        </div>
+                        """
+                        send_brevo_email(admin_email, "Admin", f'🆕 New Google Sign-Up — {uname}', html_msg)
+                except Exception as e:
+                    print(f"[Google Auth] Admin notification failed (non-critical): {e}")
+
+            threading.Thread(target=_notify_admin_google_signup, args=(username, google_email), daemon=True).start()
+
+        # 4. Generate JWT tokens (same format as normal login)
+        refresh = RefreshToken.for_user(user)
+
+        # Add custom claims to match CustomTokenObtainPairSerializer
+        refresh['role'] = user.role
+        refresh['username'] = user.username
+        refresh['email'] = user.email
+        refresh['is_verified_driver'] = user.is_verified_driver
+        refresh['verification_status'] = user.verification_status
+        if user.profile_picture:
+            refresh['profile_picture'] = user.profile_picture.url
+        else:
+            refresh['profile_picture'] = None
+
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }, status=status.HTTP_200_OK)
+
+
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 

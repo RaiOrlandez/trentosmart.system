@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 
 // TODO: Replace with your actual Firebase config from the Firebase Console Let
 const firebaseConfig = {
@@ -14,6 +15,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const messaging = getMessaging(app);
+export const auth = getAuth(app);
 
 // Request permission and get device token
 export const requestForToken = async () => {
@@ -34,3 +36,20 @@ export const requestForToken = async () => {
   }
   return null;
 };
+
+/**
+ * Opens a Google Sign-In popup via Firebase Auth.
+ * Returns the Firebase ID token string that should be sent to the backend.
+ */
+export const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  // Request additional scopes if needed
+  provider.addScope('email');
+  provider.addScope('profile');
+  
+  const result = await signInWithPopup(auth, provider);
+  // Get the Firebase ID token to send to our Django backend
+  const idToken = await result.user.getIdToken();
+  return idToken;
+};
+
