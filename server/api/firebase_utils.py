@@ -5,7 +5,7 @@ import os
 import json
 
 # Initialize Firebase App
-cred_path = os.path.join(os.path.dirname(__file__), '../../firebase-key.json')
+cred_path = os.path.join(os.path.dirname(__file__), '../firebase-key.json')
 env_cred = os.environ.get('FIREBASE_SERVICE_ACCOUNT_JSON')
 
 if not firebase_admin._apps:
