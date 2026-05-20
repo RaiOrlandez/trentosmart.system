@@ -20,7 +20,12 @@ const ProtectedRoute = ({ children, role }) => {
     return <div style={{ padding: 12 }}>Loading...</div>;
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    if (role === 'admin' || (Array.isArray(role) && role.includes('admin'))) {
+      return <Navigate to="/admin-login" replace />;
+    }
+    return <Navigate to="/login" replace />;
+  }
 
   if (role) {
     const allowed = Array.isArray(role) ? role : [role];

@@ -69,7 +69,7 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [taglineIdx, setTaglineIdx] = useState(0);
 
-  const { login } = useContext(AuthContext);
+  const { login, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const sessionExpired = new URLSearchParams(location.search).get('expired') === 'true';
@@ -99,6 +99,14 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login({ email, password });
+      
+      // Enforce Admin block on public page
+      if (user.role === 'admin') {
+        logout();
+        setError('Please use the secure Admin portal to log in.');
+        return;
+      }
+      
       // Enforce role match
       if (activeRole === 'driver' && user.role !== 'driver') {
         setError('This account is not a driver account. Please use the Passenger tab.');
@@ -109,7 +117,6 @@ const Login = () => {
         return;
       }
       if (user.role === 'driver') navigate('/driver');
-      else if (user.role === 'admin') navigate('/admin');
       else navigate('/passenger');
     } catch (err) {
       if (err.response?.data?.email_not_verified) {

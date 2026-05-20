@@ -13,6 +13,7 @@ const DriverVerification = lazy(() => import('./pages/driver/DriverVerification'
 const EarningsDashboard = lazy(() => import('./pages/driver/EarningsDashboard'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const Login = lazy(() => import('./pages/auth/Login'));
+const AdminLogin = lazy(() => import('./pages/auth/AdminLogin'));
 const Register = lazy(() => import('./pages/auth/Register'));
 const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
@@ -41,6 +42,7 @@ function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/register" element={<Register />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
