@@ -56,8 +56,12 @@ api.interceptors.response.use(
           localStorage.removeItem('token');
           localStorage.removeItem('refresh');
           localStorage.removeItem('user');
-          if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-            window.location.href = '/login';
+          if (window.location.pathname !== '/login' && window.location.pathname !== '/' && window.location.pathname !== '/admin-login') {
+            if (window.location.pathname.startsWith('/admin')) {
+              window.location.href = '/admin-login';
+            } else {
+              window.location.href = '/login';
+            }
           }
           return Promise.reject(refreshError);
         }
@@ -65,8 +69,12 @@ api.interceptors.response.use(
         // No refresh token available, normal logout
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-          window.location.href = '/login';
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/' && window.location.pathname !== '/admin-login') {
+          if (window.location.pathname.startsWith('/admin')) {
+            window.location.href = '/admin-login';
+          } else {
+            window.location.href = '/login';
+          }
         }
       }
     }
