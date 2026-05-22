@@ -212,16 +212,30 @@ class ComplaintSerializer(serializers.ModelSerializer):
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    default_error_messages = {
+        'no_active_account': 'Invalid email/username or password.',
+    }
+
     def validate(self, attrs):
-        data = super().validate(attrs)
-        
-        if not self.user.is_email_verified and self.user.role != 'admin':
-            # Custom field for frontend to detect and show OTP screen
+        identifier = (attrs.get('username') or attrs.get('email') or '').strip()
+        if not identifier:
+            raise serializers.ValidationError({'detail': 'Email or username is required.'})
+        attrs['username'] = identifier
+        attrs['email'] = identifier
+
+        try:
+            data = super().validate(attrs)
+        except serializers.ValidationError:
+            raise serializers.ValidationError({'detail': 'Invalid email/username or password.'})
+
+        # Block unverified passengers/drivers; admins may always sign in
+        user = self.user
+        if user.role != 'admin' and not getattr(user, 'is_email_verified', True):
             raise serializers.ValidationError({
-                'detail': 'Email not verified. Please check your email for the verification code.',
-                'email_not_verified': True
+                'detail': 'Please verify your email before logging in.',
+                'email_not_verified': True,
             })
-            
+
         return data
 
     @classmethod

@@ -270,7 +270,7 @@ const PassengerHome = () => {
           setDest(ride.dest_address);
           setFare(ride.fare);
           if (ride.payment_method) setPaymentMethod(ride.payment_method);
-          
+
           if (ride.status === 'requested') {
             setStatus('requesting');
           } else if (ride.status === 'accepted') {
@@ -671,10 +671,10 @@ const PassengerHome = () => {
 
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col md:flex-row gap-6 px-6 max-w-[1400px] mx-auto transition-colors duration-500">
-      <LocationPermissionModal 
-          isOpen={gpsStatus === 'error'} 
-          error={gpsError} 
-          onRetry={retryGps} 
+      <LocationPermissionModal
+        isOpen={gpsStatus === 'error'}
+        error={gpsError}
+        onRetry={retryGps}
       />
 
       {/* Floating Live Tracking Indicator */}
@@ -1136,7 +1136,7 @@ const PassengerHome = () => {
                       <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Secure Contact</p>
                       <div className="flex items-center gap-2">
                         <Phone size={14} className="text-blue-600" />
-                        <button 
+                        <button
                           onClick={() => alert("Initiating secure proxy call. Driver number is hidden for privacy.")}
                           className="text-sm font-bold text-blue-600 hover:underline focus:outline-none"
                         >

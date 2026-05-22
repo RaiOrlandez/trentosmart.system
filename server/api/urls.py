@@ -13,7 +13,7 @@ from .views import (
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
-from .report_views import export_revenue_csv, get_admin_dashboard_stats
+from .report_views import export_revenue_csv, export_revenue_pdf, get_heatmap_data, get_admin_dashboard_stats
 
 
 router = DefaultRouter()
@@ -62,7 +62,9 @@ urlpatterns = [
     path('auth/update-fcm-token/', update_fcm_token, name='update_fcm_token'),
     
     # ── Export & Reports ──────────────────────────────────────────────────────
-    path('reports/export/', export_revenue_csv, name='export_revenue_csv'),
+    path('reports/export/csv/', export_revenue_csv, name='export_revenue_csv'),
+    path('reports/export/pdf/', export_revenue_pdf, name='export_revenue_pdf'),
+    path('reports/heatmap/', get_heatmap_data, name='heatmap_data'),
     path('reports/stats/', get_admin_dashboard_stats, name='admin_stats'),
 ]
 

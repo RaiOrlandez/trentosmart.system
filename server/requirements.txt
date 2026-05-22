@@ -1,6 +1,7 @@
 Django>=4.2,<5.0
 djangorestframework>=3.14
 djangorestframework-simplejwt>=5.2
+drf-spectacular>=0.27.0
 python-dotenv>=1.0
 django-cors-headers>=4.0
 # Database
@@ -22,4 +23,6 @@ Pillow>=10.0.0
 firebase-admin>=6.2.0
 # Media Storage (Cloud)
 cloudinary>=1.36.0
-django-cloudinary-storage>=0.3.0
+django-cloudinary-storage>=0.3.0
+# PDF Generation
+reportlab>=4.0.0

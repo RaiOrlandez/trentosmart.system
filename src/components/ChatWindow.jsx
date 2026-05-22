@@ -64,8 +64,8 @@ const ChatWindow = ({ messages, onSendMessage, currentUser, partnerName }) => {
                                 messages.map((msg, i) => (
                                     <div key={i} className={`flex flex-col ${msg.sender === currentUser ? 'items-end' : 'items-start'}`}>
                                         <div className={`max-w-[80%] p-3 rounded-2xl text-xs font-bold ${msg.sender === currentUser
-                                                ? 'bg-primary text-secondary rounded-tr-none'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-secondary dark:text-white rounded-tl-none'
+                                            ? 'bg-primary text-secondary rounded-tr-none'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-secondary dark:text-white rounded-tl-none'
                                             }`}>
                                             {msg.text}
                                         </div>

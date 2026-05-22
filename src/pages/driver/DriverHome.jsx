@@ -426,7 +426,7 @@ const DriverHome = () => {
   const openNativeNavigation = (lat, lng, label = 'Destination') => {
     // Check for platform to use appropriate defaults
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    
+
     // Create URLs for different apps
     const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
     const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
@@ -435,7 +435,7 @@ const DriverHome = () => {
     // Professional Choice Modal / Action Sheet logic
     // For now, we'll try to open Waze if installed, fallback to Google Maps
     // Real professional apps often allow users to choose in settings.
-    
+
     // We'll open a simple custom choice window or just use Google Maps with better params
     window.open(googleMapsUrl, '_blank');
   };
@@ -480,10 +480,10 @@ const DriverHome = () => {
         </div>
       </div>
 
-      <LocationPermissionModal 
-          isOpen={gpsStatus === 'error'} 
-          error={gpsError} 
-          onRetry={retryGps} 
+      <LocationPermissionModal
+        isOpen={gpsStatus === 'error'}
+        error={gpsError}
+        onRetry={retryGps}
       />
       <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-8">
 
@@ -835,21 +835,21 @@ const DriverHome = () => {
                     </div>
 
                     <div className="flex gap-3">
-                        <div className="flex-1 flex flex-col gap-2">
-                          <button
-                            onClick={() => {
-                              const target = activeRide.status === 'on_route'
-                                ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
-                                : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
-                              openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
-                            }}
-                            className="w-full bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
-                          >
-                            <Navigation2 size={20} className="text-primary" />
-                            <span>Navigate</span>
-                          </button>
-                          <p className="text-[8px] text-center text-white/40 uppercase font-black tracking-tighter">Opens Google Maps</p>
-                        </div>
+                      <div className="flex-1 flex flex-col gap-2">
+                        <button
+                          onClick={() => {
+                            const target = activeRide.status === 'on_route'
+                              ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
+                              : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
+                            openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
+                          }}
+                          className="w-full bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
+                        >
+                          <Navigation2 size={20} className="text-primary" />
+                          <span>Navigate</span>
+                        </button>
+                        <p className="text-[8px] text-center text-white/40 uppercase font-black tracking-tighter">Opens Google Maps</p>
+                      </div>
 
                       {activeRide.status === 'accepted' || activeRide.status === 'matched' ? (
                         <button
@@ -933,7 +933,7 @@ const DriverHome = () => {
                         <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Secure Contact</p>
                         <div className="flex items-center gap-2">
                           <Phone size={14} className="text-blue-600" />
-                          <button 
+                          <button
                             onClick={() => alert("Initiating secure proxy call. Passenger number is hidden for privacy.")}
                             className="text-sm font-bold text-blue-600 hover:underline focus:outline-none"
                           >
@@ -1038,7 +1038,7 @@ const DriverHome = () => {
               )}
             </AnimatePresence>
           </div>
-          
+
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -1442,36 +1442,36 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
           <p className="text-sm text-slate-500 mb-8">Please take a quick selfie to verify your identity before going online.</p>
 
           <div className="w-48 h-48 bg-slate-100 rounded-full mx-auto mb-8 relative overflow-hidden border-4 border-slate-200 flex items-center justify-center shadow-inner">
-             {isCapturing ? (
-               <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-sm">
-                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-               </div>
-             ) : captured ? (
-               <div className="absolute inset-0 bg-green-500 flex items-center justify-center text-white">
-                  <Check size={48} />
-               </div>
-             ) : (
-                <div className="text-slate-300">
-                  <Camera size={48} />
-                </div>
-             )}
+            {isCapturing ? (
+              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-sm">
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : captured ? (
+              <div className="absolute inset-0 bg-green-500 flex items-center justify-center text-white">
+                <Check size={48} />
+              </div>
+            ) : (
+              <div className="text-slate-300">
+                <Camera size={48} />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-4">
-             <button
-               onClick={onClose}
-               disabled={isCapturing || captured}
-               className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
-             >
-               Cancel
-             </button>
-             <button
-               onClick={handleCapture}
-               disabled={isCapturing || captured}
-               className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-lg disabled:opacity-50"
-             >
-               {isCapturing ? 'Verifying...' : captured ? 'Verified!' : 'Take Selfie'}
-             </button>
+            <button
+              onClick={onClose}
+              disabled={isCapturing || captured}
+              className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCapture}
+              disabled={isCapturing || captured}
+              className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-lg disabled:opacity-50"
+            >
+              {isCapturing ? 'Verifying...' : captured ? 'Verified!' : 'Take Selfie'}
+            </button>
           </div>
         </motion.div>
       </div>

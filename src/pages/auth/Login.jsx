@@ -100,13 +100,6 @@ const Login = () => {
     try {
       const user = await login({ email, password });
       
-      // Enforce Admin block on public page
-      if (user.role === 'admin') {
-        logout();
-        setError('Please use the secure Admin portal to log in.');
-        return;
-      }
-      
       // Enforce role match
       if (activeRole === 'driver' && user.role !== 'driver') {
         setError('This account is not a driver account. Please use the Passenger tab.');

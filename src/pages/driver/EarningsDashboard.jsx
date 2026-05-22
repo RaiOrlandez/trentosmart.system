@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrendingUp,
     DollarSign,
@@ -358,22 +358,30 @@ const EarningsDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {trips.map((trip) => (
-                                    <tr key={trip.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400">
-                                            {new Date(trip.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1">
-                                                <span className="text-xs font-bold text-secondary dark:text-white truncate max-w-[200px]">{trip.pickup}</span>
-                                                <span className="text-xs text-slate-400 truncate max-w-[200px]">→ {trip.dropoff}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">₱{trip.total.toFixed(2)}</td>
-                                        <td className="px-6 py-4 text-xs font-bold text-red-600 dark:text-red-400">-₱{trip.commission.toFixed(2)}</td>
-                                        <td className="px-6 py-4 text-sm font-black text-primary">₱{trip.net.toFixed(2)}</td>
-                                    </tr>
-                                ))}
+                                <AnimatePresence>
+                                    {trips.map((trip, idx) => (
+                                        <motion.tr 
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: 0.05 * idx, type: 'spring', stiffness: 300 }}
+                                            key={trip.id} 
+                                            className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                                        >
+                                            <td className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                {new Date(trip.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-xs font-bold text-secondary dark:text-white truncate max-w-[200px]">{trip.pickup}</span>
+                                                    <span className="text-xs text-slate-400 truncate max-w-[200px]">→ {trip.dropoff}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-bold text-slate-600 dark:text-slate-300">₱{trip.total.toFixed(2)}</td>
+                                            <td className="px-6 py-4 text-xs font-bold text-red-600 dark:text-red-400">-₱{trip.commission.toFixed(2)}</td>
+                                            <td className="px-6 py-4 text-sm font-black text-primary">₱{trip.net.toFixed(2)}</td>
+                                        </motion.tr>
+                                    ))}
+                                </AnimatePresence>
                             </tbody>
                         </table>
                     </div>

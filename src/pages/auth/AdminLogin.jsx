@@ -1,6 +1,7 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
+import jwtDecode from 'jwt-decode';
 import { motion } from 'framer-motion';
 import { ShieldAlert, Lock, Mail, Eye, EyeOff, Loader2, Zap, ArrowLeft } from 'lucide-react';
 
@@ -11,8 +12,24 @@ const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { login, logout } = useContext(AuthContext);
+  const { login, logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      navigate('/admin', { replace: true });
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        if (decoded.role === 'admin') navigate('/admin', { replace: true });
+      } catch {
+        /* ignore invalid token */
+      }
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +47,16 @@ const AdminLogin = () => {
       
       navigate('/admin');
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Authentication failed. Please verify admin credentials.');
+      const data = err.response?.data;
+      const msg =
+        (typeof data?.detail === 'string' && data.detail) ||
+        data?.non_field_errors?.[0] ||
+        (err.response?.status === 429
+          ? 'Too many login attempts. Wait a minute and try again.'
+          : null) ||
+        err.message ||
+        'Authentication failed. Use email admin@transmart.com or username admin.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -97,21 +123,26 @@ const AdminLogin = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block ml-1">
-                  Administrator Email
+                  Administrator Email or Username
                 </label>
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                     <Mail size={18} />
                   </div>
                   <input
-                    type="email"
+                    type="text"
                     required
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@trentosmart.gov"
+                    placeholder="admin@transmart.com"
                     className="w-full bg-slate-950/60 border border-white/5 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-white focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none transition-all"
                   />
                 </div>
+                <p className="text-[9px] text-slate-500 ml-1 mt-1">
+                  Default: <span className="text-slate-400">admin@transmart.com</span> or username{' '}
+                  <span className="text-slate-400">admin</span> — password set on server deploy
+                </p>
               </div>
 
               <div className="space-y-1.5">

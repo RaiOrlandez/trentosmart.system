@@ -34,7 +34,13 @@ import {
   Tooltip,
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -106,32 +112,51 @@ const AdminDashboard = () => {
   const [demandPoints, setDemandPoints] = useState([]);
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [rideData, setRideData] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
+  const [dailyData, setDailyData] = useState([]);
 
   const handleExportCSV = async () => {
     try {
-      const response = await api.get('/reports/export/', { responseType: 'blob' });
+      const response = await api.get('/reports/export/csv/', { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'LGU_Revenue_Report.csv');
+      link.setAttribute('download', 'TrentoSmart_LGU_Revenue.csv');
       document.body.appendChild(link);
       link.click();
       link.remove();
     } catch (err) {
       console.error(err);
-      alert("Failed to export report.");
+      alert('Failed to export CSV report.');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const response = await api.get('/reports/export/pdf/', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'TrentoSmart_LGU_Revenue.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to export PDF report.');
     }
   };
 
   const fetchStats = useCallback(async () => {
     try {
       const res = await api.get('/reports/stats/');
-      const { stats: fetchedStats, chartData } = res.data;
-      
+      const { stats: fetchedStats, chartData, dailyData: fetchedDailyData, revenueData: fetchedRevenueData } = res.data;
       setStats(fetchedStats);
       setRideData(chartData);
+      setDailyData(fetchedDailyData || []);
+      setRevenueData(fetchedRevenueData || []);
     } catch (err) {
-      console.error("Failed to fetch dashboard stats", err);
+      console.error('Failed to fetch dashboard stats', err);
     }
   }, []);
 
@@ -475,9 +500,20 @@ const AdminDashboard = () => {
             <p className="text-slate-500 dark:text-slate-400">Monitoring & Control Center</p>
           </div>
 
-          <button onClick={handleExportCSV} className="bg-primary/20 text-primary-dark dark:text-primary px-4 py-2 border border-primary/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all flex items-center gap-2 shadow-sm">
-            <Download size={16} /> Export CSV Report
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="bg-primary/20 text-primary-dark dark:text-primary px-4 py-2 border border-primary/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Download size={16} /> CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-4 py-2 border border-red-200 dark:border-red-700/40 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Download size={16} /> PDF
+            </button>
+          </div>
 
           <div className="relative">
             <button
@@ -598,7 +634,7 @@ const AdminDashboard = () => {
           </motion.div>
 
           {/* Charts Row */}
-          <div className="lg:col-span-3 glass-card p-8 rounded-3xl min-h-[400px]">
+          <div className="lg:col-span-2 glass-card p-8 rounded-3xl min-h-[400px]">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-bold text-secondary dark:text-white">Ride Distribution</h3>
               <select className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-300 outline-none">
@@ -621,6 +657,61 @@ const AdminDashboard = () => {
                   <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
                   <Area type="monotone" dataKey="rides" stroke="#FFD700" strokeWidth={4} fillOpacity={1} fill="url(#colorRides)" />
                 </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 7-Day Revenue Bar Chart */}
+          <div className="lg:col-span-1 glass-card p-8 rounded-3xl flex flex-col min-h-[400px]">
+            <h3 className="text-xl font-bold text-secondary dark:text-white mb-1">7-Day Revenue</h3>
+            <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Gross vs LGU Commission</p>
+            <div className="flex-1 w-full min-h-[250px]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <BarChart data={dailyData} barSize={10}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 'bold' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} tickFormatter={(v) => `₱${v}`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
+                    formatter={(value, name) => [`₱${parseFloat(value).toFixed(2)}`, name === 'revenue' ? 'Gross Revenue' : 'LGU Commission']}
+                  />
+                  <Bar dataKey="revenue" fill="#FFD700" radius={[6, 6, 0, 0]} name="revenue" />
+                  <Bar dataKey="commission" fill="#10B981" radius={[6, 6, 0, 0]} name="commission" />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                    formatter={(value) => value === 'revenue' ? 'Gross Revenue' : 'LGU Commission'}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* LGU Revenue Pie Chart */}
+          <div className="lg:col-span-1 glass-card p-8 rounded-3xl flex flex-col min-h-[400px]">
+            <h3 className="text-xl font-bold text-secondary dark:text-white mb-2">LGU Revenue</h3>
+            <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Fund Distribution</p>
+            <div className="flex-1 w-full min-h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={revenueData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {revenueData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={['#FFD700', '#10B981', '#3B82F6', '#F43F5E', '#8B5CF6'][index % 5]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => `₱${value.toFixed(2)}`}
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </div>

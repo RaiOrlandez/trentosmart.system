@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_spectacular',
     'corsheaders',
     'cloudinary_storage',
     'cloudinary',
@@ -156,6 +157,7 @@ REST_FRAMEWORK = {
         'pin':         '5/minute',    # PIN set / update attempts per IP per minute
         'resend_otp':  '3/hour',      # Max 3 resend OTP requests per hour per IP
     },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SIMPLE_JWT = {
@@ -173,3 +175,26 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER', 'noreply@transmart.com')
 ADMIN_NOTIFICATION_EMAIL = os.environ.get('ADMIN_EMAIL', os.environ.get('EMAIL_HOST_USER', ''))
+
+# ── drf-spectacular / Swagger API Documentation ────────────────────────────────
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'TrentoSmart API',
+    'DESCRIPTION': (
+        'Backend REST API for TrentoSmart — a Smart Tricycle Ride-Hailing System '
+        'developed for the Municipality of Trento, Agusan del Sur. '
+        'Built with Django REST Framework + Django Channels (WebSockets).'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'CONTACT': {'name': 'TrentoSmart Dev Team'},
+    'LICENSE': {'name': 'MIT'},
+    'TAGS': [
+        {'name': 'Auth', 'description': 'Registration, login, email verification & password reset'},
+        {'name': 'Rides', 'description': 'Ride requests, acceptance, and tracking'},
+        {'name': 'Driver', 'description': 'Driver-specific endpoints (analytics, verification)'},
+        {'name': 'Wallet', 'description': 'In-app wallet, top-ups, and withdrawals'},
+        {'name': 'Admin / Reports', 'description': 'LGU admin analytics and CSV/PDF exports'},
+        {'name': 'Safety', 'description': 'Incidents, complaints, and fraud alerts'},
+    ],
+}
+

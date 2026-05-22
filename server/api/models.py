@@ -1,10 +1,27 @@
 from django.db import models
 import uuid
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group, Permission
+
 
 
 class User(AbstractUser):
+    # Override many-to-many reverse accessors to avoid clashes with auth.User
+    groups = models.ManyToManyField(
+        Group,
+        related_name='api_user_set',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_query_name='user',
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name='api_user_set',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_query_name='user',
+    )
     ROLE_CHOICES = (
+
         ('passenger', 'Passenger'),
         ('driver', 'Driver'),
         ('admin', 'Admin'),
