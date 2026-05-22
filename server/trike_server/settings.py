@@ -87,6 +87,8 @@ if 'MYSQL_URL' in os.environ:
 elif 'DATABASE_URL' in os.environ:
     DATABASES['default'] = dj_database_url.config(conn_max_age=600)
 
+AUTH_USER_MODEL = 'api.User'
+
 AUTHENTICATION_BACKENDS = [
     'api.backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
