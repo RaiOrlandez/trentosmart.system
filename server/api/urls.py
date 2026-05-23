@@ -14,6 +14,7 @@ from .views import (
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
 from .report_views import export_revenue_csv, export_revenue_pdf, get_heatmap_data, get_admin_dashboard_stats
+from .payment_views import create_paymongo_source, verify_paymongo_payment
 
 
 router = DefaultRouter()
@@ -66,5 +67,9 @@ urlpatterns = [
     path('reports/export/pdf/', export_revenue_pdf, name='export_revenue_pdf'),
     path('reports/heatmap/', get_heatmap_data, name='heatmap_data'),
     path('reports/stats/', get_admin_dashboard_stats, name='admin_stats'),
+
+    # ── GCash / PayMongo Integration ──────────────────────────────────────────
+    path('payments/gcash/create-source/', create_paymongo_source, name='paymongo_create_source'),
+    path('payments/gcash/verify/', verify_paymongo_payment, name='paymongo_verify'),
 ]
 

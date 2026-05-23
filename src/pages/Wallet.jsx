@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -22,9 +23,60 @@ const Wallet = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [showGCashTopUp, setShowGCashTopUp] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
 
+    // ── Handle PayMongo redirect back from GCash ──────────────────────────────
     useEffect(() => {
-        fetchWalletData();
+        const paymentStatus = searchParams.get('status');
+        const sourceId = searchParams.get('source_id') || sessionStorage.getItem('gcash_source_id');
+
+        if (paymentStatus === 'success' && sourceId) {
+            setMsg({ type: '', text: '' });
+            setIsProcessing(true);
+            
+            // Get amount value before removing from session storage
+            const amountVal = sessionStorage.getItem('gcash_amount') || 0;
+            
+            // Clear URL params to avoid re-triggering on refresh
+            setSearchParams({});
+            sessionStorage.removeItem('gcash_source_id');
+            sessionStorage.removeItem('gcash_amount');
+            sessionStorage.removeItem('gcash_ride_id');
+
+            api.get(`/payments/gcash/verify/?source_id=${sourceId}`)
+                .then(res => {
+                    if (res.data.is_ride_payment) {
+                        setMsg({
+                            type: 'success',
+                            text: `✅ GCash payment verified! ₱${parseFloat(res.data.amount || amountVal).toFixed(2)} for Ride #${res.data.ride_id} has been processed successfully. Redirecting you home...`
+                        });
+                        setTimeout(() => {
+                            navigate('/passenger');
+                        }, 3000);
+                    } else {
+                        setBalance(res.data.balance);
+                        setMsg({
+                            type: 'success',
+                            text: `✅ GCash payment verified! ₱${parseFloat(amountVal).toFixed(2)} has been credited to your wallet.`
+                        });
+                        fetchWalletData();
+                    }
+                })
+                .catch(err => {
+                    const detail = err.response?.data?.detail || 'Payment verification failed. Contact support.';
+                    setMsg({ type: 'error', text: detail });
+                    fetchWalletData();
+                })
+                .finally(() => setIsProcessing(false));
+        } else {
+            if (paymentStatus === 'failed') {
+                setSearchParams({});
+                setMsg({ type: 'error', text: '❌ GCash payment was not completed. Please try again.' });
+            }
+            fetchWalletData();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchWalletData = async () => {
