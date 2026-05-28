@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint, SavedPlace, SystemConfig, Broadcast, MaintenanceLog, LGURevenue, ActivityLog
+    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint,
+    SavedPlace, SystemConfig, Broadcast, MaintenanceLog, LGURevenue, ActivityLog,
+    ScheduledRide,
 )
 
 
@@ -279,3 +281,11 @@ class ActivityLogSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at',)
 
 
+class ScheduledRideSerializer(serializers.ModelSerializer):
+    """Serializer for passenger scheduled rides. passenger is auto-set from request.user."""
+    passenger_username = serializers.CharField(source='passenger.username', read_only=True)
+
+    class Meta:
+        model = ScheduledRide
+        fields = '__all__'
+        read_only_fields = ('passenger', 'status', 'ride', 'created_at', 'updated_at')

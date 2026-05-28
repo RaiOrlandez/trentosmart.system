@@ -12,13 +12,13 @@ from rest_framework.permissions import BasePermission
 class IsAdminRole(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
-from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment, ActivityLog
+from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment, ActivityLog, ScheduledRide
 from .serializers import (
     UserSerializer, RegisterSerializer, RideSerializer, 
     DriverVerificationSerializer, WalletTransactionSerializer, WithdrawalSerializer,
     ReviewSerializer, IncidentSerializer, ComplaintSerializer, CustomTokenObtainPairSerializer,
     SavedPlaceSerializer, SystemConfigSerializer, BroadcastSerializer, MaintenanceLogSerializer,
-    ActivityLogSerializer
+    ActivityLogSerializer, ScheduledRideSerializer
 )
 from decimal import Decimal
 from .notifications import send_sms, send_push_notification
@@ -894,11 +894,32 @@ class RideViewSet(viewsets.ModelViewSet):
         if targeted_driver_id:
             targeted_driver = User.objects.filter(id=targeted_driver_id, role='driver').first()
         
+        # Enforce passenger capacity
+        passenger_count = self.request.data.get('passenger_count', 1)
+        try:
+            passenger_count = int(passenger_count)
+        except (ValueError, TypeError):
+            passenger_count = 1
+
+        max_capacity_cfg = SystemConfig.objects.filter(key='max_capacity').first()
+        max_capacity = 5
+        if max_capacity_cfg:
+            try:
+                max_capacity = int(max_capacity_cfg.value)
+            except ValueError:
+                pass
+
+        if passenger_count > max_capacity:
+            raise serializers.ValidationError({"detail": f"Passenger count cannot exceed the tricycle capacity of {max_capacity} passengers."})
+        if passenger_count < 1:
+            raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
+
         ride = serializer.save(
             passenger=self.request.user,
-            targeted_driver=targeted_driver
+            targeted_driver=targeted_driver,
+            passenger_count=passenger_count
         )
-        log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
+        log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} for {passenger_count} passenger(s) to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
 
         # Create Payment record
         Payment.objects.create(
@@ -2494,6 +2515,89 @@ class ActivityLogViewSet(viewsets.ModelViewSet):
         if self.request.user.role == 'admin':
             return ActivityLog.objects.all().select_related('user').order_by('-created_at')
         return ActivityLog.objects.filter(user=self.request.user).select_related('user').order_by('-created_at')
+
+
+class ScheduledRideViewSet(viewsets.ModelViewSet):
+    serializer_class = ScheduledRideSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role == 'admin':
+            return ScheduledRide.objects.all().order_by('-created_at')
+        return ScheduledRide.objects.filter(passenger=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        # Enforce passenger capacity
+        passenger_count = self.request.data.get('passenger_count', 1)
+        try:
+            passenger_count = int(passenger_count)
+        except (ValueError, TypeError):
+            passenger_count = 1
+
+        max_capacity_cfg = SystemConfig.objects.filter(key='max_capacity').first()
+        max_capacity = 5
+        if max_capacity_cfg:
+            try:
+                max_capacity = int(max_capacity_cfg.value)
+            except ValueError:
+                pass
+
+        if passenger_count > max_capacity:
+            raise serializers.ValidationError({"detail": f"Passenger count cannot exceed the tricycle capacity of {max_capacity} passengers."})
+        if passenger_count < 1:
+            raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
+
+        scheduled_ride = serializer.save(
+            passenger=self.request.user, 
+            status='pending',
+            passenger_count=passenger_count
+        )
+        log_activity(
+            user=self.request.user,
+            action="Scheduled Ride Created",
+            details=f"Scheduled ride #{scheduled_ride.id} for {passenger_count} passenger(s) from {scheduled_ride.pickup_address} to {scheduled_ride.dest_address} for {scheduled_ride.scheduled_date} at {scheduled_ride.scheduled_time}",
+            request=self.request
+        )
+
+    def perform_update(self, serializer):
+        # Enforce passenger capacity
+        passenger_count = self.request.data.get('passenger_count')
+        if passenger_count is not None:
+            try:
+                passenger_count = int(passenger_count)
+            except (ValueError, TypeError):
+                passenger_count = 1
+
+            max_capacity_cfg = SystemConfig.objects.filter(key='max_capacity').first()
+            max_capacity = 5
+            if max_capacity_cfg:
+                try:
+                    max_capacity = int(max_capacity_cfg.value)
+                except ValueError:
+                    pass
+
+            if passenger_count > max_capacity:
+                raise serializers.ValidationError({"detail": f"Passenger count cannot exceed the tricycle capacity of {max_capacity} passengers."})
+            if passenger_count < 1:
+                raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
+
+        scheduled_ride = serializer.save()
+        log_activity(
+            user=self.request.user,
+            action="Scheduled Ride Updated",
+            details=f"Updated scheduled ride #{scheduled_ride.id} - from {scheduled_ride.pickup_address} to {scheduled_ride.dest_address} for {scheduled_ride.scheduled_date} at {scheduled_ride.scheduled_time}",
+            request=self.request
+        )
+
+    def perform_destroy(self, instance):
+        log_activity(
+            user=self.request.user,
+            action="Scheduled Ride Cancelled",
+            details=f"Cancelled scheduled ride #{instance.id} scheduled for {instance.scheduled_date} at {instance.scheduled_time}",
+            request=self.request
+        )
+        instance.delete()
+
 
 
 

@@ -20,7 +20,8 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
         time: '',
         recurring: 'none', // none, daily, weekly
         notes: '',
-        payment_method: 'cash'
+        payment_method: 'cash',
+        passenger_count: 1
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -34,7 +35,8 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
                 time: editingSchedule.scheduled_time || '',
                 recurring: editingSchedule.recurring || 'none',
                 notes: editingSchedule.notes || '',
-                payment_method: editingSchedule.payment_method || 'cash'
+                payment_method: editingSchedule.payment_method || 'cash',
+                passenger_count: editingSchedule.passenger_count || 1
             });
         }
     }, [editingSchedule]);
@@ -51,7 +53,8 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
                 scheduled_time: formData.time,
                 recurring: formData.recurring,
                 notes: formData.notes,
-                payment_method: formData.payment_method
+                payment_method: formData.payment_method,
+                passenger_count: formData.passenger_count
             };
 
             if (editingSchedule) {
@@ -78,7 +81,8 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
             time: '',
             recurring: 'none',
             notes: '',
-            payment_method: 'cash'
+            payment_method: 'cash',
+            passenger_count: 1
         });
         setStep(1);
         setError('');
@@ -263,6 +267,28 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
 
                                     <div>
                                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block flex items-center gap-2">
+                                            Passenger Count (Capacity: Max 5)
+                                        </label>
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4, 5].map((num) => (
+                                                <button
+                                                    key={num}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, passenger_count: num })}
+                                                    className={`w-12 h-12 rounded-xl text-sm font-black transition-all border-2 ${
+                                                        formData.passenger_count === num
+                                                            ? 'bg-primary text-secondary border-primary shadow-md'
+                                                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-primary'
+                                                    }`}
+                                                >
+                                                    {num}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 block flex items-center gap-2">
                                             <Repeat size={14} /> Recurring Ride
                                         </label>
                                         <select
@@ -359,6 +385,11 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
                                                 <p className="text-sm font-bold text-primary capitalize">{formData.recurring}</p>
                                             </div>
                                         )}
+
+                                        <div className="pt-4 border-t border-slate-200 dark:border-white/10">
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Passengers</p>
+                                            <p className="text-sm font-bold text-secondary dark:text-white">{formData.passenger_count} Passenger(s)</p>
+                                        </div>
 
                                         {formData.notes && (
                                             <div className="pt-4 border-t border-slate-200 dark:border-white/10">

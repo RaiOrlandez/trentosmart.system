@@ -119,6 +119,7 @@ class Ride(models.Model):
     dest_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
     fare = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    passenger_count = models.IntegerField(default=1)
     
     # LGU Commission System (5% default)
     lgu_commission = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
@@ -362,3 +363,51 @@ class ActivityLog(models.Model):
         return f"{self.user.username if self.user else 'System'} - {self.action} at {self.created_at}"
 
 
+class ScheduledRide(models.Model):
+    """
+    Allows passengers to pre-book tricycle rides up to 30 days in advance.
+    Supports one-time, daily, and weekly recurring schedules.
+    The admin or a background task can dispatch these when the time arrives.
+    """
+    RECURRING_CHOICES = (
+        ('none',   'One-time'),
+        ('daily',  'Daily'),
+        ('weekly', 'Weekly'),
+    )
+    PAYMENT_CHOICES = (
+        ('cash',   'Cash'),
+        ('gcash',  'GCash'),
+        ('wallet', 'Wallet'),
+    )
+    STATUS_CHOICES = (
+        ('pending',    'Pending'),
+        ('dispatched', 'Dispatched'),
+        ('cancelled',  'Cancelled'),
+        ('expired',    'Expired'),
+    )
+
+    passenger       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='scheduled_rides')
+    pickup_address  = models.CharField(max_length=255)
+    dest_address    = models.CharField(max_length=255)
+    scheduled_date  = models.DateField()
+    scheduled_time  = models.TimeField()
+    recurring       = models.CharField(max_length=10, choices=RECURRING_CHOICES, default='none')
+    payment_method  = models.CharField(max_length=10, choices=PAYMENT_CHOICES, default='cash')
+    notes           = models.TextField(blank=True)
+    passenger_count = models.IntegerField(default=1)
+    status          = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
+
+    # Optional: linked Ride when dispatched
+    ride = models.OneToOneField(
+        Ride, null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='scheduled_ride'
+    )
+
+    class Meta:
+        ordering = ['scheduled_date', 'scheduled_time']
+
+    def __str__(self):
+        return f"ScheduledRide #{self.id} by {self.passenger.username} on {self.scheduled_date} {self.scheduled_time}"

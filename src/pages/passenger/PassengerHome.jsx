@@ -50,6 +50,7 @@ const PassengerHome = () => {
   const [nearbyDrivers, setNearbyDrivers] = useState(8);
   const [showSOS, setShowSOS] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [passengerCount, setPassengerCount] = useState(1);
   const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1, isSurge: false });
   const [showPayment, setShowPayment] = useState(false);
   const [showGCashPayment, setShowGCashPayment] = useState(false);
@@ -551,6 +552,7 @@ const PassengerHome = () => {
         dest_lng: (parseFloat(userCenter.lng) + 0.008).toFixed(6),
         fare: fare,
         payment_method: paymentMethod,
+        passenger_count: passengerCount,
         targeted_driver_id: selectedDriverId // NEW: Custom Selection
       });
 
@@ -919,6 +921,26 @@ const PassengerHome = () => {
                         <span>+₱{(fare - (fare / surgeInfo.multiplier)).toFixed(0)}.00</span>
                       </div>
                     )}
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-2">Number of Passengers (Max 5)</p>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setPassengerCount(num)}
+                          className={`w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${
+                            passengerCount === num
+                              ? 'bg-primary text-secondary border-primary shadow-md'
+                              : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

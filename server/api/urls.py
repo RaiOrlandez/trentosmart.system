@@ -9,7 +9,7 @@ from .views import (
     WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride,
     LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
     ChangePasswordView, ChangeEmailView, ConfirmEmailChangeView,
-    PasswordResetRequestView, PasswordResetConfirmView, ActivityLogViewSet,
+    PasswordResetRequestView, PasswordResetConfirmView, ActivityLogViewSet, ScheduledRideViewSet,
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
@@ -30,6 +30,7 @@ router.register(r'system-config', SystemConfigViewSet, basename='system-config')
 router.register(r'broadcasts', BroadcastViewSet, basename='broadcast')
 router.register(r'maintenance-logs', MaintenanceLogViewSet, basename='maintenance-log')
 router.register(r'activity-logs', ActivityLogViewSet, basename='activity-log')
+router.register(r'rides/scheduled', ScheduledRideViewSet, basename='scheduled-ride')
 
 urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
@@ -48,6 +49,7 @@ urlpatterns = [
     path('user/change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('user/change-email/', ChangeEmailView.as_view(), name='change-email'),
     path('user/confirm-email-change/', ConfirmEmailChangeView.as_view(), name='confirm-email-change'),
+    path('rides/schedule/', ScheduledRideViewSet.as_view({'post': 'create'}), name='schedule-ride-post'),
     path('', include(router.urls)),
     path('driver/requests/', driver_requests, name='driver_requests'),
     path('driver/accept/<int:ride_id>/', driver_accept, name='driver_accept'),
