@@ -70,6 +70,8 @@ const AdminDashboard = () => {
   const [pinModalConfig, setPinModalConfig] = useState({ isOpen: false, actionName: '', onConfirm: null });
   const { driverLocation, newRide, newSignup, emergencyAlert, systemEvent } = useSystemEvents();
   const [activeSOS, setActiveSOS] = useState(null);
+  const [showSOSBanner, setShowSOSBanner] = useState(false);
+  const [resolvingSOS, setResolvingSOS] = useState(false);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
   const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
@@ -228,7 +230,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (emergencyAlert) {
-      const msg = emergencyAlert.message || 'Emergency signal detected!';
+      const msg = `SOS from ${emergencyAlert.user || 'Unknown'}: ${emergencyAlert.description || 'Emergency signal detected!'}`;
       setLiveAlerts(prev => [{
         time: 'CRITICAL',
         type: 'SOS',
@@ -243,6 +245,7 @@ const AdminDashboard = () => {
         urgent: true
       }, ...prev].slice(0, 50));
       setActiveSOS(emergencyAlert);
+      setShowSOSBanner(true);
       setActiveTab('live'); // Force switch to map to see location
       fetchStats();
     }
@@ -490,8 +493,75 @@ const AdminDashboard = () => {
     return (now - joined) < (24 * 60 * 60 * 1000); // New if joined in last 24h
   };
 
+  const handleResolveActiveSOS = async () => {
+    if (!activeSOS?.id) { setActiveSOS(null); setShowSOSBanner(false); return; }
+    setResolvingSOS(true);
+    try {
+      await api.patch(`/incidents/${activeSOS.id}/`, { status: 'resolved', admin_notes: 'Resolved via Admin SOS Console.' });
+      setLiveAlerts(prev => [{ time: 'Just now', type: 'SYSTEM', msg: `SOS from ${activeSOS.user} marked RESOLVED.`, urgent: false }, ...prev].slice(0, 15));
+    } catch (err) {
+      console.error('Failed to resolve SOS', err);
+    } finally {
+      setResolvingSOS(false);
+      setActiveSOS(null);
+      setShowSOSBanner(false);
+      fetchStats();
+    }
+  };
+
   return (
     <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col px-3 md:px-6 max-w-[1600px] mx-auto transition-colors duration-500">
+
+      {/* ── Global SOS Emergency Banner ── */}
+      <AnimatePresence>
+        {showSOSBanner && activeSOS && (
+          <motion.div
+            initial={{ y: -80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -80, opacity: 0 }}
+            className="fixed top-16 left-0 right-0 z-[999] px-4 mt-1"
+          >
+            <div className="max-w-[1600px] mx-auto bg-red-600 text-white rounded-2xl shadow-[0_8px_40px_rgba(220,38,38,0.5)] border-2 border-white/20 flex flex-col sm:flex-row items-center gap-3 px-5 py-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="p-2 bg-white/20 rounded-xl animate-pulse shrink-0">
+                  <ShieldAlert size={20} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">🚨 Critical Emergency Signal</p>
+                  <p className="text-sm font-black leading-tight truncate">
+                    SOS from <span className="underline">{activeSOS.user || 'Unknown'}</span>
+                    {activeSOS.lat && activeSOS.lng
+                      ? ` · 📍 ${parseFloat(activeSOS.lat).toFixed(5)}, ${parseFloat(activeSOS.lng).toFixed(5)}`
+                      : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setActiveTab('live')}
+                  className="px-4 py-2 bg-white text-red-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-50 transition-all"
+                >
+                  View on Map
+                </button>
+                <button
+                  onClick={handleResolveActiveSOS}
+                  disabled={resolvingSOS}
+                  className="px-4 py-2 bg-red-800 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-900 transition-all disabled:opacity-60"
+                >
+                  {resolvingSOS ? 'Resolving...' : 'Mark Resolved'}
+                </button>
+                <button
+                  onClick={() => setShowSOSBanner(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative z-[100]">
         <div className="flex items-center gap-6">
@@ -1172,8 +1242,8 @@ const AdminDashboard = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-black/20 p-4 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-red-100/50">Proximity</p>
-                        <p className="text-sm font-black italic">ESTABLISHING...</p>
+                        <p className="text-[9px] font-black uppercase text-red-100/50">Description</p>
+                        <p className="text-xs font-bold italic leading-snug">{activeSOS?.description || 'No details'}</p>
                       </div>
                       <div className="bg-black/20 p-4 rounded-2xl">
                         <p className="text-[9px] font-black uppercase text-red-100/50">Nearby Drivers</p>
@@ -1181,15 +1251,36 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
+                    {activeSOS?.lat && activeSOS?.lng && (
+                      <div className="bg-black/20 p-4 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase text-red-100/50 mb-1">GPS Coordinates</p>
+                        <p className="text-xs font-black font-mono">{parseFloat(activeSOS.lat).toFixed(6)}, {parseFloat(activeSOS.lng).toFixed(6)}</p>
+                        <a
+                          href={`https://www.google.com/maps?q=${activeSOS.lat},${activeSOS.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-red-200 underline mt-1 inline-block hover:text-white transition-colors"
+                        >
+                          Open in Google Maps ↗
+                        </a>
+                      </div>
+                    )}
+
                     <div className="flex gap-4 pt-4">
-                      <button className="flex-1 bg-white text-red-600 font-black uppercase tracking-widest text-xs py-5 rounded-2xl shadow-xl hover:scale-[1.02] transition-all">
-                        Dispatch Nearest
-                      </button>
-                      <button
-                        onClick={() => setActiveSOS(null)}
-                        className="px-6 bg-red-800/50 text-white font-black uppercase tracking-widest text-xs py-5 rounded-2xl hover:bg-red-800 transition-all"
+                      <a
+                        href={activeSOS?.lat && activeSOS?.lng ? `https://www.google.com/maps?q=${activeSOS.lat},${activeSOS.lng}` : '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 bg-white text-red-600 font-black uppercase tracking-widest text-xs py-5 rounded-2xl shadow-xl hover:scale-[1.02] transition-all text-center"
                       >
-                        Resolved
+                        📍 Open Location
+                      </a>
+                      <button
+                        onClick={handleResolveActiveSOS}
+                        disabled={resolvingSOS}
+                        className="px-6 bg-red-800/50 text-white font-black uppercase tracking-widest text-xs py-5 rounded-2xl hover:bg-red-800 transition-all disabled:opacity-60"
+                      >
+                        {resolvingSOS ? '...' : 'Resolved'}
                       </button>
                     </div>
                   </div>
