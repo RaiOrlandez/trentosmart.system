@@ -12,12 +12,13 @@ from rest_framework.permissions import BasePermission
 class IsAdminRole(BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.role == 'admin')
-from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment
+from .models import Ride, WalletTransaction, Withdrawal, Review, Incident, Complaint, SystemConfig, SavedPlace, Broadcast, MaintenanceLog, Payment, ActivityLog
 from .serializers import (
     UserSerializer, RegisterSerializer, RideSerializer, 
     DriverVerificationSerializer, WalletTransactionSerializer, WithdrawalSerializer,
     ReviewSerializer, IncidentSerializer, ComplaintSerializer, CustomTokenObtainPairSerializer,
-    SavedPlaceSerializer, SystemConfigSerializer, BroadcastSerializer, MaintenanceLogSerializer
+    SavedPlaceSerializer, SystemConfigSerializer, BroadcastSerializer, MaintenanceLogSerializer,
+    ActivityLogSerializer
 )
 from decimal import Decimal
 from .notifications import send_sms, send_push_notification
@@ -36,6 +37,25 @@ from .models import TransactionPIN
 import os
 import requests
 from django.conf import settings
+
+def log_activity(user, action, details, request=None):
+    ip_address = None
+    if request:
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip_address = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip_address = request.META.get('REMOTE_ADDR')
+    try:
+        ActivityLog.objects.create(
+            user=user if user and user.is_authenticated else None,
+            action=action,
+            details=details,
+            ip_address=ip_address
+        )
+    except Exception as e:
+        print(f"Failed to log activity: {e}")
+
 
 def send_brevo_email(recipient_email, recipient_name, subject, html_content):
     url = "https://api.brevo.com/v3/smtp/email"
@@ -655,6 +675,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_verified_driver = True
             user.verification_status = 'approved'
             user.save()
+            log_activity(request.user, "Driver Approved", f"Approved driver: {user.username} (ID: {user.id})", request)
             print(f"Driver {user.username} verified successfully")
 
             # Broadcast event to system (non-blocking)
@@ -711,6 +732,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_verified_driver = False
             user.verification_status = 'rejected'
             user.save()
+            log_activity(request.user, "Driver Rejected", f"Rejected driver: {user.username} (ID: {user.id})", request)
             return Response({'status': 'rejected', 'detail': f'Driver {user.username} rejected'})
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -726,6 +748,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_verified_driver = False
             user.verification_status = 'suspended'
             user.save()
+            log_activity(request.user, "Driver Suspended", f"Suspended driver: {user.username} (ID: {user.id})", request)
             return Response({'status': 'suspended', 'detail': f'Driver {user.username} suspended'})
         except Exception as e:
             return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -875,6 +898,7 @@ class RideViewSet(viewsets.ModelViewSet):
             passenger=self.request.user,
             targeted_driver=targeted_driver
         )
+        log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
 
         # Create Payment record
         Payment.objects.create(
@@ -955,6 +979,7 @@ class RideViewSet(viewsets.ModelViewSet):
         new_status = updated_ride.status
         
         if old_status != new_status:
+            log_activity(self.request.user, "Ride Status Updated", f"Ride #{updated_ride.id} status changed from {old_status} to {new_status} by {self.request.user.username}", self.request)
             # Broadcast status update to ride group
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
@@ -1129,6 +1154,7 @@ class RideViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def estimate_fare(self, request):
+        import math
         # AI Fare Elasticity Logic powered by SystemConfig
         base_fare_cfg = SystemConfig.objects.filter(key='base_fare').first()
         base_fare = float(base_fare_cfg.value) if base_fare_cfg else 30.00
@@ -1136,6 +1162,14 @@ class RideViewSet(viewsets.ModelViewSet):
         per_km_cfg = SystemConfig.objects.filter(key='rate_per_km').first()
         rate_per_km = float(per_km_cfg.value) if per_km_cfg else 8.00
         
+        base_distance = 2.0
+        base_distance_cfg = SystemConfig.objects.filter(key='base_distance').first()
+        if base_distance_cfg:
+            try:
+                base_distance = float(base_distance_cfg.value)
+            except ValueError:
+                pass
+
         surge_threshold_cfg = SystemConfig.objects.filter(key='surge_threshold').first()
         surge_threshold = float(surge_threshold_cfg.value) if surge_threshold_cfg else 1.5
 
@@ -1152,11 +1186,27 @@ class RideViewSet(viewsets.ModelViewSet):
         if ratio > surge_threshold * 1.5: surge_multiplier = default_surge * 1.25
         if ratio > surge_threshold * 2.5: surge_multiplier = default_surge * 1.6
 
+        # Calculate exact fare if distance is passed
+        distance_str = request.query_params.get('distance')
+        calculated_fare = None
+        if distance_str:
+            try:
+                distance = float(distance_str)
+                if distance <= base_distance:
+                    calculated_fare = base_fare
+                else:
+                    calculated_fare = base_fare + math.ceil((distance - base_distance) / 1.0) * rate_per_km
+                calculated_fare = round(calculated_fare * surge_multiplier, 2)
+            except ValueError:
+                pass
+
         return Response({
             'base_fare': base_fare,
             'rate_per_km': rate_per_km,
+            'base_distance': base_distance,
             'surge_multiplier': surge_multiplier,
             'is_surge': surge_multiplier > 1.0,
+            'calculated_fare': calculated_fare,
             'reason': 'High demand' if surge_multiplier > 1.0 else 'Normal demand'
         })
 
@@ -1236,6 +1286,7 @@ def driver_accept(request, ride_id):
     ride.status = 'accepted'
     ride.accepted_at = timezone.now()
     ride.save()
+    log_activity(request.user, "Ride Accepted", f"Driver {request.user.username} accepted Ride #{ride.id} for passenger {ride.passenger.username}", request)
     
     # Notify passenger via Push
     send_push_notification(
@@ -1311,6 +1362,7 @@ def ride_complete(request, ride_id):
     ride.driver_earnings = driver_earnings
     ride.commission_rate = commission_rate
     ride.save()
+    log_activity(request.user, "Ride Completed", f"Driver {request.user.username} completed Ride #{ride.id} (Fare: ₱{total_fare}, LGU Commission: ₱{lgu_commission})", request)
 
     # Mark payment as paid
     if hasattr(ride, 'payment'):
@@ -2432,5 +2484,16 @@ class PasswordResetConfirmView(APIView):
         user.save()
         
         return Response({'detail': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+
+
+class ActivityLogViewSet(viewsets.ModelViewSet):
+    serializer_class = ActivityLogSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role == 'admin':
+            return ActivityLog.objects.all().select_related('user').order_by('-created_at')
+        return ActivityLog.objects.filter(user=self.request.user).select_related('user').order_by('-created_at')
+
 
 

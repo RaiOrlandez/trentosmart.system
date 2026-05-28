@@ -185,20 +185,30 @@ const PassengerHome = () => {
       setDistance(finalDistanceKm.toFixed(1));
       setEstimatedTime(Math.ceil(finalDistanceKm * 3));
 
-      // 4. Fetch dynamic pricing from backend (Base + Per Km + Surge Multiplier)
+      // 4. Fetch dynamic pricing from backend — pass distance so backend applies LGU ceil() formula
+      // Formula: Fare = Base Fare + ceil((distance - base_distance) / 1) × rate_per_km
       try {
-        const res = await api.get('/rides/estimate_fare/');
-        const { base_fare, rate_per_km, surge_multiplier, is_surge } = res.data;
+        const res = await api.get('/rides/estimate_fare/', {
+          params: { distance: finalDistanceKm.toFixed(2) }
+        });
+        const { base_fare, rate_per_km, base_distance = 2.0, surge_multiplier, is_surge, calculated_fare } = res.data;
 
         setFareParams({ base: base_fare, perKm: rate_per_km });
-
-        const totalFare = (base_fare + (rate_per_km * finalDistanceKm)) * surge_multiplier;
-        setFare(Math.round(totalFare));
         setSurgeInfo({ multiplier: surge_multiplier, isSurge: is_surge });
+
+        // Prefer server-computed ceil() fare; fall back to local ceil() if absent
+        if (calculated_fare != null) {
+          setFare(Math.round(calculated_fare));
+        } else {
+          const extraKm = Math.max(0, finalDistanceKm - base_distance);
+          const localFare = (base_fare + Math.ceil(extraKm) * rate_per_km) * surge_multiplier;
+          setFare(Math.round(localFare));
+        }
       } catch (err) {
-        // Offline Fallback for Pricing
-        const totalFare = 30 + (8 * finalDistanceKm);
-        setFare(Math.round(totalFare));
+        // Offline Fallback — mirrors LGU ceil() formula with hardcoded defaults
+        const BASE_FARE = 30; const RATE_PER_KM = 8; const BASE_DIST = 2.0;
+        const extraKm = Math.max(0, finalDistanceKm - BASE_DIST);
+        setFare(Math.round(BASE_FARE + Math.ceil(extraKm) * RATE_PER_KM));
       }
 
     } catch (err) {
@@ -206,10 +216,14 @@ const PassengerHome = () => {
       const fallbackDist = ((pickup + dest).length % 5) + 1.2;
       setDistance(fallbackDist.toFixed(1));
       setEstimatedTime(Math.ceil(fallbackDist * 3));
-      setFare(30 + Math.round(8 * fallbackDist));
+      // Offline ceil() fallback consistent with LGU model
+      const BASE_FARE = 30; const RATE_PER_KM = 8; const BASE_DIST = 2.0;
+      const extraKm = Math.max(0, fallbackDist - BASE_DIST);
+      setFare(Math.round(BASE_FARE + Math.ceil(extraKm) * RATE_PER_KM));
       setRouteCoordinates(null);
     }
   }, [pickup, dest]);
+
 
   const fetchSavedPlaces = useCallback(async () => {
     try {

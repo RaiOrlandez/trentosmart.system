@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint, SavedPlace, SystemConfig, Broadcast, MaintenanceLog, LGURevenue
+    Ride, Payment, Incident, WalletTransaction, Withdrawal, Review, Complaint, SavedPlace, SystemConfig, Broadcast, MaintenanceLog, LGURevenue, ActivityLog
 )
 
 
@@ -268,4 +268,14 @@ class LGURevenueSerializer(serializers.ModelSerializer):
         model = LGURevenue
         fields = '__all__'
         read_only_fields = ('collected_at',)
+
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    user_details = UserSerializer(source='user', read_only=True)
+
+    class Meta:
+        model = ActivityLog
+        fields = '__all__'
+        read_only_fields = ('created_at',)
+
 

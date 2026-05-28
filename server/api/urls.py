@@ -9,7 +9,7 @@ from .views import (
     WithdrawalViewSet, MaintenanceLogViewSet, PINManagementView, track_ride,
     LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
     ChangePasswordView, ChangeEmailView, ConfirmEmailChangeView,
-    PasswordResetRequestView, PasswordResetConfirmView,
+    PasswordResetRequestView, PasswordResetConfirmView, ActivityLogViewSet,
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
@@ -29,6 +29,7 @@ router.register(r'saved-places', SavedPlaceViewSet, basename='saved-place')
 router.register(r'system-config', SystemConfigViewSet, basename='system-config')
 router.register(r'broadcasts', BroadcastViewSet, basename='broadcast')
 router.register(r'maintenance-logs', MaintenanceLogViewSet, basename='maintenance-log')
+router.register(r'activity-logs', ActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),

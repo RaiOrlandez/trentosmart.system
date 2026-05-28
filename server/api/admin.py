@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.db.models import Sum
-from .models import User, Ride, Payment, Incident, FraudAlert, LGURevenue
+from .models import User, Ride, Payment, Incident, FraudAlert, LGURevenue, ActivityLog
 
 class TrikeAdminSite(admin.AdminSite):
     site_header = "TRENTO SMART TRICYCLE ADMIN"
@@ -234,4 +234,19 @@ class LGURevenueAdmin(admin.ModelAdmin):
             obj.get_purpose_display()
         )
     purpose_badge.short_description = 'Purpose'
+
+
+@admin.register(ActivityLog, site=admin_site)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user_link', 'action', 'ip_address', 'created_at')
+    list_filter = ('action', 'created_at')
+    search_fields = ('user__username', 'action', 'details', 'ip_address')
+    readonly_fields = ('created_at',)
+
+    def user_link(self, obj):
+        if not obj.user:
+            return format_html('<i style="color: #64748b;">System</i>')
+        return format_html('<a href="../user/{}/change/">{}</a>', obj.user.id, obj.user.username)
+    user_link.short_description = 'User'
+
 
