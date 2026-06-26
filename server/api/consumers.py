@@ -106,6 +106,7 @@ class RideConsumer(AsyncWebsocketConsumer):
                     'type': 'chat_message',
                     'message': data.get('message', ''),
                     'sender': data.get('sender', user.username),
+                    'msg_type': data.get('msg_type', 'text'),
                 }
             )
         elif message_type == 'location':
@@ -145,6 +146,7 @@ class RideConsumer(AsyncWebsocketConsumer):
             'type': 'chat',
             'message': event.get('message', ''),
             'sender': event.get('sender', ''),
+            'msg_type': event.get('msg_type', 'text'),
         }))
 
     async def ride_status_update(self, event):

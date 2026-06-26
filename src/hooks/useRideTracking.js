@@ -89,6 +89,7 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
                     setMessages(prev => [...prev, {
                         text:      data.message,
                         sender:    data.sender,
+                        msgType:   data.msg_type || 'text',
                         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     }]);
                 }
@@ -154,17 +155,17 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
     }, []);
 
     // ── Send chat message (optimistic + WS broadcast) ────────────────────────
-    const sendMessage = useCallback((text, senderName) => {
+    const sendMessage = useCallback((text, senderName, msgType = 'text') => {
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         // Show immediately in local state (optimistic update)
-        setMessages(prev => [...prev, { text, sender: senderName, timestamp }]);
+        setMessages(prev => [...prev, { text, sender: senderName, msgType, timestamp }]);
 
         const ws = socketRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) {
             // Register echo key so we don't show the message again when server broadcasts it
             pendingEchos.current.add(`${senderName}::${text}`);
-            ws.send(JSON.stringify({ type: 'chat', message: text, sender: senderName }));
+            ws.send(JSON.stringify({ type: 'chat', message: text, sender: senderName, msg_type: msgType }));
         }
         // If offline: message still visible locally — will be lost on the other side until reconnect
     }, []);
