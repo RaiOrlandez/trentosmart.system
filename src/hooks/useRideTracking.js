@@ -5,6 +5,8 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
     const [messages, setMessages] = useState([]);
     const [connected, setConnected] = useState(false);
     const socketRef = useRef(null);
+    // Track optimistically-sent messages to avoid duplicates on server echo
+    const pendingEchos = useRef(new Set());
 
     useEffect(() => {
         if (!rideId) {
@@ -44,11 +46,17 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
                     sender: data.sender || (isDriver ? 'passenger' : 'driver')
                 });
             } else if (data.type === 'chat') {
-                setMessages(prev => [...prev, {
-                    text: data.message,
-                    sender: data.sender,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                }]);
+                // Deduplicate — if we optimistically added this message, skip server echo
+                const echoKey = `${data.sender}::${data.message}`;
+                if (pendingEchos.current.has(echoKey)) {
+                    pendingEchos.current.delete(echoKey);
+                } else {
+                    setMessages(prev => [...prev, {
+                        text: data.message,
+                        sender: data.sender,
+                        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    }]);
+                }
             } else if (data.type === 'status_update') {
                 setLocation(prev => ({ ...prev, ...data }));
             }
@@ -73,15 +81,22 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
         }
     }, []);
 
-    // Function to send chat message
+    // Function to send chat message (with optimistic local add)
     const sendMessage = useCallback((text, senderName) => {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        // Optimistically add to local state right away
+        setMessages(prev => [...prev, { text, sender: senderName, timestamp }]);
+
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            // Mark this message so we skip the server echo
+            pendingEchos.current.add(`${senderName}::${text}`);
             socketRef.current.send(JSON.stringify({
                 type: 'chat',
                 message: text,
                 sender: senderName
             }));
         }
+        // If socket is not open, the message still appears locally (graceful degradation)
     }, []);
 
     return { location, connected, messages, sendLocation, sendMessage };

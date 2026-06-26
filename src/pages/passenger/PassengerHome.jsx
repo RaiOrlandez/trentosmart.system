@@ -56,6 +56,7 @@ const PassengerHome = () => {
   const [showGCashPayment, setShowGCashPayment] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [activeRideId, setActiveRideId] = useState(null);
+  const [showChat, setShowChat] = useState(false);
   const [assignedDriver, setAssignedDriver] = useState(null);
 
   const [distance, setDistance] = useState(0);
@@ -352,7 +353,7 @@ const PassengerHome = () => {
 
   // Live Tracking
   const { user } = useContext(AuthContext);
-  const { location: wsData, sendMessage, messages, sendLocation } = useRideTracking(activeRideId);
+  const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
 
   // Send passenger location to driver
   useEffect(() => {
@@ -1329,6 +1330,20 @@ const PassengerHome = () => {
               <span className="text-sm font-bold">Share Ride</span>
             </button>
           )}
+          {/* Chat with Driver Button — shows only during active ride */}
+          {(status === 'matched' || status === 'ongoing') && (
+            <button
+              onClick={() => setShowChat(prev => !prev)}
+              className={`p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border relative ${
+                showChat
+                  ? 'bg-secondary text-white border-white/10'
+                  : 'bg-white text-secondary border-slate-100'
+              }`}
+            >
+              <MessageSquare size={20} className={showChat ? 'text-primary' : 'text-secondary'} />
+              <span className="text-sm font-bold">Chat with Driver</span>
+            </button>
+          )}
         </div>
 
         {/* SOS Overlay */}
@@ -1443,6 +1458,9 @@ const PassengerHome = () => {
           onSendMessage={sendMessage}
           currentUser={user?.username}
           partnerName={assignedDriver?.username || 'Driver'}
+          isConnected={connected}
+          isOpen={showChat}
+          onToggle={() => setShowChat(prev => !prev)}
         />
       )}
 

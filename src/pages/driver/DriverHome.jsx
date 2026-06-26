@@ -27,7 +27,8 @@ import {
   Signal,
   Wifi,
   Battery,
-  Camera
+  Camera,
+  MessageSquare
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -64,6 +65,7 @@ const DriverHome = () => {
   const [completedPassengerName, setCompletedPassengerName] = useState('');
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   // New State for LGU Commission Display
   const [commissionData, setCommissionData] = useState(null);
@@ -164,7 +166,7 @@ const DriverHome = () => {
   }, [systemEvent, user?.id]);
 
   // WebSocket Tracking
-  const { sendLocation, sendMessage, messages, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
+  const { sendLocation, sendMessage, messages, connected, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
 
   // Handle passenger cancellation
   useEffect(() => {
@@ -1143,6 +1145,20 @@ const DriverHome = () => {
             >
               <TrendingUp size={20} />
             </button>
+            {/* Chat button — visible when a ride is active */}
+            {activeRide && (
+              <button
+                onClick={() => setShowChat(prev => !prev)}
+                className={`w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center transition-colors border relative ${
+                  showChat
+                    ? 'bg-secondary text-primary border-secondary/20'
+                    : 'bg-white text-slate-600 hover:text-primary border-slate-100'
+                }`}
+                title="Chat with Passenger"
+              >
+                <MessageSquare size={20} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1217,6 +1233,9 @@ const DriverHome = () => {
             onSendMessage={sendMessage}
             currentUser={user?.username}
             partnerName={typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}
+            isConnected={connected}
+            isOpen={showChat}
+            onToggle={() => setShowChat(prev => !prev)}
           />
         )
       }
