@@ -735,7 +735,7 @@ const AdminDashboard = () => {
           <div className="lg:col-span-1 glass-card p-8 rounded-3xl flex flex-col min-h-[400px]">
             <h3 className="text-xl font-bold text-secondary dark:text-white mb-1">7-Day Revenue</h3>
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Gross vs LGU Commission</p>
-            <div className="flex-1 w-full min-h-[250px]">
+            <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={dailyData} barSize={10}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -759,7 +759,7 @@ const AdminDashboard = () => {
           <div className="lg:col-span-1 glass-card p-8 rounded-3xl flex flex-col min-h-[400px]">
             <h3 className="text-xl font-bold text-secondary dark:text-white mb-2">LGU Revenue</h3>
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Fund Distribution</p>
-            <div className="flex-1 w-full min-h-[250px]">
+            <div className="h-[280px] w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
