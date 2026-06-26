@@ -59,38 +59,79 @@ def log_activity(user, action, details, request=None):
 
 def send_brevo_email(recipient_email, recipient_name, subject, html_content):
     """
-    Sends an email using Django's native SMTP backend (Gmail SMTP).
-    We keep the function name `send_brevo_email` to maintain full backward compatibility 
-    with all calling views, but it now routes through standard Django mail mechanisms.
+    Sends an email using the Brevo HTTP API (primary) or Django SMTP (fallback).
+
+    Strategy:
+      1. If BREVO_API_KEY is set → use Brevo's transactional email HTTP API
+         (works on Railway/cloud where outbound SMTP ports 465/587 are blocked).
+      2. Else if EMAIL_HOST_USER is set → fall back to Django native SMTP
+         (works locally and on servers that allow outbound SMTP).
+      3. If neither is configured → return error immediately.
     """
-    from django.core.mail import EmailMultiAlternatives
-    from django.utils.html import strip_tags
+    import requests as http_requests
+    import os
 
-    # Check if host user is configured
-    if not getattr(settings, 'EMAIL_HOST_USER', '').strip():
-        err_msg = "Gmail SMTP is not configured. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in your environment variables."
-        print(f"[Email] Error: {err_msg}")
-        return False, err_msg
+    brevo_key = os.environ.get('BREVO_API_KEY', '').strip()
+    smtp_user = getattr(settings, 'EMAIL_HOST_USER', '').strip()
 
-    try:
-        text_content = strip_tags(html_content)
-        # Use default from email defined in settings
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@transmart.com')
-        
-        # Create EmailMultiAlternatives message
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=text_content,
-            from_email=f"Trento Smart System <{from_email}>",
-            to=[recipient_email]
-        )
-        msg.attach_alternative(html_content, "text/html")
-        msg.send(fail_silently=False)
-        print(f"[Email] Success: Email successfully sent via SMTP to {recipient_email}")
-        return True, "Email sent successfully via Gmail SMTP"
-    except Exception as e:
-        print(f"[Email] Error: SMTP Email FAILED for {recipient_email}: {e}")
-        return False, str(e)
+    # ── Strategy 1: Brevo HTTP API (cloud-friendly, no SMTP port needed) ─────
+    if brevo_key:
+        try:
+            resp = http_requests.post(
+                'https://api.brevo.com/v3/smtp/email',
+                headers={
+                    'api-key': brevo_key,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                json={
+                    'sender': {
+                        'name': 'Trento Smart System',
+                        'email': smtp_user if smtp_user else 'noreply@transmart.com',
+                    },
+                    'to': [{'email': recipient_email, 'name': recipient_name}],
+                    'subject': subject,
+                    'htmlContent': html_content,
+                },
+                timeout=15,
+            )
+            if resp.status_code in (200, 201):
+                print(f"[Email] Success: Brevo API sent email to {recipient_email}")
+                return True, "Email sent successfully via Brevo API"
+            else:
+                err = resp.text
+                print(f"[Email] Warning: Brevo API returned {resp.status_code} for {recipient_email}: {err}")
+                # Fall through to SMTP fallback
+        except Exception as e:
+            print(f"[Email] Warning: Brevo API exception for {recipient_email}: {e}")
+            # Fall through to SMTP fallback
+
+    # ── Strategy 2: Django SMTP fallback (local dev / servers with open ports) ─
+    if smtp_user:
+        from django.core.mail import EmailMultiAlternatives
+        from django.utils.html import strip_tags
+
+        try:
+            text_content = strip_tags(html_content)
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@transmart.com')
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=text_content,
+                from_email=f"Trento Smart System <{from_email}>",
+                to=[recipient_email],
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send(fail_silently=False)
+            print(f"[Email] Success: SMTP sent email to {recipient_email}")
+            return True, "Email sent successfully via Gmail SMTP"
+        except Exception as e:
+            print(f"[Email] Error: SMTP Email FAILED for {recipient_email}: {e}")
+            return False, str(e)
+
+    # ── Neither method configured ─────────────────────────────────────────────
+    err_msg = "No email provider configured. Set BREVO_API_KEY or EMAIL_HOST_USER in your environment."
+    print(f"[Email] Error: {err_msg}")
+    return False, err_msg
 
 
 # ── PIN Lockout Helper ────────────────────────────────────────────────────────
