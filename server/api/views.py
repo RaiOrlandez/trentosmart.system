@@ -58,44 +58,32 @@ def log_activity(user, action, details, request=None):
 
 
 def send_brevo_email(recipient_email, recipient_name, subject, html_content):
-    url = "https://api.brevo.com/v3/smtp/email"
-    # Read key from environment variables (strip to remove accidental whitespace/newline)
-    api_key = os.environ.get('BREVO_API_KEY', '').strip()
-    
-    if not api_key:
-        print("[Brevo] ❌ BREVO_API_KEY environment variable is NOT SET! Emails will NOT be sent.")
-        print("[Brevo] ❌ Add BREVO_API_KEY to your Railway environment variables.")
-        return False, "BREVO_API_KEY not configured"
-    
-    payload = {
-        "sender": {
-            "name": "Trento Smart System",
-            "email": "ryanmorlandez@adssu.edu.ph"  # Must match a verified sender in Brevo
-        },
-        "to": [
-            {
-                "email": recipient_email,
-                "name": recipient_name
-            }
-        ],
-        "subject": subject,
-        "htmlContent": html_content
-    }
-    
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json"
-    }
-    
+    """
+    Sends an email using Django's native SMTP backend (Gmail SMTP).
+    We keep the function name `send_brevo_email` to maintain full backward compatibility 
+    with all calling views, but it now routes through standard Django mail mechanisms.
+    """
+    from django.core.mail import EmailMultiAlternatives
+    from django.utils.html import strip_tags
+
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        response.raise_for_status()
-        return True, response.json()
+        text_content = strip_tags(html_content)
+        # Use default from email defined in settings
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@transmart.com')
+        
+        # Create EmailMultiAlternatives message
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=f"Trento Smart System <{from_email}>",
+            to=[recipient_email]
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        print(f"[Email] Success: Email successfully sent via SMTP to {recipient_email}")
+        return True, "Email sent successfully via Gmail SMTP"
     except Exception as e:
-        print(f"[Brevo API Error] {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(f"[Brevo API Details] {e.response.text}")
+        print(f"[Email] Error: SMTP Email FAILED for {recipient_email}: {e}")
         return False, str(e)
 
 
