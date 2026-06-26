@@ -2384,8 +2384,7 @@ class VerifyEmailView(APIView):
         if user.is_email_verified:
             return Response({'detail': 'Email already verified.'}, status=status.HTTP_200_OK)
 
-        # Allow universal master code '123456' for Capstone/Demo purposes if email fails
-        is_valid_otp = (user.email_otp and user.email_otp == otp) or (otp == '123456')
+        is_valid_otp = user.email_otp and user.email_otp == otp
 
         if is_valid_otp:
             user.is_email_verified = True

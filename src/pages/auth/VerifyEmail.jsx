@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Mail, ArrowRight, Loader2, CheckCircle, RefreshCcw, Zap } from 'lucide-react';
+import { ShieldCheck, Mail, ArrowRight, Loader2, CheckCircle, RefreshCcw } from 'lucide-react';
 
 const VerifyEmail = () => {
     const navigate = useNavigate();
@@ -140,16 +140,6 @@ const VerifyEmail = () => {
                                     className="w-12 h-14 md:w-14 md:h-16 bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-xl text-center text-2xl font-black text-secondary dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/20 outline-none transition-all"
                                 />
                             ))}
-                        </div>
-
-                        {/* Demo/Capstone bypass tip */}
-                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-left">
-                            <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1 mb-1">
-                                <Zap size={12} className="fill-current animate-pulse" /> Demo Mode Tip
-                            </p>
-                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-normal">
-                                If you didn't receive the OTP email (due to missing Railway environment variable API keys), you can enter the demo bypass code: <span className="font-black text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/25">123456</span>.
-                            </p>
                         </div>
 
                         {error && (
