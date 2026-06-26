@@ -66,6 +66,12 @@ def send_brevo_email(recipient_email, recipient_name, subject, html_content):
     from django.core.mail import EmailMultiAlternatives
     from django.utils.html import strip_tags
 
+    # Check if host user is configured
+    if not getattr(settings, 'EMAIL_HOST_USER', '').strip():
+        err_msg = "Gmail SMTP is not configured. Please set EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in your environment variables."
+        print(f"[Email] Error: {err_msg}")
+        return False, err_msg
+
     try:
         text_content = strip_tags(html_content)
         # Use default from email defined in settings
