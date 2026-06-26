@@ -469,12 +469,17 @@ const AdminDashboard = () => {
         try {
           // Send PIN in data for DELETE request
           await api.delete(`/users/${id}/`, { data: { pin } });
+          // Optimistically update local state
           setUsers(prev => prev.filter(u => u.id !== id));
           fetchStats(); // Update counters
           alert('User deleted.');
+          // Force refresh from server to ensure sync
+          await fetchUsers(true);
         } catch (err) {
           const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
           alert(`Failed to delete user record. Reason: ${serverMsg}`);
+          // Refresh to restore correct state if deletion failed
+ await fetchUsers(true);
         }
       }
     });
