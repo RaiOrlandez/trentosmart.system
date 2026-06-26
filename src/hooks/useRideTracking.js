@@ -1,60 +1,95 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+/**
+ * useRideTracking
+ * ───────────────
+ * Opens a WebSocket to the ride channel and exposes:
+ *   - location    : latest location update from the other party
+ *   - connected   : true when the socket is OPEN
+ *   - messages    : chat history
+ *   - sendLocation: (lat, lng, heading?) → void  — driver broadcasts position
+ *   - sendMessage : (text, senderName)   → void  — both parties send chat
+ *
+ * Automatic reconnection (exponential back-off, max 30 s) is built in so
+ * the chat window recovers from brief network drops without a page refresh.
+ */
 const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken = null) => {
-    const [location, setLocation] = useState(null);
-    const [messages, setMessages] = useState([]);
+    const [location, setLocation]   = useState(null);
+    const [messages, setMessages]   = useState([]);
     const [connected, setConnected] = useState(false);
-    const socketRef = useRef(null);
-    // Track optimistically-sent messages to avoid duplicates on server echo
-    const pendingEchos = useRef(new Set());
 
-    useEffect(() => {
-        if (!rideId) {
-            setMessages([]);
-            return;
+    const socketRef       = useRef(null);
+    const pendingEchos    = useRef(new Set());   // deduplicate optimistic-send echoes
+    const retryCount      = useRef(0);
+    const retryTimer      = useRef(null);
+    const isMounted       = useRef(true);
+    const rideIdRef       = useRef(rideId);      // keep latest value in refs for closures
+
+    rideIdRef.current = rideId;
+
+    // ── Build WebSocket URL ───────────────────────────────────────────────────
+    const buildUrl = useCallback(() => {
+        const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
+        const token  = isGuest ? shareToken : localStorage.getItem('token');
+
+        if (!isGuest && (!token || token === 'null' || token === 'undefined')) {
+            return null;   // no valid JWT — skip connection
         }
 
-        const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
-        // For guests, we use the shareToken in the query string if available
-        const token = isGuest ? shareToken : localStorage.getItem('token');
-        
-        if (!isGuest && (!token || token === 'null' || token === 'undefined')) {
-            console.warn("No valid authentication token found for ride tracking. Skipping connection.");
+        return `${wsBase}/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
+    }, [rideId, isGuest, shareToken]);
+
+    // ── Open WebSocket ────────────────────────────────────────────────────────
+    const connect = useCallback(() => {
+        if (!isMounted.current) return;
+        if (!rideIdRef.current)  return;
+
+        const url = buildUrl();
+        if (!url) {
+            console.warn('[RideTracking] No valid auth token — skipping WS connection.');
             setConnected(false);
             return;
         }
 
-        const socketUrl = `${wsBase}/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
+        // Clean up any existing socket first
+        if (socketRef.current) {
+            socketRef.current.onclose = null; // prevent reconnect loop on intentional close
+            socketRef.current.close();
+        }
 
-        console.log(`Connecting to ride socket: ${socketUrl}`);
-        socketRef.current = new WebSocket(socketUrl);
+        console.log(`[RideTracking] Connecting → ${url}`);
+        const ws = new WebSocket(url);
+        socketRef.current = ws;
 
-        socketRef.current.onopen = () => {
-            console.log('Ride socket connected');
+        ws.onopen = () => {
+            if (!isMounted.current) return;
+            console.log('[RideTracking] ✅ Connected');
             setConnected(true);
+            retryCount.current = 0;
         };
 
-        socketRef.current.onmessage = (e) => {
-            const data = JSON.parse(e.data);
+        ws.onmessage = (e) => {
+            if (!isMounted.current) return;
+            let data;
+            try { data = JSON.parse(e.data); } catch { return; }
 
             if (data.type === 'location') {
-                // If I am driver, this is passenger location. If I am passenger, this is driver location.
                 setLocation({
-                    lat: data.lat,
-                    lng: data.lng,
+                    lat:    data.lat,
+                    lng:    data.lng,
                     status: data.status,
-                    sender: data.sender || (isDriver ? 'passenger' : 'driver')
+                    sender: data.sender || (isDriver ? 'passenger' : 'driver'),
                 });
             } else if (data.type === 'chat') {
-                // Deduplicate — if we optimistically added this message, skip server echo
+                // Deduplicate — skip the server echo for messages we sent optimistically
                 const echoKey = `${data.sender}::${data.message}`;
                 if (pendingEchos.current.has(echoKey)) {
                     pendingEchos.current.delete(echoKey);
                 } else {
                     setMessages(prev => [...prev, {
-                        text: data.message,
-                        sender: data.sender,
-                        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        text:      data.message,
+                        sender:    data.sender,
+                        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     }]);
                 }
             } else if (data.type === 'status_update') {
@@ -62,45 +97,79 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             }
         };
 
-        socketRef.current.onclose = () => {
-            console.log('Ride socket disconnected');
+        ws.onclose = (evt) => {
+            if (!isMounted.current) return;
+            console.warn(`[RideTracking] Disconnected (code=${evt.code})`);
             setConnected(false);
+
+            // Do not retry on auth failures (4001 = bad share token, 4003 = not authenticated)
+            if (evt.code === 4001 || evt.code === 4003) {
+                console.error('[RideTracking] Auth error — will not retry.');
+                return;
+            }
+
+            // Exponential back-off: 1 s → 2 s → 4 s → 8 s → 16 s → 30 s cap
+            if (rideIdRef.current) {
+                const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
+                retryCount.current += 1;
+                console.log(`[RideTracking] Reconnecting in ${delay / 1000}s (attempt ${retryCount.current})…`);
+                retryTimer.current = setTimeout(connect, delay);
+            }
         };
 
+        ws.onerror = (err) => {
+            console.error('[RideTracking] WebSocket error:', err);
+        };
+    }, [buildUrl, isDriver]);
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    useEffect(() => {
+        isMounted.current = true;
+
+        if (!rideId) {
+            setMessages([]);
+            setConnected(false);
+            return;
+        }
+
+        retryCount.current = 0;
+        connect();
+
         return () => {
+            isMounted.current = false;
+            clearTimeout(retryTimer.current);
             if (socketRef.current) {
+                socketRef.current.onclose = null; // suppress reconnect on unmount
                 socketRef.current.close();
             }
         };
-    }, [rideId, isDriver, isGuest, shareToken]);
+    }, [rideId, isDriver, isGuest, shareToken, connect]);
 
-    // Function to send location (used by driver)
+    // ── Send location (driver → passenger) ───────────────────────────────────
     const sendLocation = useCallback((lat, lng, heading = 0) => {
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            socketRef.current.send(JSON.stringify({ type: 'location', lat, lng, heading }));
+        const ws = socketRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'location', lat, lng, heading }));
         }
     }, []);
 
-    // Function to send chat message (with optimistic local add)
+    // ── Send chat message (optimistic + WS broadcast) ────────────────────────
     const sendMessage = useCallback((text, senderName) => {
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        // Optimistically add to local state right away
+
+        // Show immediately in local state (optimistic update)
         setMessages(prev => [...prev, { text, sender: senderName, timestamp }]);
 
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            // Mark this message so we skip the server echo
+        const ws = socketRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            // Register echo key so we don't show the message again when server broadcasts it
             pendingEchos.current.add(`${senderName}::${text}`);
-            socketRef.current.send(JSON.stringify({
-                type: 'chat',
-                message: text,
-                sender: senderName
-            }));
+            ws.send(JSON.stringify({ type: 'chat', message: text, sender: senderName }));
         }
-        // If socket is not open, the message still appears locally (graceful degradation)
+        // If offline: message still visible locally — will be lost on the other side until reconnect
     }, []);
 
     return { location, connected, messages, sendLocation, sendMessage };
 };
 
 export default useRideTracking;
-

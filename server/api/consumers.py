@@ -25,25 +25,52 @@ class RideConsumer(AsyncWebsocketConsumer):
         self.ride_id = self.scope['url_route']['kwargs']['ride_id']
         self.ride_group_name = f'ride_{self.ride_id}'
 
-        # Public tracking via share token
-        user = self.scope.get('user')
         query_string = self.scope.get('query_string', b'').decode()
         params = urllib.parse.parse_qs(query_string)
 
         is_guest = params.get('guest', ['false'])[0] == 'true'
-        token = params.get('token', [None])[0]
+        jwt_token = params.get('token', [None])[0]
 
-        if is_guest and token:
-            valid = await self.validate_share_token(self.ride_id, token)
+        if is_guest and jwt_token:
+            # ── Guest / public tracker: validate share token ────────────────
+            valid = await self.validate_share_token(self.ride_id, jwt_token)
             if not valid:
-                await self.close()
+                await self.close(code=4001)
                 return
-        elif not user or not user.is_authenticated:
-            await self.close()
-            return
+            self.scope['is_guest'] = True
+        else:
+            # ── Authenticated user: validate JWT from query string ──────────
+            # AuthMiddlewareStack only supports session/cookie auth, not JWT.
+            # We must parse the Bearer token manually from the query string.
+            user = self.scope.get('user')
+            if not user or not user.is_authenticated:
+                # Try to resolve the user from the JWT query-param token
+                if jwt_token:
+                    user = await self.get_user_from_token(jwt_token)
+                    if user:
+                        self.scope['user'] = user  # Store for receive() usage
+
+            if not user or not user.is_authenticated:
+                print(f"[RideConsumer] Rejected unauthenticated connection for ride {self.ride_id}")
+                await self.close(code=4003)
+                return
+
+            self.scope['is_guest'] = False
 
         await self.channel_layer.group_add(self.ride_group_name, self.channel_name)
         await self.accept()
+        print(f"[RideConsumer] Connected: ride={self.ride_id} group={self.ride_group_name}")
+
+    @database_sync_to_async
+    def get_user_from_token(self, token_key):
+        """Resolve a Django User from a JWT access token string."""
+        try:
+            access_token = AccessToken(token_key)
+            User = get_user_model()
+            return User.objects.get(id=access_token['user_id'])
+        except Exception as e:
+            print(f"[RideConsumer] JWT auth failed: {e}")
+            return None
 
     @database_sync_to_async
     def validate_share_token(self, ride_id, token):
@@ -56,41 +83,76 @@ class RideConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         if hasattr(self, 'ride_group_name'):
             await self.channel_layer.group_discard(self.ride_group_name, self.channel_name)
+            print(f"[RideConsumer] Disconnected: ride={self.ride_id} code={close_code}")
 
     async def receive(self, text_data):
         data = json.loads(text_data)
         message_type = data.get('type')
-        user = self.scope.get('user')
 
         # Guests may only receive — never send
+        is_guest = self.scope.get('is_guest', False)
+        if is_guest:
+            return
+
+        # Extra guard: ensure user is still authenticated
+        user = self.scope.get('user')
         if not user or not user.is_authenticated:
             return
 
         if message_type == 'chat':
             await self.channel_layer.group_send(
                 self.ride_group_name,
-                {'type': 'chat_message', 'message': data.get('message'), 'sender': data.get('sender')}
+                {
+                    'type': 'chat_message',
+                    'message': data.get('message', ''),
+                    'sender': data.get('sender', user.username),
+                }
             )
-        else:
+        elif message_type == 'location':
             await self.channel_layer.group_send(
                 self.ride_group_name,
-                {'type': 'location_update', 'lat': data.get('lat'), 'lng': data.get('lng'), 'status': data.get('status')}
+                {
+                    'type': 'location_update',
+                    'lat': data.get('lat'),
+                    'lng': data.get('lng'),
+                    'status': data.get('status'),
+                    'sender': user.username,
+                }
+            )
+        else:
+            # Forward any other typed event to the group
+            await self.channel_layer.group_send(
+                self.ride_group_name,
+                {
+                    'type': 'location_update',
+                    'lat': data.get('lat'),
+                    'lng': data.get('lng'),
+                    'status': data.get('status'),
+                }
             )
 
     async def location_update(self, event):
-        await self.send(text_data=json.dumps(
-            {'type': 'location', 'lat': event['lat'], 'lng': event['lng'], 'status': event.get('status')}
-        ))
+        await self.send(text_data=json.dumps({
+            'type': 'location',
+            'lat': event.get('lat'),
+            'lng': event.get('lng'),
+            'status': event.get('status'),
+            'sender': event.get('sender', ''),
+        }))
 
     async def chat_message(self, event):
-        await self.send(text_data=json.dumps(
-            {'type': 'chat', 'message': event['message'], 'sender': event['sender']}
-        ))
+        await self.send(text_data=json.dumps({
+            'type': 'chat',
+            'message': event.get('message', ''),
+            'sender': event.get('sender', ''),
+        }))
 
     async def ride_status_update(self, event):
-        await self.send(text_data=json.dumps(
-            {'type': 'status_update', 'status': event['status'], 'data': event.get('data')}
-        ))
+        await self.send(text_data=json.dumps({
+            'type': 'status_update',
+            'status': event.get('status'),
+            'data': event.get('data'),
+        }))
 
 
 class AdminConsumer(AsyncWebsocketConsumer):
