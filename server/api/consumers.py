@@ -344,14 +344,15 @@ class SystemConsumer(AsyncWebsocketConsumer):
             'search_radius_km': float(ride.search_radius_km) if hasattr(ride, 'search_radius_km') and ride.search_radius_km else 3.0,
         }
 
-        # Fetch online, verified, not currently on a ride
+        # Fetch online, verified, active, not currently on a ride
         drivers = User.objects.filter(
             role='driver',
             is_online=True,
-            is_verified=True,
+            is_verified_driver=True,
+            is_active=True,
         ).exclude(
             # Exclude drivers already assigned to an active ride
-            driver_rides__status__in=['accepted', 'on_route']
+            assigned_rides__status__in=['accepted', 'on_route']
         ).values('id', 'username', 'last_lat', 'last_lng')
 
         return ride_data, list(drivers)

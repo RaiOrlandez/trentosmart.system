@@ -313,9 +313,9 @@ def get_admin_dashboard_stats(request):
 
     # ── KPI Stats ────────────────────────────────────────────────────────
     stats = {
-        'drivers': User.objects.filter(role='driver').count(),
-        'onlineDrivers': User.objects.filter(role='driver', is_online=True).count(),
-        'onlinePassengers': User.objects.filter(role='passenger', is_online=True).count(),
+        'drivers': User.objects.filter(role='driver', is_active=True).count(),
+        'onlineDrivers': User.objects.filter(role='driver', is_online=True, is_active=True).count(),
+        'onlinePassengers': User.objects.filter(role='passenger', is_online=True, is_active=True).count(),
         'activeRides': Ride.objects.filter(status__in=['requested', 'accepted', 'on_route']).count(),
         'totalRidesToday': Ride.objects.filter(requested_at__gte=today_start).count(),
         'completedToday': Ride.objects.filter(status='completed', completed_at__gte=today_start).count(),

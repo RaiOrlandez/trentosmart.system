@@ -640,7 +640,7 @@ class ConfirmEmailChangeView(APIView):
             return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by('-date_joined')
+    queryset = User.objects.filter(is_active=True).order_by('-date_joined')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
@@ -649,9 +649,15 @@ class UserViewSet(viewsets.ModelViewSet):
         # Using self.queryset directly can return a cached, stale result which
         # causes "No User matches the given query" errors on delete/update.
         if self.request.user.role == 'admin':
-            return User.objects.all().order_by('-date_joined')
+            return User.objects.filter(is_active=True).order_by('-date_joined')
         # Users can only see themselves (though usually handled by ProfileView)
-        return User.objects.filter(id=self.request.user.id).order_by('-date_joined')
+        return User.objects.filter(id=self.request.user.id, is_active=True).order_by('-date_joined')
+
+    def perform_destroy(self, instance):
+        # Soft-delete: deactivate user account to preserve historical transactions, rides and audits
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
+
 
     def destroy(self, request, *args, **kwargs):
         try:
