@@ -32,8 +32,28 @@ class ErrorBoundary extends React.Component {
 
     componentDidCatch(error, errorInfo) {
         this.setState({ errorInfo });
-        // In production you could log this to Sentry / Firebase Crashlytics here:
         console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+
+        // Auto-reload on ChunkLoadError (e.g. from code updates)
+        const isChunkError = error && (
+            error.name === 'ChunkLoadError' ||
+            (error.message && /chunk/i.test(error.message)) ||
+            (error.message && /loading.*failed/i.test(error.message))
+        );
+
+        if (isChunkError) {
+            const lastReload = sessionStorage.getItem('last_chunk_reload');
+            const now = Date.now();
+
+            // Prevent infinite reload loops (only reload if last one was > 10 seconds ago)
+            if (!lastReload || (now - parseInt(lastReload, 10)) > 10000) {
+                sessionStorage.setItem('last_chunk_reload', now.toString());
+                console.warn('[ErrorBoundary] Chunk load failed. Force reloading to get latest build assets...');
+                window.location.reload();
+            } else {
+                console.error('[ErrorBoundary] Chunk load failed repeatedly within 10s. Showing error fallback.');
+            }
+        }
     }
 
     handleReset = () => {
