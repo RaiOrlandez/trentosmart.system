@@ -142,6 +142,16 @@ const VerifyEmail = () => {
                             ))}
                         </div>
 
+                        {/* Demo/Capstone bypass tip */}
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-left">
+                            <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                <Zap size={12} className="fill-current animate-pulse" /> Demo Mode Tip
+                            </p>
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-normal">
+                                If you didn't receive the OTP email (due to missing Railway environment variable API keys), you can enter the demo bypass code: <span className="font-black text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/25">123456</span>.
+                            </p>
+                        </div>
+
                         {error && (
                             <p className="text-sm font-bold text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-xl italic">
                                 {error}
