@@ -760,7 +760,7 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-bold text-secondary dark:text-white mb-2">LGU Revenue</h3>
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Fund Distribution</p>
             <div className="flex-1 w-full min-h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={revenueData}

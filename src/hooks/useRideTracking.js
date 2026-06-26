@@ -14,7 +14,14 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
 
         const wsBase = process.env.REACT_APP_WS_BASE || 'ws://127.0.0.1:8000/ws';
         // For guests, we use the shareToken in the query string if available
-        const token = isGuest ? shareToken : localStorage.getItem('access');
+        const token = isGuest ? shareToken : localStorage.getItem('token');
+        
+        if (!isGuest && (!token || token === 'null' || token === 'undefined')) {
+            console.warn("No valid authentication token found for ride tracking. Skipping connection.");
+            setConnected(false);
+            return;
+        }
+
         const socketUrl = `${wsBase}/ride/${rideId}/?token=${token}${isGuest ? '&guest=true' : ''}`;
 
         console.log(`Connecting to ride socket: ${socketUrl}`);

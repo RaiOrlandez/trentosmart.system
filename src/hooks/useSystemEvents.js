@@ -9,7 +9,7 @@ const useSystemEvents = () => {
     const socketRef = useRef(null);
 
     useEffect(() => {
-        const token = localStorage.getItem('access');
+        const token = localStorage.getItem('token');
         if (!token) return; // Wait until authenticated
 
         const apiBase = process.env.REACT_APP_API_BASE || 'http://127.0.0.1:8000/api';
