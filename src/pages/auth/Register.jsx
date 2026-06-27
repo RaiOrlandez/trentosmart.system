@@ -29,11 +29,14 @@ const Register = () => {
   // Availability states
   const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid, bad_domain
   const [emailErrorMsg, setEmailErrorMsg] = useState('');
-  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken
+  const [usernameStatus, setUsernameStatus] = useState('idle'); // idle, checking, available, taken, invalid
+  const [usernameErrorMsg, setUsernameErrorMsg] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState(0); // 0-4
+  const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
   const [dobStatus, setDobStatus] = useState('idle'); // idle, valid, invalid
   const [dobErrorMsg, setDobErrorMsg] = useState('');
 
-  const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && password === confirmPassword;
+  const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && passwordStrength >= 3 && password === confirmPassword;
   const canGoNextStep2 = phoneNumber && dobStatus === 'valid' && gender;
 
   // Whitelist of trusted email domains
@@ -103,16 +106,55 @@ const Register = () => {
 
   // Real-time Username Check
   useEffect(() => {
-    if (!username || username.length < 3) {
+    if (!username) {
       setUsernameStatus('idle');
+      setUsernameErrorMsg('');
+      return;
+    }
+
+    // Professional username validation
+    // - Only alphanumeric characters and underscores
+    // - 3-20 characters
+    // - Must start with a letter
+    // - No consecutive underscores
+    const usernameRegex = /^[a-zA-Z][a-zA-Z0-9_]{2,19}$/;
+    const consecutiveUnderscoreRegex = /__+/;
+
+    if (username.length < 3) {
+      setUsernameStatus('invalid');
+      setUsernameErrorMsg('Username must be at least 3 characters');
+      return;
+    }
+
+    if (username.length > 20) {
+      setUsernameStatus('invalid');
+      setUsernameErrorMsg('Username must be 20 characters or less');
+      return;
+    }
+
+    if (!usernameRegex.test(username)) {
+      setUsernameStatus('invalid');
+      setUsernameErrorMsg('Username must start with a letter and contain only letters, numbers, and underscores');
+      return;
+    }
+
+    if (consecutiveUnderscoreRegex.test(username)) {
+      setUsernameStatus('invalid');
+      setUsernameErrorMsg('Username cannot contain consecutive underscores');
       return;
     }
 
     const timer = setTimeout(async () => {
       setUsernameStatus('checking');
+      setUsernameErrorMsg('');
       try {
         const res = await api.get(`/auth/check-username/?username=${username}`);
-        setUsernameStatus(res.data.available ? 'available' : 'taken');
+        if (res.data.available) {
+          setUsernameStatus('available');
+        } else {
+          setUsernameStatus('taken');
+          setUsernameErrorMsg('Username already taken');
+        }
       } catch (err) {
         setUsernameStatus('idle');
       }
@@ -163,6 +205,46 @@ const Register = () => {
     }
   }, [dateOfBirth, role]);
 
+  // Password Strength Checker
+  useEffect(() => {
+    if (!password) {
+      setPasswordStrength(0);
+      setPasswordErrorMsg('');
+      return;
+    }
+
+    let strength = 0;
+    const errors = [];
+
+    // Length check
+    if (password.length >= 8) strength += 1;
+    else errors.push('at least 8 characters');
+
+    // Uppercase check
+    if (/[A-Z]/.test(password)) strength += 1;
+    else errors.push('one uppercase letter');
+
+    // Lowercase check
+    if (/[a-z]/.test(password)) strength += 1;
+    else errors.push('one lowercase letter');
+
+    // Number check
+    if (/[0-9]/.test(password)) strength += 1;
+    else errors.push('one number');
+
+    // Special character check
+    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
+    else errors.push('one special character');
+
+    setPasswordStrength(strength);
+    
+    if (strength < 3) {
+      setPasswordErrorMsg(`Password must contain ${errors.slice(0, 2).join(', ')}${errors.length > 2 ? '...' : ''}`);
+    } else {
+      setPasswordErrorMsg('');
+    }
+  }, [password]);
+
   const handleDateChange = (e) => {
     let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
     if (value.length > 8) value = value.slice(0, 8); // Max 8 digits
@@ -180,8 +262,8 @@ const Register = () => {
     setMessage(null);
     setError(null);
 
-    if (usernameStatus === 'taken') {
-      setError('This username is already taken');
+    if (usernameStatus === 'taken' || usernameStatus === 'invalid') {
+      setError(usernameErrorMsg || 'Invalid username');
       return;
     }
 
@@ -334,9 +416,9 @@ const Register = () => {
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
                     {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
                     {usernameStatus === 'available' && <Check className="w-4 h-4 text-green-500" />}
-                    {usernameStatus === 'taken' && <XCircle className="w-4 h-4 text-red-500" />}
+                    {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <XCircle className="w-4 h-4 text-red-500" />}
                   </div>
-                  {usernameStatus === 'taken' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">Username taken</p>}
+                  {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">{usernameErrorMsg}</p>}
                 </div>
 
                 <div className="relative">
@@ -362,11 +444,18 @@ const Register = () => {
                     <input
                       type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
                       placeholder="Password"
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-12 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-medium text-slate-900 dark:text-white ${passwordStrength < 3 && password ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
+                    {password && (
+                      <div className="absolute -bottom-6 left-0 right-0 flex gap-1">
+                        {[1, 2, 3, 4, 5].map(i => (
+                          <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= passwordStrength ? (passwordStrength <= 2 ? 'bg-red-500' : passwordStrength <= 3 ? 'bg-yellow-500' : 'bg-green-500') : 'bg-slate-200 dark:bg-slate-700'}`} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -381,6 +470,9 @@ const Register = () => {
                     {confirmPassword && password !== confirmPassword && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">Passwords do not match</p>}
                   </div>
                 </div>
+                {password && passwordStrength < 3 && (
+                  <p className="text-[10px] text-red-500 font-bold mt-6 ml-2">{passwordErrorMsg}</p>
+                )}
               </motion.div>
             )}
 
