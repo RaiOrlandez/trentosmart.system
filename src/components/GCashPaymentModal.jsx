@@ -28,6 +28,7 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
     const now = new Date();
     return `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
   });
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Reset to intro when modal opens
   React.useEffect(() => {
@@ -40,14 +41,25 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
   const handleProceed = async () => {
     setStep('redirecting');
     setErrorMsg('');
+    setIsRetrying(false);
 
     try {
+      // Add timeout for API call
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       const res = await api.post('/payments/gcash/create-source/', {
         amount: parseFloat(amount),
         ride_id: rideId || null
-      });
+      }, { signal: controller.signal });
+
+      clearTimeout(timeoutId);
 
       const { checkout_url, source_id } = res.data;
+
+      if (!checkout_url) {
+        throw new Error('Payment gateway did not return a checkout URL');
+      }
 
       // Store source_id so we can verify on return
       sessionStorage.setItem('gcash_source_id', source_id);
@@ -63,7 +75,18 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
       window.location.href = checkout_url;
 
     } catch (err) {
-      const detail = err.response?.data?.detail || 'Could not connect to GCash. Please try again.';
+      let detail = 'Could not connect to GCash. Please try again.';
+      
+      if (err.name === 'AbortError') {
+        detail = 'Connection timeout. Please check your internet and try again.';
+      } else if (err.response?.data?.detail) {
+        detail = err.response.data.detail;
+      } else if (err.response?.data?.error) {
+        detail = err.response.data.error;
+      } else if (err.message) {
+        detail = err.message;
+      }
+      
       setErrorMsg(detail);
       setStep('error');
     }
@@ -216,9 +239,10 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
                   </div>
                   <button
                     onClick={() => setStep('intro')}
-                    className="w-full bg-[#007DFE] text-white font-black py-4 rounded-[1.5rem] transition-all active:scale-95"
+                    disabled={isRetrying}
+                    className="w-full bg-[#007DFE] text-white font-black py-4 rounded-[1.5rem] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Try Again
+                    {isRetrying ? 'Retrying...' : 'Try Again'}
                   </button>
                   <button
                     onClick={onClose}

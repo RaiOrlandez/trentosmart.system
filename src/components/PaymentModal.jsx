@@ -3,22 +3,37 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CreditCard, CheckCircle, X, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
 import api from '../api/axios';
 
-const PaymentModal = ({ isOpen, onClose, amount, method, onComplete }) => {
+const PaymentModal = ({ isOpen, onClose, amount, method, onComplete, onGCashPayment }) => {
     const [step, setStep] = useState('confirm'); // confirm, processing, success, error
     const [errorMsg, setErrorMsg] = useState('');
 
     const handlePay = async () => {
-        setStep('processing');
+        if (method === 'gcash') {
+            // Trigger GCash payment flow via parent component
+            if (onGCashPayment) {
+                onGCashPayment();
+            }
+            onClose();
+            return;
+        }
 
-        // Simulate external gateway
-        setTimeout(() => {
+        // For cash payments, proceed directly
+        setStep('processing');
+        
+        try {
+            // Simulate processing time for cash payment
+            await new Promise(resolve => setTimeout(resolve, 1500));
             setStep('success');
-        }, 2000);
+        } catch (err) {
+            setErrorMsg('Payment processing failed. Please try again.');
+            setStep('error');
+        }
     };
 
     const handleFinish = () => {
         onComplete();
         setStep('confirm');
+        onClose();
     };
 
     if (!isOpen) return null;
@@ -64,14 +79,15 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete }) => {
 
                             <button
                                 onClick={handlePay}
-                                className={`w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all active:scale-95 ${method === 'gcash' ? 'bg-blue-600 hover:bg-blue-700' :
+                                className={`w-full py-4 rounded-2xl font-black text-white shadow-xl transition-all active:scale-95 ${method === 'gcash' ? 'bg-[#007DFE] hover:bg-[#005ECB]' :
                                     'bg-secondary hover:bg-slate-800'
                                     }`}
                             >
-                                {method === 'gcash' ? 'Proceed to GCash' : 'Confirm Cash Payment'}
+                                {method === 'gcash' ? 'Continue to GCash' : 'Confirm Cash Payment'}
                             </button>
                             <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                <ShieldCheck size={14} className="text-green-500" /> Secure Encryption Active
+                                <ShieldCheck size={14} className="text-green-500" /> 
+                                {method === 'gcash' ? '256-bit SSL Encrypted via PayMongo' : 'Secure Transaction'}
                             </div>
                         </div>
                     )}

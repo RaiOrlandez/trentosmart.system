@@ -93,20 +93,31 @@ const Wallet = () => {
 
     const handleTopUp = async (e) => {
         e.preventDefault();
-        if (!topUpAmount || parseFloat(topUpAmount) <= 0) return;
+        const amount = parseFloat(topUpAmount);
+        
+        // Professional amount validation
+        if (!amount || amount <= 0) {
+            setMsg({ type: 'error', text: 'Please enter a valid amount greater than ₱0' });
+            return;
+        }
+        
+        if (amount < 50) {
+            setMsg({ type: 'error', text: 'Minimum top-up amount is ₱50' });
+            return;
+        }
+        
+        if (amount > 50000) {
+            setMsg({ type: 'error', text: 'Maximum top-up amount is ₱50,000' });
+            return;
+        }
 
         // Show GCash payment modal instead of direct top-up
         setShowTopUp(false);
         setShowGCashTopUp(true);
+        setMsg({ type: '', text: '' });
     };
 
     const handleGCashTopUpSuccess = async (transactionRef) => {
-        console.log('GCash payment successful, processing top-up...', {
-            transactionRef,
-            topUpAmount,
-            parsedAmount: parseFloat(topUpAmount)
-        });
-
         setIsProcessing(true);
         setMsg({ type: '', text: '' });
 
@@ -117,21 +128,18 @@ const Wallet = () => {
                 throw new Error('Invalid amount');
             }
 
-            console.log('Calling API with amount:', amountToSend);
-
             // Call the standard wallet top-up endpoint
             const res = await api.post('/wallet/topup/', {
-                amount: amountToSend
+                amount: amountToSend,
+                reference: transactionRef
             });
-
-            console.log('API response:', res.data);
 
             setBalance(res.data.balance);
             setShowGCashTopUp(false);
             setTopUpAmount('');
             setMsg({
                 type: 'success',
-                text: `Successfully added ₱${amountToSend} to your wallet via GCash! Ref: ${transactionRef}`
+                text: `Successfully added ₱${amountToSend.toFixed(2)} to your wallet! Ref: ${transactionRef.slice(0, 8)}...`
             });
 
             // Refresh transaction history
@@ -139,17 +147,11 @@ const Wallet = () => {
                 fetchWalletData();
             }, 500);
         } catch (err) {
-            console.error('Top-up error details:', {
-                error: err,
-                response: err.response?.data,
-                status: err.response?.status,
-                message: err.message
-            });
-
+            const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment processing failed';
             setShowGCashTopUp(false);
             setMsg({
                 type: 'error',
-                text: `Failed to top-up wallet. Please try again or contact support. Error: ${err.message}`
+                text: `Failed to process top-up: ${errorMsg}. Please try again.`
             });
         } finally {
             setIsProcessing(false);
@@ -292,10 +294,13 @@ const Wallet = () => {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-4 gap-3">
                                     <button type="button" onClick={() => setTopUpAmount('100')} className="py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-100 transition-all">₱100</button>
                                     <button type="button" onClick={() => setTopUpAmount('500')} className="py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-100 transition-all">₱500</button>
+                                    <button type="button" onClick={() => setTopUpAmount('1000')} className="py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-100 transition-all">₱1,000</button>
+                                    <button type="button" onClick={() => setTopUpAmount('2000')} className="py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-100 transition-all">₱2,000</button>
                                 </div>
+                                <p className="text-[9px] text-slate-400 text-center">Min: ₱50 | Max: ₱50,000</p>
 
                                 <div className="pt-4 space-y-3">
                                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Payment Method</p>
