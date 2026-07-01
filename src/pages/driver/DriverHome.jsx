@@ -45,13 +45,13 @@ import LocationPermissionModal from '../../components/LocationPermissionModal';
 const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
 
 const DriverHome = () => {
-  const { user } = React.useContext(AuthContext);
+  const { user, getProfile } = React.useContext(AuthContext);
   const [requests, setRequests] = useState([]);
   const [markers, setMarkers] = useState([]);
   const [driverPos, setDriverPos] = useState(null);
   const [isOnline, setIsOnline] = useState(false);
-  const [earnings, setEarnings] = useState(1250);
-  const [tripsCount, setTripsCount] = useState(14);
+  const [todayEarnings, setTodayEarnings] = useState(0);
+  const [tripsCount, setTripsCount] = useState(0);
   const [activeRide, setActiveRide] = useState(null);
   const [broadcasts, setBroadcasts] = useState([]);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -112,10 +112,23 @@ const DriverHome = () => {
     }
   }, []);
 
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const res = await api.get('/driver/analytics/');
+      setTodayEarnings(res.data.today || 0);
+      setTripsCount(res.data.trips_count || 0);
+    } catch (err) {
+      console.error('Failed to fetch driver analytics', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBroadcasts();
     fetchMaintenanceLogs();
-  }, [fetchBroadcasts, fetchMaintenanceLogs]);
+    if (user && user.role === 'driver') {
+      fetchAnalytics();
+    }
+  }, [fetchBroadcasts, fetchMaintenanceLogs, fetchAnalytics, user?.id, user?.role]);
 
   useEffect(() => {
     if (user && user.is_online !== undefined) {
@@ -397,8 +410,10 @@ const DriverHome = () => {
       // Use server response for earnings if available, else fallback to local calc
       const gainedEarnings = data.driver_earnings ? parseFloat(data.driver_earnings) : parseFloat(activeRide.fare);
 
-      setEarnings(prev => prev + gainedEarnings);
+      setTodayEarnings(prev => prev + gainedEarnings);
       setTripsCount(prev => prev + 1);
+      if (getProfile) getProfile();
+      fetchAnalytics();
       setCompletedRideId(currentRideId);
       setCompletedPassengerName(passengerName);
 
@@ -635,7 +650,7 @@ const DriverHome = () => {
             <div className="mb-6">
               <h4 className="text-xs font-black uppercase tracking-widest opacity-60 mb-1">Daily Earnings Goal</h4>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black italic">₱{earnings.toLocaleString()}</span>
+                <span className="text-3xl font-black italic">₱{todayEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 <span className="text-sm font-bold opacity-40">/ ₱{dailyGoal.toLocaleString()}</span>
               </div>
             </div>
@@ -643,19 +658,19 @@ const DriverHome = () => {
             <div className="space-y-2">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                 <span>Progress</span>
-                <span>{Math.round((earnings / dailyGoal) * 100)}%</span>
+                <span>{Math.round((todayEarnings / dailyGoal) * 100)}%</span>
               </div>
               <div className="h-2 bg-white/5 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${Math.min((earnings / dailyGoal) * 100, 100)}%` }}
+                  animate={{ width: `${Math.min((todayEarnings / dailyGoal) * 100, 100)}%` }}
                   className="h-full bg-primary shadow-[0_0_15px_rgba(255,215,0,0.5)]"
                 />
               </div>
             </div>
 
             <p className="mt-6 text-[10px] font-bold text-slate-400 italic">
-              {earnings >= dailyGoal ? "🎉 Goal reached! Keep crushing it." : `Only ₱${(dailyGoal - earnings).toLocaleString()} away from your goal.`}
+              {todayEarnings >= dailyGoal ? "🎉 Goal reached! Keep crushing it." : `Only ₱${(dailyGoal - todayEarnings).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} away from your goal.`}
             </p>
           </motion.div>
 
@@ -738,7 +753,9 @@ const DriverHome = () => {
                   <p className="text-[10px] text-slate-500 font-bold uppercase">Earnings</p>
                   <TrendingUp size={12} className="text-slate-300 group-hover:text-primary transition-colors" />
                 </div>
-                <p className="text-xl font-black text-secondary">₱{earnings}</p>
+                <p className="text-xl font-black text-secondary">
+                  ₱{user?.wallet_balance !== undefined ? parseFloat(user.wallet_balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                </p>
               </Link>
               <Link to="/driver/reviews" className="bg-slate-50 p-4 rounded-2xl border border-slate-100 block hover:border-primary transition-colors group">
                 <div className="flex items-center justify-between mb-1">
