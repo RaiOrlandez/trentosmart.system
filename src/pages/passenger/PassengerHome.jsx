@@ -47,11 +47,11 @@ const PassengerHome = () => {
   const [status, setStatus] = useState('idle');
   const [markers, setMarkers] = useState([]);
   const [fare, setFare] = useState(0);
-  const [nearbyDrivers, setNearbyDrivers] = useState(8);
+  const [nearbyDrivers, setNearbyDrivers] = useState(0);
   const [showSOS, setShowSOS] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [passengerCount, setPassengerCount] = useState(1);
-  const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1, isSurge: false });
+  const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1.0, isSurge: false });
   const [showPayment, setShowPayment] = useState(false);
   const [showGCashPayment, setShowGCashPayment] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -79,6 +79,33 @@ const PassengerHome = () => {
   const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
   const [showFallbackButton, setShowFallbackButton] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+
+  // Fetch real system configuration fare policies on load
+  useEffect(() => {
+    const fetchSystemConfig = async () => {
+      try {
+        const res = await api.get('/system-config/');
+        const configList = Array.isArray(res.data) ? res.data : (res.data.results || []);
+        
+        const baseFareObj = configList.find(c => c.key === 'base_fare');
+        const ratePerKmObj = configList.find(c => c.key === 'rate_per_km');
+        const surgeObj = configList.find(c => c.key === 'surge_multiplier');
+        
+        const base = baseFareObj ? parseFloat(baseFareObj.value) : 30;
+        const perKm = ratePerKmObj ? parseFloat(ratePerKmObj.value) : 8;
+        const multiplier = surgeObj ? parseFloat(surgeObj.value) : 1.0;
+
+        setFareParams({ base, perKm });
+        setSurgeInfo({
+          multiplier,
+          isSurge: multiplier > 1.0
+        });
+      } catch (err) {
+        console.error('Failed to fetch system config in PassengerHome:', err);
+      }
+    };
+    fetchSystemConfig();
+  }, []);
   // ── Real-time GPS tracking (falls back to Trento ADS demo if denied) ────────
   const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
 

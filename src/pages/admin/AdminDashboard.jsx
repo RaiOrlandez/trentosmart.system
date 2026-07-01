@@ -88,9 +88,7 @@ const AdminDashboard = () => {
     } catch (e) {
       console.error('Failed to parse live alerts', e);
     }
-    return [
-      { time: '2h ago', type: 'System', msg: 'Map tile update completed.' },
-    ];
+    return [];
   });
 
   useEffect(() => {

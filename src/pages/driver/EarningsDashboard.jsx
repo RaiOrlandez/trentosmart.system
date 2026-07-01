@@ -31,16 +31,16 @@ const EarningsDashboard = () => {
     const [timeRange, setTimeRange] = useState('week'); // 'day', 'week', 'month'
     const [trips, setTrips] = useState([]);
     const [stats, setStats] = useState({
-        today: 1250,
-        week: 8750,
-        month: 32400,
-        total: 156800,
-        trips_today: 14,
-        trips_week: 87,
-        trips_month: 324,
-        avg_fare: 95,
-        highest_fare: 450,
-        commission_rate: 15
+        today: 0,
+        week: 0,
+        month: 0,
+        total: 0,
+        trips_today: 0,
+        trips_week: 0,
+        trips_month: 0,
+        avg_fare: 0,
+        highest_fare: 0,
+        commission_rate: 5
     });
     const [chartData, setChartData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -68,13 +68,18 @@ const EarningsDashboard = () => {
             const analyticsRes = await api.get('/driver/analytics/');
             const data = analyticsRes.data;
 
-            setStats(prev => ({
-                ...prev,
+            setStats({
                 today: data.today || 0,
                 week: data.week || 0,
+                month: data.month || 0,
                 total: data.total || 0,
-                trips_today: data.trips_count || 0, // In real app, might want trips_today specifically
-            }));
+                trips_today: data.trips_today || 0,
+                trips_week: data.trips_week || 0,
+                trips_month: data.trips_month || 0,
+                avg_fare: data.avg_fare || 0,
+                highest_fare: data.highest_fare || 0,
+                commission_rate: data.commission_rate || 5
+            });
 
             if (data.chart_data) {
                 setChartData(data.chart_data);
@@ -109,12 +114,6 @@ const EarningsDashboard = () => {
         }
     };
 
-    const earningsBreakdown = [
-        { name: 'Base Fares', value: stats.today * 0.35, color: '#FFD700' },
-        { name: 'Distance Charges', value: stats.today * 0.50, color: '#1e293b' },
-        { name: 'Surge Pricing', value: stats.today * 0.15, color: '#10b981' }
-    ];
-
     const getCurrentEarnings = () => {
         switch (timeRange) {
             case 'day': return stats.today;
@@ -132,6 +131,12 @@ const EarningsDashboard = () => {
             default: return stats.trips_week;
         }
     };
+
+    const currentEarnings = getCurrentEarnings();
+    const earningsBreakdown = [
+        { name: 'Base Fares', value: currentEarnings * 0.70, color: '#FFD700' },
+        { name: 'Distance Charges', value: currentEarnings * 0.30, color: '#1e293b' }
+    ];
 
     if (loading) {
         return (
@@ -221,7 +226,7 @@ const EarningsDashboard = () => {
                             <Wallet size={28} />
                         </div>
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mb-1">Net Income</p>
-                        <h2 className="text-4xl font-black text-secondary dark:text-white">₱{(getCurrentEarnings() * 0.85).toLocaleString()}</h2>
+                        <h2 className="text-4xl font-black text-secondary dark:text-white">₱{(getCurrentEarnings() * (1 - stats.commission_rate / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">After {stats.commission_rate}% commission</p>
                     </motion.div>
 

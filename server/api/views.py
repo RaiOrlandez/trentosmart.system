@@ -1625,12 +1625,30 @@ class DriverAnalyticsView(APIView):
         # Calculate earnings
         today = timezone.now().date()
         week_start = today - timezone.timedelta(days=today.weekday())
+        month_start = today.replace(day=1)
         
         rides = Ride.objects.filter(driver=request.user, status='completed')
         
-        today_earnings = sum(r.driver_earnings for r in rides.filter(completed_at__date=today)) if rides.exists() else 0
-        week_earnings = sum(r.driver_earnings for r in rides.filter(completed_at__date__gte=week_start)) if rides.exists() else 0
+        today_rides = rides.filter(completed_at__date=today)
+        week_rides = rides.filter(completed_at__date__gte=week_start)
+        month_rides = rides.filter(completed_at__date__gte=month_start)
+        
+        today_earnings = sum(r.driver_earnings for r in today_rides) if today_rides.exists() else 0
+        week_earnings = sum(r.driver_earnings for r in week_rides) if week_rides.exists() else 0
+        month_earnings = sum(r.driver_earnings for r in month_rides) if month_rides.exists() else 0
         total_earnings = sum(r.driver_earnings for r in rides) if rides.exists() else 0
+        
+        trips_today = today_rides.count()
+        trips_week = week_rides.count()
+        trips_month = month_rides.count()
+        
+        total_fare_sum = sum(r.fare for r in rides) if rides.exists() else 0
+        avg_fare = float(total_fare_sum / rides.count()) if rides.exists() else 0.0
+        
+        highest_fare = float(max(r.fare for r in rides)) if rides.exists() else 0.0
+        
+        commission_rate_config = SystemConfig.objects.filter(key='lgu_commission_rate').first()
+        commission_rate = float(commission_rate_config.value) if commission_rate_config else 5.0
         
         # Last 7 days chart data
         chart_data = []
@@ -1645,8 +1663,15 @@ class DriverAnalyticsView(APIView):
         return Response({
             'today': float(today_earnings),
             'week': float(week_earnings),
+            'month': float(month_earnings),
             'total': float(total_earnings),
             'trips_count': rides.count(),
+            'trips_today': trips_today,
+            'trips_week': trips_week,
+            'trips_month': trips_month,
+            'avg_fare': avg_fare,
+            'highest_fare': highest_fare,
+            'commission_rate': commission_rate,
             'chart_data': chart_data
         })
 
