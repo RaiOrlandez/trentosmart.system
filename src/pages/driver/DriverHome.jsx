@@ -1421,19 +1421,117 @@ const GCashVerifyModal = ({ isOpen, onClose, amount, refNo }) => (
 );
 
 const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [captured, setCaptured] = useState(false);
+  const videoRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+
+  const [phase, setPhase] = useState('preview'); // 'preview' | 'captured' | 'confirming' | 'error'
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
+
+  // Start camera when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setPhase('preview');
+    setCapturedImage(null);
+    setErrorMsg('');
+    setCameraReady(false);
+
+    const startCamera = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false,
+        });
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play();
+            setCameraReady(true);
+          };
+        }
+      } catch (err) {
+        console.error('Camera access denied:', err);
+        if (err.name === 'NotAllowedError') {
+          setErrorMsg('Camera access was denied. Please allow camera access in your browser settings and try again.');
+        } else if (err.name === 'NotFoundError') {
+          setErrorMsg('No camera found on this device.');
+        } else {
+          setErrorMsg(`Camera error: ${err.message}`);
+        }
+        setPhase('error');
+      }
+    };
+
+    startCamera();
+
+    // Cleanup: stop camera tracks when modal closes
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [isOpen]);
 
   const handleCapture = () => {
-    setIsCapturing(true);
+    if (!videoRef.current || !canvasRef.current || !cameraReady) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+
+    // Mirror the image so it looks natural (front camera)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    setCapturedImage(dataUrl);
+    setPhase('captured');
+
+    // Stop camera preview after capture to save resources
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const handleRetake = async () => {
+    setCapturedImage(null);
+    setPhase('preview');
+    setCameraReady(false);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play();
+          setCameraReady(true);
+        };
+      }
+    } catch (err) {
+      setErrorMsg('Failed to restart camera.');
+      setPhase('error');
+    }
+  };
+
+  const handleConfirm = () => {
+    setPhase('confirming');
+    // Small delay for UX feedback before proceeding
     setTimeout(() => {
-      setIsCapturing(false);
-      setCaptured(true);
-      setTimeout(() => {
-        setCaptured(false);
-        onVerify();
-      }, 1000);
-    }, 2000);
+      onVerify();
+    }, 800);
   };
 
   if (!isOpen) return null;
@@ -1444,53 +1542,153 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"
+          onClick={phase !== 'confirming' ? onClose : undefined}
         />
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 50 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 50 }}
-          className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20 p-8 text-center"
+          className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20"
         >
-          <div className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 cursor-pointer z-50" onClick={onClose}>
-            <X size={24} />
+          {/* Header */}
+          <div className="px-8 pt-8 pb-4 text-center relative">
+            {phase !== 'confirming' && (
+              <button className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 cursor-pointer z-50" onClick={onClose}>
+                <X size={24} />
+              </button>
+            )}
+            <div className="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Camera size={28} />
+            </div>
+            <h3 className="text-xl font-black text-secondary mb-1">Driver Liveness Check</h3>
+            <p className="text-xs text-slate-500 font-medium">
+              {phase === 'preview' && 'Position your face in the circle and take a selfie.'}
+              {phase === 'captured' && 'Looking good! Confirm to proceed online.'}
+              {phase === 'confirming' && 'Verifying your identity...'}
+              {phase === 'error' && 'Camera unavailable'}
+            </p>
           </div>
-          <div className="w-20 h-20 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
-            <Camera size={40} />
-          </div>
-          <h3 className="text-2xl font-black text-secondary mb-2">Driver Liveness Check</h3>
-          <p className="text-sm text-slate-500 mb-8">Please take a quick selfie to verify your identity before going online.</p>
 
-          <div className="w-48 h-48 bg-slate-100 rounded-full mx-auto mb-8 relative overflow-hidden border-4 border-slate-200 flex items-center justify-center shadow-inner">
-            {isCapturing ? (
-              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center backdrop-blur-sm">
-                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : captured ? (
-              <div className="absolute inset-0 bg-green-500 flex items-center justify-center text-white">
-                <Check size={48} />
+          {/* Camera / Preview Area */}
+          <div className="px-8 pb-6">
+            {phase === 'error' ? (
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div className="w-20 h-20 bg-red-50 text-red-400 rounded-full flex items-center justify-center">
+                  <Camera size={36} />
+                </div>
+                <p className="text-sm text-red-500 font-medium">{errorMsg}</p>
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm"
+                >
+                  Close
+                </button>
               </div>
             ) : (
-              <div className="text-slate-300">
-                <Camera size={48} />
-              </div>
-            )}
-          </div>
+              <>
+                {/* Camera Viewport */}
+                <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden bg-slate-900 mb-6 shadow-inner border-4 border-slate-100">
+                  {/* Live video (shown in preview phase) */}
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    autoPlay
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                      phase === 'preview' ? (cameraReady ? 'opacity-100' : 'opacity-0') : 'opacity-0'
+                    }`}
+                    style={{ transform: 'scaleX(-1)' }} /* Mirror video for natural selfie feel */
+                  />
 
-          <div className="flex gap-4">
-            <button
-              onClick={onClose}
-              disabled={isCapturing || captured}
-              className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCapture}
-              disabled={isCapturing || captured}
-              className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] transition-all shadow-lg disabled:opacity-50"
-            >
-              {isCapturing ? 'Verifying...' : captured ? 'Verified!' : 'Take Selfie'}
-            </button>
+                  {/* Loading spinner while camera boots */}
+                  {phase === 'preview' && !cameraReady && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-slate-400 font-bold">Starting camera...</p>
+                    </div>
+                  )}
+
+                  {/* Captured snapshot */}
+                  {phase === 'captured' && capturedImage && (
+                    <img
+                      src={capturedImage}
+                      alt="Selfie"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  )}
+
+                  {/* Confirming overlay */}
+                  {phase === 'confirming' && (
+                    <div className="absolute inset-0 bg-secondary/80 flex flex-col items-center justify-center gap-3">
+                      {capturedImage && (
+                        <img src={capturedImage} alt="Selfie" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                      )}
+                      <div className="relative z-10 flex flex-col items-center gap-3">
+                        <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center shadow-xl animate-pulse">
+                          <ShieldCheck size={28} className="text-secondary" />
+                        </div>
+                        <p className="text-white font-black text-sm uppercase tracking-widest">Verifying...</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Face guide overlay ring */}
+                  {(phase === 'preview' && cameraReady) && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-48 h-48 border-4 border-primary/60 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                    </div>
+                  )}
+
+                  {/* Captured check badge */}
+                  {phase === 'captured' && (
+                    <div className="absolute top-3 right-3 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                      <Check size={20} className="text-white" strokeWidth={3} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Hidden canvas for snapshot */}
+                <canvas ref={canvasRef} className="hidden" />
+
+                {/* Action Buttons */}
+                {phase === 'preview' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={onClose}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleCapture}
+                      disabled={!cameraReady}
+                      className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Camera size={16} />
+                      Take Selfie
+                    </button>
+                  </div>
+                )}
+
+                {phase === 'captured' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleRetake}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                    >
+                      Retake
+                    </button>
+                    <button
+                      onClick={handleConfirm}
+                      className="flex-[2] py-4 bg-green-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-green-200 flex items-center justify-center gap-2"
+                    >
+                      <ShieldCheck size={16} />
+                      Go Online
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </motion.div>
       </div>
