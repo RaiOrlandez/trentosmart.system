@@ -52,15 +52,18 @@ api.interceptors.response.use(
           // Retry the original request
           return api(originalRequest);
         } catch (refreshError) {
-          // If refresh fails (e.g. refresh token is expired), log out
-          localStorage.removeItem('token');
-          localStorage.removeItem('refresh');
-          localStorage.removeItem('user');
-          if (window.location.pathname !== '/login' && window.location.pathname !== '/' && window.location.pathname !== '/admin-login') {
-            if (window.location.pathname.startsWith('/admin')) {
-              window.location.href = '/admin-login';
-            } else {
-              window.location.href = '/login';
+          // Only clear session and log out if the server explicitly rejected the refresh token (400, 401, or 403)
+          // Do not log out on network errors (no response) or temporary server errors (5xx)
+          if (refreshError.response && [400, 401, 403].includes(refreshError.response.status)) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refresh');
+            localStorage.removeItem('user');
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/' && window.location.pathname !== '/admin-login') {
+              if (window.location.pathname.startsWith('/admin')) {
+                window.location.href = '/admin-login';
+              } else {
+                window.location.href = '/login';
+              }
             }
           }
           return Promise.reject(refreshError);

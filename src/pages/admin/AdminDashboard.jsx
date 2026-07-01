@@ -116,6 +116,11 @@ const AdminDashboard = () => {
   const [rideData, setRideData] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleExportCSV = async () => {
     try {
@@ -718,21 +723,23 @@ const AdminDashboard = () => {
               </select>
             </div>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <AreaChart data={rideData}>
-                  <defs>
-                    <linearGradient id="colorRides" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FFD700" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#FFD700" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-                  <Area type="monotone" dataKey="rides" stroke="#FFD700" strokeWidth={4} fillOpacity={1} fill="url(#colorRides)" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {isMounted && (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <AreaChart data={rideData}>
+                    <defs>
+                      <linearGradient id="colorRides" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FFD700" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#FFD700" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+                    <Area type="monotone" dataKey="rides" stroke="#FFD700" strokeWidth={4} fillOpacity={1} fill="url(#colorRides)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -741,22 +748,24 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-bold text-secondary dark:text-white mb-1">7-Day Revenue</h3>
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Gross vs LGU Commission</p>
             <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={dailyData} barSize={10}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 'bold' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} tickFormatter={(v) => `₱${v}`} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
-                    formatter={(value, name) => [`₱${parseFloat(value).toFixed(2)}`, name === 'revenue' ? 'Gross Revenue' : 'LGU Commission']}
-                  />
-                  <Bar dataKey="revenue" fill="#FFD700" radius={[6, 6, 0, 0]} name="revenue" />
-                  <Bar dataKey="commission" fill="#10B981" radius={[6, 6, 0, 0]} name="commission" />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
-                    formatter={(value) => value === 'revenue' ? 'Gross Revenue' : 'LGU Commission'}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              {isMounted && (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <BarChart data={dailyData} barSize={10}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 'bold' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} tickFormatter={(v) => `₱${v}`} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontWeight: 'bold' }}
+                      formatter={(value, name) => [`₱${parseFloat(value).toFixed(2)}`, name === 'revenue' ? 'Gross Revenue' : 'LGU Commission']}
+                    />
+                    <Bar dataKey="revenue" fill="#FFD700" radius={[6, 6, 0, 0]} name="revenue" />
+                    <Bar dataKey="commission" fill="#10B981" radius={[6, 6, 0, 0]} name="commission" />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }}
+                      formatter={(value) => value === 'revenue' ? 'Gross Revenue' : 'LGU Commission'}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -765,29 +774,31 @@ const AdminDashboard = () => {
             <h3 className="text-xl font-bold text-secondary dark:text-white mb-2">LGU Revenue</h3>
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Fund Distribution</p>
             <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <PieChart>
-                  <Pie
-                    data={revenueData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {revenueData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={['#FFD700', '#10B981', '#3B82F6', '#F43F5E', '#8B5CF6'][index % 5]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => `₱${value.toFixed(2)}`}
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {isMounted && (
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <PieChart>
+                    <Pie
+                      data={revenueData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {revenueData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={['#FFD700', '#10B981', '#3B82F6', '#F43F5E', '#8B5CF6'][index % 5]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => `₱${value.toFixed(2)}`}
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -1594,7 +1605,10 @@ const FinanceTab = ({ stats }) => {
     { name: 'Sun', revenue: 3200, commission: 320 },
   ];
 
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true);
     const fetchFinanceData = async () => {
       try {
         const res = await api.get('/wallet/');
@@ -1649,25 +1663,27 @@ const FinanceTab = ({ stats }) => {
             </div>
           </div>
           <div className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <AreaChart data={financeData}>
-                <defs>
-                  <linearGradient id="financeSales" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FFD700" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#FFD700" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 'bold' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 'bold' }} />
-                <Tooltip
-                  contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', padding: '20px' }}
-                  itemStyle={{ fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#FFD700" strokeWidth={6} fill="url(#financeSales)" />
-                <Area type="monotone" dataKey="commission" stroke="#1E293B" strokeWidth={2} fill="transparent" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <AreaChart data={financeData}>
+                  <defs>
+                    <linearGradient id="financeSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FFD700" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#FFD700" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 'bold' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 'bold' }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', padding: '20px' }}
+                    itemStyle={{ fontWeight: '900', textTransform: 'uppercase', fontSize: '10px' }}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#FFD700" strokeWidth={6} fill="url(#financeSales)" />
+                  <Area type="monotone" dataKey="commission" stroke="#1E293B" strokeWidth={2} fill="transparent" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 

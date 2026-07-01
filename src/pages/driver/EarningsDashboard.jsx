@@ -46,6 +46,11 @@ const EarningsDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
     const [balance, setBalance] = useState(0);
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useAuth();
 
@@ -253,35 +258,37 @@ const EarningsDashboard = () => {
                             </button>
                         </div>
                         <div className="h-[350px] w-full">
-                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                <BarChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis
-                                        dataKey="day"
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}
-                                        dy={10}
-                                    />
-                                    <YAxis
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}
-                                        tickFormatter={(val) => `₱${val}`}
-                                    />
-                                    <Tooltip
-                                        cursor={{ fill: '#f8fafc' }}
-                                        contentStyle={{
-                                            borderRadius: '16px',
-                                            border: 'none',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                                            fontWeight: 'bold'
-                                        }}
-                                        formatter={(value) => [`₱${value}`, 'Earnings']}
-                                    />
-                                    <Bar dataKey="amount" fill="#FFD700" radius={[12, 12, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {isMounted && (
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                    <BarChart data={chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis
+                                            dataKey="day"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}
+                                            dy={10}
+                                        />
+                                        <YAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 'bold' }}
+                                            tickFormatter={(val) => `₱${val}`}
+                                        />
+                                        <Tooltip
+                                            cursor={{ fill: '#f8fafc' }}
+                                            contentStyle={{
+                                                borderRadius: '16px',
+                                                border: 'none',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                                fontWeight: 'bold'
+                                            }}
+                                            formatter={(value) => [`₱${value}`, 'Earnings']}
+                                        />
+                                        <Bar dataKey="amount" fill="#FFD700" radius={[12, 12, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                     </motion.div>
 
@@ -296,23 +303,25 @@ const EarningsDashboard = () => {
                             <PieChart size={20} className="text-primary" /> Income Sources
                         </h3>
                         <div className="h-[200px] mb-6">
-                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                <RechartsPieChart>
-                                    <Pie
-                                        data={earningsBreakdown}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {earningsBreakdown.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                </RechartsPieChart>
-                            </ResponsiveContainer>
+                            {isMounted && (
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                    <RechartsPieChart>
+                                        <Pie
+                                            data={earningsBreakdown}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                        >
+                                            {earningsBreakdown.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Pie>
+                                    </RechartsPieChart>
+                                </ResponsiveContainer>
+                            )}
                         </div>
                         <div className="space-y-3">
                             {earningsBreakdown.map((item, idx) => (
