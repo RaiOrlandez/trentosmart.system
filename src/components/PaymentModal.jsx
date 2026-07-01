@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, CheckCircle, X, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
+import { CreditCard, CheckCircle, X, ShieldCheck, Wallet, AlertCircle, Lock } from 'lucide-react';
 import api from '../api/axios';
 
 const PaymentModal = ({ isOpen, onClose, amount, method, onComplete, onGCashPayment }) => {
-    const [step, setStep] = useState('confirm'); // confirm, processing, success, error
+    const [step, setStep] = useState('confirm'); // confirm, pin, processing, success, error
     const [errorMsg, setErrorMsg] = useState('');
+    const [pin, setPin] = useState('');
 
     const handlePay = async () => {
         if (method === 'gcash') {
@@ -14,6 +15,12 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete, onGCashPaym
                 onGCashPayment();
             }
             onClose();
+            return;
+        }
+
+        if (method === 'wallet') {
+            // Prompt for Smart Wallet transaction PIN
+            setStep('pin');
             return;
         }
 
@@ -30,9 +37,33 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete, onGCashPaym
         }
     };
 
+    const handlePinSubmit = async (e) => {
+        e.preventDefault();
+        if (pin.length !== 6) {
+            setErrorMsg('PIN must be 6 digits.');
+            setStep('error');
+            return;
+        }
+        
+        setStep('processing');
+        setErrorMsg('');
+        
+        try {
+            await api.post('/wallet/pay/', {
+                amount: parseFloat(amount),
+                pin_code: pin
+            });
+            setStep('success');
+        } catch (err) {
+            setErrorMsg(err.response?.data?.detail || 'Wallet payment failed. Please check your PIN and balance.');
+            setStep('error');
+        }
+    };
+
     const handleFinish = () => {
         onComplete();
         setStep('confirm');
+        setPin('');
         onClose();
     };
 
@@ -83,12 +114,55 @@ const PaymentModal = ({ isOpen, onClose, amount, method, onComplete, onGCashPaym
                                     'bg-secondary hover:bg-slate-800'
                                     }`}
                             >
-                                {method === 'gcash' ? 'Continue to GCash' : 'Confirm Cash Payment'}
+                                {method === 'gcash' ? 'Continue to GCash' : method === 'wallet' ? 'Pay with Smart Wallet' : 'Confirm Cash Payment'}
                             </button>
                             <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                 <ShieldCheck size={14} className="text-green-500" /> 
                                 {method === 'gcash' ? '256-bit SSL Encrypted via PayMongo' : 'Secure Transaction'}
                             </div>
+                        </div>
+                    )}
+
+                    {step === 'pin' && (
+                        <div className="text-center">
+                            <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <Lock size={32} />
+                            </div>
+                            <h2 className="text-2xl font-black text-secondary mb-2 uppercase tracking-tight">Enter Wallet PIN</h2>
+                            <p className="text-slate-500 mb-8 font-medium">Please verify your transaction with your 6-digit Security PIN.</p>
+                            
+                            <form onSubmit={handlePinSubmit} className="space-y-6">
+                                <input
+                                    type="password"
+                                    maxLength="6"
+                                    value={pin}
+                                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="••••••"
+                                    className="w-full text-center text-3xl tracking-[1em] font-black bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-4 outline-none focus:border-primary transition-all text-secondary"
+                                    autoFocus
+                                    required
+                                />
+                                
+                                <div className="flex gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPin('');
+                                            setStep('confirm');
+                                        }}
+                                        className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={pin.length !== 6}
+                                        className="flex-[2] py-4 bg-secondary hover:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg disabled:opacity-50"
+                                    >
+                                        Verify & Pay
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     )}
 
