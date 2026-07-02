@@ -85,6 +85,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refresh');
+    localStorage.removeItem('driver_is_online'); // Clear persisted online status on logout
     setUser(null);
   };
 

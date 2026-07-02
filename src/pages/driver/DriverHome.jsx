@@ -49,7 +49,11 @@ const DriverHome = () => {
   const [requests, setRequests] = useState([]);
   const [markers, setMarkers] = useState([]);
   const [driverPos, setDriverPos] = useState(null);
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => {
+    // ✅ Restore online status from localStorage so page refresh doesn't reset it
+    const saved = localStorage.getItem('driver_is_online');
+    return saved === 'true';
+  });
   const [todayEarnings, setTodayEarnings] = useState(0);
   const [tripsCount, setTripsCount] = useState(0);
   const [activeRide, setActiveRide] = useState(null);
@@ -131,10 +135,18 @@ const DriverHome = () => {
   }, [fetchBroadcasts, fetchMaintenanceLogs, fetchAnalytics, user?.id, user?.role]);
 
   useEffect(() => {
+    // Only override localStorage value once on first mount if the server says a different state.
+    // After that, localStorage is the source of truth (survives refresh).
     if (user && user.is_online !== undefined) {
-      setIsOnline(user.is_online);
+      const savedLocal = localStorage.getItem('driver_is_online');
+      if (savedLocal === null) {
+        // First time ever — initialize from server
+        setIsOnline(user.is_online);
+      }
+      // If savedLocal exists, trust it — the driver set it intentionally
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Only run when user identity changes, not on every user update
 
   useEffect(() => {
     const fetchActiveState = async () => {
@@ -191,31 +203,22 @@ const DriverHome = () => {
     }
   }, [passengerLivePos, activeRide]);
 
-  // Synchronize Online Status with Server
+  // ✅ Persist online status to localStorage on every change (survives page refresh)
   useEffect(() => {
-    const syncStatus = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      try {
-        await api.post('/users/toggle_online/', { is_online: isOnline });
-      } catch (err) {
-        console.error('Failed to sync online status', err);
-      }
-    };
+    localStorage.setItem('driver_is_online', String(isOnline));
+  }, [isOnline]);
 
-    // Only sync if it's different from the user object to avoid redundant calls on mount
-    if (isOnline !== user?.is_online) {
-      syncStatus();
+  // ✅ Sync online status to server ONLY when the driver actively toggles it
+  // (NOT on mount/unmount — avoids the refresh-sets-offline bug)
+  const syncStatusToServer = useCallback(async (status) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      await api.post('/users/toggle_online/', { is_online: status });
+    } catch (err) {
+      console.error('Failed to sync online status', err);
     }
-
-    // Auto-offline on unmount
-    return () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        api.post('/users/toggle_online/', { is_online: false }).catch(() => { });
-      }
-    };
-  }, [isOnline, user?.is_online]);
+  }, []);
 
   // ── Real-time GPS tracking ───────────────────────────────────────────────
   const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
@@ -825,6 +828,7 @@ const DriverHome = () => {
                     setShowSelfieModal(true);
                   } else {
                     setIsOnline(false);
+                    syncStatusToServer(false);
                   }
                 }}
                 className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${isOnline ? 'bg-primary shadow-lg shadow-primary/20' : 'bg-slate-300'}`}
@@ -1436,6 +1440,7 @@ const DriverHome = () => {
         onVerify={() => {
           setShowSelfieModal(false);
           setIsOnline(true);
+          syncStatusToServer(true);
           setTimeout(fetchRequests, 500);
         }}
       />
