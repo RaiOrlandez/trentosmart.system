@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import Map from '../../components/Map';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -223,6 +223,88 @@ const DriverHome = () => {
 
   // Sync location to backend every 4s while online
   useLocationSync(gpsLocation, { enabled: isOnline });
+
+  const [driverRouteCoords, setDriverRouteCoords] = useState(null);
+  const lastFetchedCoords = useRef({ lat: 0, lng: 0 });
+
+  // Calculate real haversine distance from driver GPS to pickup location
+  const getDistanceToPickup = useCallback((request) => {
+    if (!gpsLocation) return request.distance || '2.4 km';
+    const pLat = parseFloat(request.pickup_lat);
+    const pLng = parseFloat(request.pickup_lng);
+    if (isNaN(pLat) || isNaN(pLng)) return request.distance || '2.4 km';
+
+    const R = 6371; // Earth's radius in km
+    const dLat = (pLat - gpsLocation.lat) * Math.PI / 180;
+    const dLng = (pLng - gpsLocation.lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(gpsLocation.lat * Math.PI / 180) * Math.cos(pLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = R * c;
+    return `${dist.toFixed(1)} km`;
+  }, [gpsLocation]);
+
+  // Fetch real-time OSRM navigation route (driver -> pickup, driver -> destination, or preview request)
+  useEffect(() => {
+    if (!gpsLocation) {
+      setDriverRouteCoords(null);
+      lastFetchedCoords.current = { lat: 0, lng: 0 };
+      return;
+    }
+
+    const startLat = gpsLocation.lat;
+    const startLng = gpsLocation.lng;
+
+    let targetLat, targetLng;
+    if (activeRide) {
+      const isOngoing = activeRide.status === 'on_route';
+      targetLat = isOngoing ? parseFloat(activeRide.dest_lat) : parseFloat(activeRide.pickup_lat);
+      targetLng = isOngoing ? parseFloat(activeRide.dest_lng) : parseFloat(activeRide.pickup_lng);
+    } else if (selectedRequest) {
+      targetLat = parseFloat(selectedRequest.pickup_lat);
+      targetLng = parseFloat(selectedRequest.pickup_lng);
+    } else {
+      setDriverRouteCoords(null);
+      lastFetchedCoords.current = { lat: 0, lng: 0 };
+      return;
+    }
+
+    if (isNaN(targetLat) || isNaN(targetLng)) {
+      setDriverRouteCoords(null);
+      return;
+    }
+
+    // Rate limit OSRM requests: skip if driver hasn't moved at least 15 meters
+    const latDiff = Math.abs(startLat - lastFetchedCoords.current.lat);
+    const lngDiff = Math.abs(startLng - lastFetchedCoords.current.lng);
+    const distanceDiff = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+
+    if (distanceDiff < 0.00015 && driverRouteCoords) {
+      return;
+    }
+
+    let active = true;
+    const fetchRoute = async () => {
+      try {
+        const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+        const res = await fetch(`${osrmUrl}/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
+        const data = await res.json();
+        if (active && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          const pathCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          setDriverRouteCoords(pathCoords);
+          lastFetchedCoords.current = { lat: startLat, lng: startLng };
+        }
+      } catch (err) {
+        console.error('Failed to fetch driver navigation route:', err);
+      }
+    };
+
+    fetchRoute();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRide?.id, activeRide?.status, selectedRequest?.id, gpsLocation?.lat, gpsLocation?.lng]);
 
   // Update Driver map pinning dynamically based on GPS changes
   useEffect(() => {
@@ -942,7 +1024,7 @@ const DriverHome = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-black text-primary text-3xl">₱{selectedRequest.fare}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">{selectedRequest.distance || '2.4 km'} away</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">{getDistanceToPickup(selectedRequest)} away</p>
                       </div>
                     </div>
 
@@ -1071,7 +1153,7 @@ const DriverHome = () => {
 
         {/* Right Column: Map and Navigation */}
         <div className="flex-1 min-h-[600px] relative rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
-          <Map markers={markers} center={driverCenter} />
+          <Map markers={markers} center={driverCenter} routeCoordinates={driverRouteCoords} />
 
           {/* GPS status badge */}
           <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>

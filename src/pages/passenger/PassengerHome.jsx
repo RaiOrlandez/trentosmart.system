@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Map from '../../components/Map';
 import { AuthContext } from '../../context/AuthContext';
@@ -72,6 +72,10 @@ const PassengerHome = () => {
   const [routeCoordinates, setRouteCoordinates] = useState(null); // Real driving path
   const [showDestSuggestions, setShowDestSuggestions] = useState(false);
   const [estimatedTime, setEstimatedTime] = useState(0);
+
+  // Refs to capture real geocoded coordinates from computeFare() for use in requestRide()
+  const pickupCoordsRef = useRef(null); // { lat, lng } — geocoded pickup point
+  const destCoordsRef   = useRef(null); // { lat, lng } — geocoded destination point
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
@@ -177,6 +181,10 @@ const PassengerHome = () => {
         const pLon = picData[0].lon;
         const dLat = destData[0].lat;
         const dLon = destData[0].lon;
+
+        // ✅ Store real geocoded coords in refs so requestRide() can use them
+        pickupCoordsRef.current = { lat: parseFloat(pLat), lng: parseFloat(pLon) };
+        destCoordsRef.current   = { lat: parseFloat(dLat), lng: parseFloat(dLon) };
 
         const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
         const routeRes = await fetchWithTimeout(`${osrmUrl}/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
@@ -326,14 +334,41 @@ const PassengerHome = () => {
 
           // Restore markers on map
           if (ride.pickup_lat && ride.pickup_lng && ride.dest_lat && ride.dest_lng) {
+            const pLat = parseFloat(ride.pickup_lat);
+            const pLng = parseFloat(ride.pickup_lng);
+            const dLat = parseFloat(ride.dest_lat);
+            const dLng = parseFloat(ride.dest_lng);
+
             setMarkers([
-              { id: 'pickup', lat: parseFloat(ride.pickup_lat), lng: parseFloat(ride.pickup_lng), title: 'Pickup', info: ride.pickup_address, isPickup: true, forceFocus: Date.now() },
-              { id: 'dest', lat: parseFloat(ride.dest_lat), lng: parseFloat(ride.dest_lng), title: 'Destination', info: ride.dest_address, isDestination: true }
+              { id: 'pickup', lat: pLat, lng: pLng, title: 'Pickup', info: ride.pickup_address, isPickup: true, forceFocus: Date.now() },
+              { id: 'dest', lat: dLat, lng: dLng, title: 'Destination', info: ride.dest_address, isDestination: true }
             ]);
-            // Estimate distance roughly since OSRM route isn't saved
-            const fallbackDist = ((ride.pickup_address + ride.dest_address).length % 5) + 1.2;
-            setDistance(fallbackDist.toFixed(1));
-            setEstimatedTime(Math.ceil(fallbackDist * 3));
+
+            // ✅ Real distance & route: call OSRM with the stored coords
+            try {
+              const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+              const rRes = await fetch(`${osrmUrl}/${pLng},${pLat};${dLng},${dLat}?overview=full&geometries=geojson`);
+              const rData = await rRes.json();
+              if (rData.code === 'Ok' && rData.routes?.length > 0) {
+                const realDist = rData.routes[0].distance / 1000;
+                setDistance(realDist.toFixed(1));
+                setEstimatedTime(Math.ceil(realDist * 3));
+                const pathCoords = rData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                setRouteCoordinates(pathCoords);
+              } else {
+                throw new Error('OSRM no route');
+              }
+            } catch {
+              // Haversine fallback — at least a geometrically correct straight-line distance
+              const R = 6371;
+              const dLat2 = (dLat - pLat) * Math.PI / 180;
+              const dLng2 = (dLng - pLng) * Math.PI / 180;
+              const a = Math.sin(dLat2 / 2) ** 2 +
+                Math.cos(pLat * Math.PI / 180) * Math.cos(dLat * Math.PI / 180) * Math.sin(dLng2 / 2) ** 2;
+              const hDist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              setDistance(hDist.toFixed(1));
+              setEstimatedTime(Math.ceil(hDist * 3));
+            }
           }
         }
       } catch (err) {
@@ -458,17 +493,20 @@ const PassengerHome = () => {
     }
   }, [systemEvent, computeFare, activeRideId, status]);
 
-  // Handle Proximity Alert
+  // Handle Proximity Alert — compare driver WS position to passenger's real GPS pickup location
   useEffect(() => {
     if (wsData && wsData.lat && wsData.lng && status === 'matched') {
-      // Simple distance check (approx 200m)
-      const latDiff = Math.abs(parseFloat(wsData.lat) - 8.050);
-      const lngDiff = Math.abs(parseFloat(wsData.lng) - 126.062);
+      // Use actual passenger GPS (userCenter) as the reference, not a hardcoded coordinate
+      const refLat = userCenter.lat;
+      const refLng = userCenter.lng;
+      // ≈200 m threshold using quick lat/lng delta (0.002° ≈ 220 m at these latitudes)
+      const latDiff = Math.abs(parseFloat(wsData.lat) - refLat);
+      const lngDiff = Math.abs(parseFloat(wsData.lng) - refLng);
       if (latDiff < 0.002 && lngDiff < 0.002 && !proximityAlert) {
         setProximityAlert(true);
       }
     }
-  }, [wsData, status, proximityAlert]);
+  }, [wsData, status, proximityAlert, userCenter.lat, userCenter.lng]);
 
   // Handle Ride Status Updates via WebSocket
   useEffect(() => {
@@ -569,19 +607,31 @@ const PassengerHome = () => {
     setStatus('requesting');
 
     try {
-      // Create actual ride in database — use live GPS for pickup coords
+      // ✅ Use real geocoded pickup coords (from computeFare ref) — fall back to live GPS if not yet geocoded
+      const realPickupLat = pickupCoordsRef.current?.lat ?? userCenter.lat;
+      const realPickupLng = pickupCoordsRef.current?.lng ?? userCenter.lng;
+
+      // ✅ Use real geocoded destination coords (from computeFare ref) — reject fake offsets
+      if (!destCoordsRef.current) {
+        alert('Please wait for the route to load before requesting a ride. The destination location is still being resolved.');
+        setStatus('idle');
+        return;
+      }
+      const realDestLat = destCoordsRef.current.lat;
+      const realDestLng = destCoordsRef.current.lng;
+
+      // Create actual ride in database with real geocoded coordinates
       const response = await api.post('/rides/', {
         pickup_address: pickup,
         dest_address: dest,
-        pickup_lat: parseFloat(userCenter.lat).toFixed(6),
-        pickup_lng: parseFloat(userCenter.lng).toFixed(6),
-        // Destination coords are geocoded later by the backend or OSRM; use a small offset as fallback
-        dest_lat: (parseFloat(userCenter.lat) + 0.005).toFixed(6),
-        dest_lng: (parseFloat(userCenter.lng) + 0.008).toFixed(6),
+        pickup_lat: parseFloat(realPickupLat).toFixed(6),
+        pickup_lng: parseFloat(realPickupLng).toFixed(6),
+        dest_lat: parseFloat(realDestLat).toFixed(6),
+        dest_lng: parseFloat(realDestLng).toFixed(6),
         fare: fare,
         payment_method: paymentMethod,
         passenger_count: passengerCount,
-        targeted_driver_id: selectedDriverId // NEW: Custom Selection
+        targeted_driver_id: selectedDriverId // Custom driver selection
       });
 
       const createdRide = response.data;

@@ -234,14 +234,6 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                     />
                 )}
 
-                {/* Active Ride Route */}
-                {driver && pickup && (
-                    <Polyline
-                        positions={[[driver.lat, driver.lng], [pickup.lat, pickup.lng]]}
-                        pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.6, dashArray: '10, 10' }}
-                    />
-                )}
-
                 {/* Demand Heatmap */}
                 {heatPoints && heatPoints.map((point, i) => (
                     <React.Fragment key={`heat-${i}`}>
@@ -262,12 +254,6 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                         />
                     </React.Fragment>
                 ))}
-                {driver && pickup && (
-                    <Polyline
-                        positions={[[driver.lat, driver.lng], [pickup.lat, pickup.lng]]}
-                        pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.6, dashArray: '10, 10' }}
-                    />
-                )}
 
                 {routeCoordinates && routeCoordinates.length > 0 ? (
                     <Polyline
@@ -275,12 +261,20 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                         pathOptions={{ color: '#3b82f6', weight: 6, opacity: 0.8 }}
                     />
                 ) : (
-                    pickup && destination && (
-                        <Polyline
-                            positions={[[pickup.lat, pickup.lng], [destination.lat, destination.lng]]}
-                            pathOptions={{ color: isDarkMode ? '#fff' : '#333', weight: 2, opacity: 0.2 }}
-                        />
-                    )
+                    <>
+                        {driver && pickup && (
+                            <Polyline
+                                positions={[[driver.lat, driver.lng], [pickup.lat, pickup.lng]]}
+                                pathOptions={{ color: '#22c55e', weight: 3, opacity: 0.6, dashArray: '10, 10' }}
+                            />
+                        )}
+                        {pickup && destination && (
+                            <Polyline
+                                positions={[[pickup.lat, pickup.lng], [destination.lat, destination.lng]]}
+                                pathOptions={{ color: isDarkMode ? '#fff' : '#333', weight: 2, opacity: 0.2 }}
+                            />
+                        )}
+                    </>
                 )}
 
                 {/* Markers */}
