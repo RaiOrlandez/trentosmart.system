@@ -154,6 +154,10 @@ const PassengerHome = () => {
       return;
     }
 
+    // Initialize coordinate refs with local fallbacks so that requests can still proceed if Nominatim geocoding fails
+    pickupCoordsRef.current = { lat: parseFloat(userCenter.lat), lng: parseFloat(userCenter.lng) };
+    destCoordsRef.current   = { lat: parseFloat(userCenter.lat) + 0.005, lng: parseFloat(userCenter.lng) + 0.008 };
+
     try {
       // 1. Geocode Pickup & Destination using OpenStreetMap Nominatim
       // We append the LGU context (Trento) to improve accuracy if not explicitly typed
@@ -296,6 +300,8 @@ const PassengerHome = () => {
 
     // Sync Passenger Online Status
     const syncStatus = async (status) => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
       try {
         await api.post('/users/toggle_online/', { is_online: status });
       } catch (err) {

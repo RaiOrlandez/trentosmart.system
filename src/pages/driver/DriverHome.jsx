@@ -194,6 +194,8 @@ const DriverHome = () => {
   // Synchronize Online Status with Server
   useEffect(() => {
     const syncStatus = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
       try {
         await api.post('/users/toggle_online/', { is_online: isOnline });
       } catch (err) {
@@ -208,8 +210,10 @@ const DriverHome = () => {
 
     // Auto-offline on unmount
     return () => {
-      // Use a fire-and-forget approach or navigator.sendBeacon in real production
-      api.post('/users/toggle_online/', { is_online: false }).catch(() => { });
+      const token = localStorage.getItem('token');
+      if (token) {
+        api.post('/users/toggle_online/', { is_online: false }).catch(() => { });
+      }
     };
   }, [isOnline, user?.is_online]);
 
