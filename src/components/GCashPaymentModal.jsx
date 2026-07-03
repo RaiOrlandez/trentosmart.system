@@ -58,7 +58,7 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
 
       // Add timeout for API call
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
 
       const res = await api.post('/payments/gcash/create-source/', {
         amount: parsedAmount,
@@ -82,10 +82,8 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
       sessionStorage.setItem('gcash_amount', amount);
       if (rideId) sessionStorage.setItem('gcash_ride_id', rideId);
 
-      // If caller wants to handle the source_id immediately (e.g. for ride payment)
-      if (onSuccess && rideId) {
-        onSuccess(source_id);
-      }
+      // Small delay to ensure state is saved before redirect
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // Redirect to real GCash payment page
       window.location.href = checkout_url;
@@ -95,6 +93,8 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
       
       if (err.name === 'AbortError') {
         detail = 'Connection timeout. Please check your internet and try again.';
+      } else if (err.response?.status === 503) {
+        detail = 'Payment gateway temporarily unavailable. Please try again in a moment.';
       } else if (err.response?.data?.detail) {
         detail = err.response.data.detail;
       } else if (err.response?.data?.error) {
@@ -261,7 +261,7 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
                     <p className="text-sm text-slate-500 mt-2 font-medium leading-relaxed">{errorMsg}</p>
                   </div>
                   <button
-                    onClick={() => setStep('intro')}
+                    onClick={handleProceed}
                     disabled={isRetrying}
                     className="w-full bg-[#007DFE] text-white font-black py-4 rounded-[1.5rem] transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >

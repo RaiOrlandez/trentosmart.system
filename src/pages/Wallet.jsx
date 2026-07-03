@@ -122,24 +122,22 @@ const Wallet = () => {
         setMsg({ type: '', text: '' });
 
         try {
-            const amountToSend = parseFloat(topUpAmount);
-
-            if (isNaN(amountToSend) || amountToSend <= 0) {
-                throw new Error('Invalid amount');
-            }
-
-            // Call the standard wallet top-up endpoint
-            const res = await api.post('/wallet/topup/', {
-                amount: amountToSend,
-                reference: transactionRef
+            // Verify payment with backend before crediting wallet
+            const verifyRes = await api.get('/payments/gcash/verify/', {
+                params: { source_id: transactionRef }
             });
 
-            setBalance(res.data.balance);
+            if (!verifyRes.data.success) {
+                throw new Error('Payment verification failed. Please contact support.');
+            }
+
+            // Backend already credited the wallet, just update local state
+            setBalance(verifyRes.data.balance);
             setShowGCashTopUp(false);
             setTopUpAmount('');
             setMsg({
                 type: 'success',
-                text: `Successfully added ₱${amountToSend.toFixed(2)} to your wallet! Ref: ${transactionRef.slice(0, 8)}...`
+                text: `Successfully added ₱${parseFloat(topUpAmount).toFixed(2)} to your wallet! Ref: ${transactionRef.slice(0, 8)}...`
             });
 
             // Refresh transaction history
@@ -147,11 +145,11 @@ const Wallet = () => {
                 fetchWalletData();
             }, 500);
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment processing failed';
+            const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment verification failed';
             setShowGCashTopUp(false);
             setMsg({
                 type: 'error',
-                text: `Failed to process top-up: ${errorMsg}. Please try again.`
+                text: `Failed to verify payment: ${errorMsg}. Please try again or contact support.`
             });
         } finally {
             setIsProcessing(false);
