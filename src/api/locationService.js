@@ -18,8 +18,14 @@ import api from './axios';
  * @param {number} lng
  * @returns {Promise<object>} server response data
  */
-export const updateMyLocation = async (lat, lng) => {
-    const res = await api.post('/location/update/', { lat, lng });
+export const updateMyLocation = async (lat, lng, extras = {}) => {
+    const res = await api.post('/location/update/', {
+        lat,
+        lng,
+        heading:  extras.heading  ?? null,
+        accuracy: extras.accuracy ?? null,
+        speed:    extras.speed    ?? null,
+    });
     return res.data;
 };
 

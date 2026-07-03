@@ -326,9 +326,12 @@ const DriverHome = () => {
       const livePos = {
         lat: gpsLocation.lat,
         lng: gpsLocation.lng,
-        title: 'You',
-        info: `GPS live · ±${Math.round(gpsLocation.accuracy)} m`,
-        isDriver: true
+        heading: gpsLocation.heading ?? null,   // ✅ Real GPS compass bearing
+        accuracy: gpsLocation.accuracy ?? null, // ✅ GPS fix radius in metres
+        title: user?.username || 'You',
+        info: `GPS live · ±${Math.round(gpsLocation.accuracy ?? 0)} m`,
+        isDriver: true,
+        profile_picture: user?.profile_picture,
       };
       setDriverPos(livePos);
 
