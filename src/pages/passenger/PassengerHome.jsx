@@ -396,7 +396,12 @@ const PassengerHome = () => {
         setNearbyDriverList(Array.isArray(res.data) ? res.data : []);
         setNearbyDrivers(Array.isArray(res.data) ? res.data.length : 0);
       } catch (err) {
-        console.error('Failed to fetch nearby drivers', err);
+        // Handle 401 authentication errors silently - token refresh will handle it
+        if (err.response?.status === 401) {
+          console.warn('Authentication token expired, refresh in progress...');
+        } else {
+          console.error('Failed to fetch nearby drivers', err);
+        }
       }
     };
 
@@ -434,7 +439,19 @@ const PassengerHome = () => {
           (pos) => {
             sendLocation(pos.coords.latitude, pos.coords.longitude);
           },
-          (err) => console.error(err),
+          (err) => {
+            // Gracefully handle geolocation errors without spamming console
+            if (err.code === 1) {
+              // Permission denied - user chose not to share location
+              console.warn('Geolocation permission denied by user');
+            } else if (err.code === 2) {
+              // Position unavailable - GPS issue
+              console.warn('Geolocation position unavailable');
+            } else if (err.code === 3) {
+              // Timeout
+              console.warn('Geolocation request timed out');
+            }
+          },
           { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
         );
       }

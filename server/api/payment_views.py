@@ -33,9 +33,16 @@ def create_paymongo_source(request):
         
     try:
         amt = Decimal(str(amount))
-        if amt <= 0: raise ValueError
-    except ValueError:
-        return Response({'detail': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+        if amt <= 0: 
+            return Response({'detail': 'Amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+        if amt < 50:
+            return Response({'detail': 'Minimum payment amount is ₱50'}, status=status.HTTP_400_BAD_REQUEST)
+        if amt > 50000:
+            return Response({'detail': 'Maximum payment amount is ₱50,000'}, status=status.HTTP_400_BAD_REQUEST)
+    except (ValueError, TypeError):
+        return Response({'detail': 'Invalid amount format'}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'detail': f'Amount validation error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         
     # Get frontend URL for redirects. Fallback to localhost.
     frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
@@ -43,9 +50,16 @@ def create_paymongo_source(request):
     failed_url = f"{frontend_url}/wallet?status=failed"
     
     # Call the service layer to create GCash source
-    ok, data = create_gcash_source(amt, success_url, failed_url)
-    if not ok:
-        return Response({'detail': data.get('detail', 'PayMongo Source generation failed')}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        ok, data = create_gcash_source(amt, success_url, failed_url)
+        if not ok:
+            error_detail = data.get('detail', 'PayMongo Source generation failed')
+            # Check if it's a configuration error
+            if 'PAYMONGO_SECRET_KEY' in error_detail or 'environment variable' in error_detail:
+                return Response({'detail': 'Payment gateway not configured. Please contact support.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response({'detail': error_detail}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'detail': f'Payment gateway error: {str(e)}'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         
     # Expose redirect URL and source ID
     checkout_url = data['attributes']['redirect']['checkout_url']
