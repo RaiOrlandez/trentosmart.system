@@ -56,6 +56,7 @@ const PassengerHome = () => {
   const [showGCashPayment, setShowGCashPayment] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
+  const [isRequestingRide, setIsRequestingRide] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
@@ -628,7 +629,9 @@ const PassengerHome = () => {
   const requestRide = async (e) => {
     e.preventDefault();
     if (!pickup || !dest) return;
+    if (isRequestingRide) return; // Prevent duplicate requests
 
+    setIsRequestingRide(true);
     setStatus('requesting');
 
     try {
@@ -674,8 +677,11 @@ const PassengerHome = () => {
 
     } catch (err) {
       console.error('Failed to create ride', err);
-      alert('Failed to request ride. Please try again.');
+      const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to request ride';
+      alert(`Failed to request ride: ${errorMsg}`);
       setStatus('idle');
+    } finally {
+      setIsRequestingRide(false);
     }
   };
 

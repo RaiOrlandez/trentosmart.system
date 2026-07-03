@@ -95,6 +95,8 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
         detail = 'Connection timeout. Please check your internet and try again.';
       } else if (err.response?.status === 503) {
         detail = 'Payment gateway temporarily unavailable. Please try again in a moment.';
+      } else if (err.response?.status === 403) {
+        detail = 'GCash payments are not currently available. Please use cash or wallet balance instead.';
       } else if (err.response?.data?.detail) {
         detail = err.response.data.detail;
       } else if (err.response?.data?.error) {

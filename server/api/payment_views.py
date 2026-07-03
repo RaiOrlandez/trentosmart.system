@@ -57,6 +57,9 @@ def create_paymongo_source(request):
             # Check if it's a configuration error
             if 'PAYMONGO_SECRET_KEY' in error_detail or 'environment variable' in error_detail:
                 return Response({'detail': 'Payment gateway not configured. Please contact support.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            # Check if it's a GCash permission error
+            if 'not allowed to process gcash' in error_detail.lower():
+                return Response({'detail': 'GCash payments not enabled for this account. Please contact PayMongo support or use cash/wallet payment.'}, status=status.HTTP_403_FORBIDDEN)
             return Response({'detail': error_detail}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({'detail': f'Payment gateway error: {str(e)}'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
