@@ -70,6 +70,7 @@ const DriverHome = () => {
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [navModalData, setNavModalData] = useState(null); // { lat, lng, label }
 
   // New State for LGU Commission Display
   const [commissionData, setCommissionData] = useState(null);
@@ -530,20 +531,13 @@ const DriverHome = () => {
   };
 
   const openNativeNavigation = (lat, lng, label = 'Destination') => {
-    // Check for platform to use appropriate defaults
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-    // Create URLs for different apps
-    const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-    const appleMapsUrl = `maps://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
-
-    // Professional Choice Modal / Action Sheet logic
-    // For now, we'll try to open Waze if installed, fallback to Google Maps
-    // Real professional apps often allow users to choose in settings.
-
-    // We'll open a simple custom choice window or just use Google Maps with better params
-    window.open(googleMapsUrl, '_blank');
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      alert("Error: Location coordinates are not available or are invalid.");
+      return;
+    }
+    setNavModalData({ lat: parsedLat, lng: parsedLng, label });
   };
 
   const triggerSOS = async () => {
@@ -1444,6 +1438,81 @@ const DriverHome = () => {
           setTimeout(fetchRequests, 500);
         }}
       />
+      {/* Professional Navigation App Choice Modal */}
+      <AnimatePresence>
+        {navModalData && (
+          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setNavModalData(null)}
+              className="absolute inset-0 bg-secondary/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: 100, opacity: 0, scale: 0.95 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 100, opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative z-10 border border-slate-100 dark:border-white/10 text-center"
+            >
+              <div className="mb-6 flex flex-col items-center">
+                <div className="w-12 h-12 bg-primary/20 text-primary-dark dark:text-primary rounded-full flex items-center justify-center mb-3">
+                  <Navigation2 size={24} className="rotate-45" />
+                </div>
+                <h3 className="text-lg font-black text-secondary dark:text-white">Choose Navigation App</h3>
+                <p className="text-xs text-slate-400 font-medium mt-1">Navigate to {navModalData.label}</p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${navModalData.lat},${navModalData.lng}&travelmode=driving`;
+                    window.open(url, '_blank');
+                    setNavModalData(null);
+                  }}
+                  className="w-full py-4 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl font-black text-secondary dark:text-white transition-all flex items-center justify-center gap-3 border border-slate-100 dark:border-white/5"
+                >
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Google_Maps_icon_2020.svg" alt="Google Maps" className="w-5 h-5" />
+                  <span>Google Maps</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const url = `https://waze.com/ul?ll=${navModalData.lat},${navModalData.lng}&navigate=yes`;
+                    window.open(url, '_blank');
+                    setNavModalData(null);
+                  }}
+                  className="w-full py-4 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl font-black text-secondary dark:text-white transition-all flex items-center justify-center gap-3 border border-slate-100 dark:border-white/5"
+                >
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/e/e6/Waze_logo.svg" alt="Waze" className="w-5 h-5" />
+                  <span>Waze</span>
+                </button>
+
+                {/iPad|iPhone|iPod/.test(navigator.userAgent) && (
+                  <button
+                    onClick={() => {
+                      const url = `maps://maps.apple.com/?daddr=${navModalData.lat},${navModalData.lng}&dirflg=d`;
+                      window.open(url, '_blank');
+                      setNavModalData(null);
+                    }}
+                    className="w-full py-4 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl font-black text-secondary dark:text-white transition-all flex items-center justify-center gap-3 border border-slate-100 dark:border-white/5"
+                  >
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/d/df/Apple_Maps_logo.svg" alt="Apple Maps" className="w-5 h-5" />
+                    <span>Apple Maps</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setNavModalData(null)}
+                  className="w-full py-4 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 rounded-2xl font-black transition-all uppercase tracking-widest text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div >
   );
 };
