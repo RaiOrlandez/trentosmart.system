@@ -54,6 +54,8 @@ const PassengerHome = () => {
   const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1.0, isSurge: false });
   const [showPayment, setShowPayment] = useState(false);
   const [showGCashPayment, setShowGCashPayment] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
   const [showRating, setShowRating] = useState(false);
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
@@ -708,6 +710,12 @@ const PassengerHome = () => {
   };
 
   const completeAndPay = async () => {
+    // Validate fare before proceeding
+    if (!fare || fare <= 0) {
+      alert('Invalid fare amount. Please try again.');
+      return;
+    }
+
     if (paymentMethod === 'gcash') {
       setShowGCashPayment(true);
     } else if (paymentMethod !== 'cash') {
@@ -722,7 +730,9 @@ const PassengerHome = () => {
           });
         }
       } catch (err) {
-        console.error('Failed to update ride status', err);
+        const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to complete ride';
+        alert(`Error: ${errorMsg}`);
+        return;
       }
 
       setStatus('completed');
@@ -737,26 +747,49 @@ const PassengerHome = () => {
   };
 
   const handleGCashSuccess = async (transactionRef) => {
-    console.log('GCash payment successful:', transactionRef);
+    setIsProcessingPayment(true);
+    setPaymentError(null);
 
-    // Mark ride as completed in database
     try {
+      // Verify payment with backend before completing ride
+      const verifyRes = await api.get('/payments/gcash/verify/', {
+        params: { source_id: transactionRef }
+      });
+
+      if (!verifyRes.data.success) {
+        throw new Error('Payment verification failed. Please contact support.');
+      }
+
+      // Mark ride as completed in database with payment reference
       if (activeRideId) {
         await api.patch(`/rides/${activeRideId}/`, {
           status: 'completed',
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          payment_reference: transactionRef,
+          payment_verified: true
         });
       }
-    } catch (err) {
-      console.error('Failed to update ride status', err);
-    }
 
-    setShowGCashPayment(false);
-    setStatus('completed');
-    setMarkers([]);
-    setTimeout(() => {
-      setShowRating(true);
-    }, 1000);
+      setShowGCashPayment(false);
+      setStatus('completed');
+      setMarkers([]);
+      setRouteCoordinates(null);
+      
+      // Show success message
+      alert(`Payment successful! Reference: ${transactionRef.slice(0, 8)}...`);
+      
+      // Show rating modal after a short delay
+      setTimeout(() => {
+        setShowRating(true);
+      }, 1000);
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment verification failed';
+      setPaymentError(errorMsg);
+      alert(`Payment Error: ${errorMsg}. Please try again or contact support.`);
+      setShowGCashPayment(false);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   const getCategoryIcon = (category) => {

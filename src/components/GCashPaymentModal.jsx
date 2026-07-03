@@ -44,12 +44,24 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
     setIsRetrying(false);
 
     try {
+      // Validate amount before API call
+      const parsedAmount = parseFloat(amount);
+      if (!parsedAmount || parsedAmount <= 0) {
+        throw new Error('Invalid payment amount');
+      }
+      if (parsedAmount < 50) {
+        throw new Error('Minimum payment amount is ₱50');
+      }
+      if (parsedAmount > 50000) {
+        throw new Error('Maximum payment amount is ₱50,000');
+      }
+
       // Add timeout for API call
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
       const res = await api.post('/payments/gcash/create-source/', {
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         ride_id: rideId || null
       }, { signal: controller.signal });
 
@@ -59,6 +71,10 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
 
       if (!checkout_url) {
         throw new Error('Payment gateway did not return a checkout URL');
+      }
+
+      if (!source_id) {
+        throw new Error('Payment gateway did not return a transaction reference');
       }
 
       // Store source_id so we can verify on return
@@ -175,9 +191,16 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
                   <div className="bg-slate-50 rounded-[2.5rem] p-10 border border-slate-100 relative">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Checkout Amount</p>
                     <h4 className="text-6xl font-black text-[#007DFE] tracking-tighter">
-                      ₱{parseFloat(amount).toLocaleString()}<span className="text-2xl opacity-40 ml-1">.00</span>
+                      ₱{parseFloat(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </h4>
                     <p className="text-[10px] text-slate-400 mt-3 font-medium">You will be redirected to the GCash secure payment page.</p>
+                    {rideId && (
+                      <div className="mt-4 flex items-center gap-2 text-[9px] text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                        <span className="font-black uppercase">Ride Payment</span>
+                        <span>•</span>
+                        <span>Secure Transaction</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Pay button */}
