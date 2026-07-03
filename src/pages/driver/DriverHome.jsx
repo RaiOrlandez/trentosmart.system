@@ -234,6 +234,8 @@ const DriverHome = () => {
 
   const [driverRouteCoords, setDriverRouteCoords] = useState(null);
   const lastFetchedCoords = useRef({ lat: 0, lng: 0 });
+  const lastSentCoordsRef = useRef({ lat: 0, lng: 0 });
+  const lastSentTimeRef = useRef(0);
 
   // Calculate real haversine distance from driver GPS to pickup location
   const getDistanceToPickup = useCallback((request) => {
@@ -337,7 +339,45 @@ const DriverHome = () => {
 
       // Only send live location to passenger over WebSocket if ride active
       if (activeRide) {
-        sendLocation(gpsLocation.lat, gpsLocation.lng, gpsLocation.heading);
+        // Rate limit: check distance moved and time elapsed since last send
+        const now = Date.now();
+        const timeElapsed = now - lastSentTimeRef.current;
+        
+        let shouldSend = false;
+        if (timeElapsed >= 2000) { // minimum 2 seconds interval
+          const lastLat = lastSentCoordsRef.current.lat;
+          const lastLng = lastSentCoordsRef.current.lng;
+          
+          if (!lastLat || !lastLng) {
+            shouldSend = true;
+          } else {
+            // Quick Haversine in metres
+            const R = 6371e3;
+            const phi1 = lastLat * Math.PI / 180;
+            const phi2 = gpsLocation.lat * Math.PI / 180;
+            const deltaPhi = (gpsLocation.lat - lastLat) * Math.PI / 180;
+            const deltaLambda = (gpsLocation.lng - lastLng) * Math.PI / 180;
+            const a = Math.sin(deltaPhi / 2) ** 2 +
+                      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c;
+            
+            if (distance >= 2.0) { // moved at least 2 metres
+              shouldSend = true;
+            }
+          }
+        }
+        
+        if (shouldSend) {
+          sendLocation(
+            gpsLocation.lat,
+            gpsLocation.lng,
+            gpsLocation.heading ?? 0,
+            gpsLocation.accuracy ?? null
+          );
+          lastSentCoordsRef.current = { lat: gpsLocation.lat, lng: gpsLocation.lng };
+          lastSentTimeRef.current = now;
+        }
       }
     }
   }, [gpsLocation, isOnline, activeRide, sendLocation]);

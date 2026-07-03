@@ -75,10 +75,12 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
 
             if (data.type === 'location') {
                 setLocation({
-                    lat:    data.lat,
-                    lng:    data.lng,
-                    status: data.status,
-                    sender: data.sender || (isDriver ? 'passenger' : 'driver'),
+                    lat:      data.lat,
+                    lng:      data.lng,
+                    heading:  data.heading || 0,
+                    accuracy: data.accuracy || null,
+                    status:   data.status,
+                    sender:   data.sender || (isDriver ? 'passenger' : 'driver'),
                 });
             } else if (data.type === 'chat') {
                 // Deduplicate — skip the server echo for messages we sent optimistically
@@ -147,10 +149,10 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
     }, [rideId, isDriver, isGuest, shareToken, connect]);
 
     // ── Send location (driver → passenger) ───────────────────────────────────
-    const sendLocation = useCallback((lat, lng, heading = 0) => {
+    const sendLocation = useCallback((lat, lng, heading = 0, accuracy = null) => {
         const ws = socketRef.current;
         if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'location', lat, lng, heading }));
+            ws.send(JSON.stringify({ type: 'location', lat, lng, heading, accuracy }));
         }
     }, []);
 

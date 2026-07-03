@@ -2261,6 +2261,8 @@ class LocationUpdateView(APIView):
     def post(self, request):
         lat = request.data.get('lat')
         lng = request.data.get('lng')
+        heading = request.data.get('heading')
+        accuracy = request.data.get('accuracy')
 
         if lat is None or lng is None:
             return Response(
@@ -2271,6 +2273,10 @@ class LocationUpdateView(APIView):
         try:
             lat = float(lat)
             lng = float(lng)
+            if heading is not None:
+                heading = float(heading)
+            if accuracy is not None:
+                accuracy = float(accuracy)
         except (ValueError, TypeError):
             return Response(
                 {'detail': '"lat" and "lng" must be valid numbers.'},
@@ -2349,6 +2355,8 @@ class LocationUpdateView(APIView):
                         'username': user.username,
                         'lat': lat,
                         'lng': lng,
+                        'heading': heading,
+                        'accuracy': accuracy,
                         'status': 'Available' if user.is_online else 'Offline',
                     }
                 )

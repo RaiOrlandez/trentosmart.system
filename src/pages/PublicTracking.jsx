@@ -52,6 +52,8 @@ const PublicTracking = () => {
                 info: `Plate: ${rideData.driver?.vehicle_plate || 'N/A'}`,
                 isDriver: true,
                 profile_picture: rideData.driver?.profile_picture,
+                heading: liveLoc?.heading || 0,
+                accuracy: liveLoc?.accuracy || null,
                 forceFocus: true
             });
         }

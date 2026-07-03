@@ -116,6 +116,8 @@ class RideConsumer(AsyncWebsocketConsumer):
                     'type': 'location_update',
                     'lat': data.get('lat'),
                     'lng': data.get('lng'),
+                    'heading': data.get('heading'),
+                    'accuracy': data.get('accuracy'),
                     'status': data.get('status'),
                     'sender': user.username,
                 }
@@ -128,6 +130,8 @@ class RideConsumer(AsyncWebsocketConsumer):
                     'type': 'location_update',
                     'lat': data.get('lat'),
                     'lng': data.get('lng'),
+                    'heading': data.get('heading'),
+                    'accuracy': data.get('accuracy'),
                     'status': data.get('status'),
                 }
             )
@@ -137,6 +141,8 @@ class RideConsumer(AsyncWebsocketConsumer):
             'type': 'location',
             'lat': event.get('lat'),
             'lng': event.get('lng'),
+            'heading': event.get('heading'),
+            'accuracy': event.get('accuracy'),
             'status': event.get('status'),
             'sender': event.get('sender', ''),
         }))
@@ -370,6 +376,8 @@ class SystemConsumer(AsyncWebsocketConsumer):
             'username': event['username'],
             'lat': event['lat'],
             'lng': event['lng'],
+            'heading': event.get('heading'),
+            'accuracy': event.get('accuracy'),
             'status': event['status'],
             'is_online': event.get('is_online', True),
         }))

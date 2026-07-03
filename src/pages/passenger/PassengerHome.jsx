@@ -620,6 +620,7 @@ const PassengerHome = () => {
             info: 'On the way to you!',
             isDriver: true,
             heading: wsData.heading || 0,
+            accuracy: wsData.accuracy || null,
             isTracking: isTracking
           }
         ];
