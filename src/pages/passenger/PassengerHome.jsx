@@ -58,6 +58,7 @@ const PassengerHome = () => {
   const [paymentError, setPaymentError] = useState(null);
   const [isRequestingRide, setIsRequestingRide] = useState(false);
   const [showRating, setShowRating] = useState(false);
+  const gcashEnabled = process.env.REACT_APP_GCASH_ENABLED === 'true';
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [assignedDriver, setAssignedDriver] = useState(null);
