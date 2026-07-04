@@ -752,6 +752,7 @@ const PassengerHome = () => {
       const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to request ride';
       alert(`Failed to request ride: ${errorMsg}`);
       setStatus('idle');
+      setActiveRideId(null); // ✅ Clear stale ride ID so WS doesn't reconnect to a failed ride
     } finally {
       setIsRequestingRide(false);
     }

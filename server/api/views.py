@@ -963,13 +963,25 @@ class RideViewSet(viewsets.ModelViewSet):
         nearest_landmark = self.request.data.get('nearest_landmark', '')
         notes = self.request.data.get('notes', '')
 
-        ride = serializer.save(
-            passenger=self.request.user,
-            targeted_driver=targeted_driver,
-            passenger_count=passenger_count,
-            nearest_landmark=nearest_landmark,
-            notes=notes
-        )
+        from django.db import OperationalError
+        try:
+            ride = serializer.save(
+                passenger=self.request.user,
+                targeted_driver=targeted_driver,
+                passenger_count=passenger_count,
+                nearest_landmark=nearest_landmark,
+                notes=notes
+            )
+        except OperationalError as db_err:
+            # Most likely cause: unapplied migration (missing column in DB).
+            # Run `python manage.py migrate` on the server to fix this.
+            error_msg = str(db_err)
+            print(f"[RideViewSet] DB OperationalError during ride creation: {error_msg}")
+            raise serializers.ValidationError({
+                "detail": "Ride creation failed due to a server configuration issue. Please contact support.",
+                "server_error": error_msg
+            })
+
         log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} for {passenger_count} passenger(s) to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
 
         # Create Payment record
@@ -978,6 +990,7 @@ class RideViewSet(viewsets.ModelViewSet):
             method=payment_method,
             amount=ride.fare or 0
         )
+
         
         channel_layer = get_channel_layer()
         

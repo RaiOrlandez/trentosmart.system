@@ -1,6 +1,9 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
+// Suppress verbose Workbox "broker" cache logs in production (FP ok, skipping etc.)
+self.__WB_DISABLE_DEV_LOGS = true;
+
 const CACHE_NAME = 'trentosmart-cache-v3';
 const STATIC_ASSETS = [
     '/',
