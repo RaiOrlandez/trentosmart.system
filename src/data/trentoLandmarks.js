@@ -27,7 +27,7 @@ export const TRENTO_LANDMARKS = [
 
   // ── Commerce & Market ─────────────────────────────────────────
   { id: 'lm_030', name: 'Trento Public Market',        category: 'Commerce',     icon: '🛒', lat: 8.0497, lng: 126.0645 },
-  { id: 'lm_031', name: 'Bus Terminal Trento',         category: 'Transport',    icon: '🚌', lat: 8.0482, lng: 126.0651 },
+  { id: 'lm_031', name: 'Bus Terminal Trento',         category: 'Transport',    icon: '🚌', lat: 8.04796, lng: 126.06307 },
   { id: 'lm_032', name: 'Caltex Gas Station Trento',  category: 'Commerce',     icon: '⛽', lat: 8.0476, lng: 126.0658 },
   { id: 'lm_033', name: 'Shell Gas Station',           category: 'Commerce',     icon: '⛽', lat: 8.0469, lng: 126.0662 },
   { id: 'lm_034', name: 'Petron Station Trento',       category: 'Commerce',     icon: '⛽', lat: 8.0472, lng: 126.0655 },

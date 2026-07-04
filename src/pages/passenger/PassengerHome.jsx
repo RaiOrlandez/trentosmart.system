@@ -36,10 +36,10 @@ import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
 import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
-import { searchLandmarks, QUICK_DESTINATIONS } from '../../data/trentoLandmarks';
+import { searchLandmarks, QUICK_DESTINATIONS, TRENTO_LANDMARKS } from '../../data/trentoLandmarks';
 
 // Default map centre (Trento ADS)
-const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
+const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
 
 const PassengerHome = () => {
   const navigate = useNavigate();
@@ -165,64 +165,117 @@ const PassengerHome = () => {
       return;
     }
 
-    // Initialize coordinate refs with local fallbacks so that requests can still proceed if Nominatim geocoding fails
-    pickupCoordsRef.current = { lat: parseFloat(userCenter.lat), lng: parseFloat(userCenter.lng) };
-    destCoordsRef.current = { lat: parseFloat(userCenter.lat) + 0.005, lng: parseFloat(userCenter.lng) + 0.008 };
+    // Lookup local landmark coordinates if they exist
+    const matchedPickupLm = TRENTO_LANDMARKS.find(l => l.name.toLowerCase() === pickup.trim().toLowerCase());
+    const matchedDestLm = TRENTO_LANDMARKS.find(l => l.name.toLowerCase() === dest.trim().toLowerCase());
+
+    // 1. Resolve Pickup Coordinates
+    let pLat = matchedPickupLm ? matchedPickupLm.lat : null;
+    let pLon = matchedPickupLm ? matchedPickupLm.lng : null;
+
+    if (!pLat || !pLon) {
+      if (pickup === 'Current GPS Location' && gpsLocation) {
+        pLat = gpsLocation.lat;
+        pLon = gpsLocation.lng;
+      } else if (pickupCoordsRef.current && !pickupCoordsRef.current.isFallback) {
+        pLat = pickupCoordsRef.current.lat;
+        pLon = pickupCoordsRef.current.lng;
+      }
+    }
+
+    // 2. Resolve Destination Coordinates
+    let dLat = matchedDestLm ? matchedDestLm.lat : null;
+    let dLon = matchedDestLm ? matchedDestLm.lng : null;
+
+    if (!dLat || !dLon) {
+      if (destCoordsRef.current && !destCoordsRef.current.isFallback) {
+        dLat = destCoordsRef.current.lat;
+        dLon = destCoordsRef.current.lng;
+      }
+    }
+
+    // Fallbacks if not set
+    if (!pLat || !pLon) {
+      pLat = parseFloat(userCenter.lat);
+      pLon = parseFloat(userCenter.lng);
+    }
+    const hadValidDest = !!(dLat && dLon);
+    if (!dLat || !dLon) {
+      dLat = parseFloat(userCenter.lat) + 0.003;
+      dLon = parseFloat(userCenter.lng) + 0.003;
+    }
+
+    // Store in refs
+    pickupCoordsRef.current = { lat: pLat, lng: pLon };
+    destCoordsRef.current = { lat: dLat, lng: dLon, isFallback: !hadValidDest };
 
     try {
-      // 1. Geocode Pickup & Destination using OpenStreetMap Nominatim
-      // We append the LGU context (Trento) to improve accuracy if not explicitly typed
-      const searchPickup = pickup.toLowerCase().includes('trento') ? pickup : `${pickup}, Trento, Agusan del Sur, Philippines`;
-      const searchDest = dest.toLowerCase().includes('trento') ? dest : `${dest}, Trento, Agusan del Sur, Philippines`;
-
-      // Fetch Geocoding coordinates (Adding a short timeout to prevent UI hanging)
       const fetchWithTimeout = (url) => Promise.race([
         fetch(url),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
       ]);
 
       const nominatimUrl = process.env.REACT_APP_NOMINATIM_URL || 'https://nominatim.openstreetmap.org/search';
-      const picRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchPickup)}&format=json&limit=1`);
-      const destRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchDest)}&format=json&limit=1`);
 
-      const picData = await picRes.json();
-      const destData = await destRes.json();
+      // 3. Query geocoding only if we don't already have matched/exact coordinates
+      let finalPLat = pLat;
+      let finalPLon = pLon;
+      if (!matchedPickupLm && pickup !== 'Current GPS Location' && (!pickupCoordsRef.current || pickupCoordsRef.current.isFallback)) {
+        try {
+          const searchPickup = pickup.toLowerCase().includes('trento') ? pickup : `${pickup}, Trento, Agusan del Sur, Philippines`;
+          const picRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchPickup)}&format=json&limit=1`);
+          const picData = await picRes.json();
+          if (picData && picData.length > 0) {
+            finalPLat = parseFloat(picData[0].lat);
+            finalPLon = parseFloat(picData[0].lon);
+            pickupCoordsRef.current = { lat: finalPLat, lng: finalPLon };
+          }
+        } catch (e) {
+          console.warn("Pickup Nominatim geocoding failed, using fallback.", e);
+        }
+      }
+
+      let finalDLat = dLat;
+      let finalDLon = dLon;
+      if (!matchedDestLm && !dest.startsWith('Pin at') && !hadValidDest) {
+        try {
+          const searchDest = dest.toLowerCase().includes('trento') ? dest : `${dest}, Trento, Agusan del Sur, Philippines`;
+          const destRes = await fetchWithTimeout(`${nominatimUrl}?q=${encodeURIComponent(searchDest)}&format=json&limit=1`);
+          const destData = await destRes.json();
+          if (destData && destData.length > 0) {
+            finalDLat = parseFloat(destData[0].lat);
+            finalDLon = parseFloat(destData[0].lon);
+            destCoordsRef.current = { lat: finalDLat, lng: finalDLon };
+          }
+        } catch (e) {
+          console.warn("Destination Nominatim geocoding failed, using fallback.", e);
+        }
+      }
 
       let actualDistance = 0;
 
-      // 2. If valid coordinates are found, query OSRM for exact road distance
-      if (picData && picData.length > 0 && destData && destData.length > 0) {
-        const pLat = picData[0].lat;
-        const pLon = picData[0].lon;
-        const dLat = destData[0].lat;
-        const dLon = destData[0].lon;
+      // 2. Query OSRM for exact road distance using resolved coordinates
+      const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+      const routeRes = await fetchWithTimeout(`${osrmUrl}/${pickupCoordsRef.current.lng},${pickupCoordsRef.current.lat};${destCoordsRef.current.lng},${destCoordsRef.current.lat}?overview=full&geometries=geojson`);
+      const routeData = await routeRes.json();
 
-        // ✅ Store real geocoded coords in refs so requestRide() can use them
-        pickupCoordsRef.current = { lat: parseFloat(pLat), lng: parseFloat(pLon) };
-        destCoordsRef.current = { lat: parseFloat(dLat), lng: parseFloat(dLon) };
+      if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
+        // Distance provided in meters; convert to kilometers
+        actualDistance = routeData.routes[0].distance / 1000;
 
-        const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
-        const routeRes = await fetchWithTimeout(`${osrmUrl}/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
-        const routeData = await routeRes.json();
+        // Extract GeoJSON coordinates [lng, lat] and convert to Leaflet format [lat, lng]
+        const pathCoords = routeData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        setRouteCoordinates(pathCoords);
 
-        if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
-          // Distance provided in meters; convert to kilometers
-          actualDistance = routeData.routes[0].distance / 1000;
-
-          // Extract GeoJSON coordinates [lng, lat] and convert to Leaflet format [lat, lng]
-          const pathCoords = routeData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-          setRouteCoordinates(pathCoords);
-
-          // Visualize the actual geocoded points on the map
-          setMarkers(prev => {
-            const others = prev.filter(m => !m.isPickup && !m.isDestination && m.title !== 'Pickup' && m.title !== 'Destination');
-            return [
-              ...others,
-              { id: 'pickup', lat: parseFloat(pLat), lng: parseFloat(pLon), title: 'Pickup', info: pickup, isPickup: true, forceFocus: Date.now() },
-              { id: 'dest', lat: parseFloat(dLat), lng: parseFloat(dLon), title: 'Destination', info: dest, isDestination: true }
-            ];
-          });
-        }
+        // Visualize the actual geocoded points on the map
+        setMarkers(prev => {
+          const others = prev.filter(m => !m.isPickup && !m.isDestination && m.title !== 'Pickup' && m.title !== 'Destination');
+          return [
+            ...others,
+            { id: 'pickup', lat: pickupCoordsRef.current.lat, lng: pickupCoordsRef.current.lng, title: 'Pickup', info: pickup, isPickup: true, forceFocus: Date.now() },
+            { id: 'dest', lat: destCoordsRef.current.lat, lng: destCoordsRef.current.lng, title: 'Destination', info: dest, isDestination: true }
+          ];
+        });
       }
 
       // 3. Fallback logic: If they input "Home" or unmappable custom saved places,

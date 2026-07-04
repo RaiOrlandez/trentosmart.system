@@ -43,7 +43,7 @@ import useGeoLocation from '../../hooks/useGeoLocation';
 import useLocationSync from '../../hooks/useLocationSync';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 
-const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
+const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
 
 const DriverHome = () => {
   const { user, getProfile } = React.useContext(AuthContext);

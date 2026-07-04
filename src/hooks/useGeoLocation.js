@@ -4,8 +4,8 @@ const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
 // Map default fallback (not a GPS fix)
 const DEFAULT_CENTER = {
-    lat: 8.2965,
-    lng: 126.0630,
+    lat: 8.0505,
+    lng: 126.0624,
 };
 
 /**
