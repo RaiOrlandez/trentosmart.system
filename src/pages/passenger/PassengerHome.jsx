@@ -622,22 +622,30 @@ const PassengerHome = () => {
         }
       }
     }
-  }, [wsData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsData, paymentMethod]);
 
   // Polling Fallback for Ride Status (Safety Net)
   useEffect(() => {
     let interval;
-    if (activeRideId && status === 'requesting') {
+    if (activeRideId && (status === 'requesting' || status === 'matched')) {
       const checkStatus = async () => {
         try {
           const res = await api.get(`/rides/${activeRideId}/`);
-          if (res.data.status === 'accepted') {
+          const serverStatus = res.data.status;
+          if (serverStatus === 'accepted' && status === 'requesting') {
             setStatus('matched');
-            // Also fetch driver details if needed, but usually we just wait for WS for live location.
-            // However, we should at least have the static driver info.
             if (res.data.driver) {
               setAssignedDriver(res.data.driver);
             }
+          }
+          // Also handle if server reports on_route while client shows matched
+          if (serverStatus === 'on_route' && status === 'matched') {
+            setStatus('ongoing');
+          }
+          if (serverStatus === 'cancelled') {
+            setStatus('idle');
+            setActiveRideId(null);
           }
         } catch (err) {
           console.error("Polling error", err);

@@ -402,11 +402,11 @@ const DriverHome = () => {
       return;
     }
 
-    // Rely on WebSockets for real-time dispatch, but keep a slow fallback poll
+    // WebSocket is primary delivery; poll every 8s as a reliable fallback
     let interval;
     if (isOnline && !activeRide) {
-      fetchRequests(); // Initial fetch
-      interval = setInterval(fetchRequests, 15000);
+      fetchRequests(); // Immediate fetch on going online
+      interval = setInterval(fetchRequests, 8000);
     }
     return () => clearInterval(interval);
   }, [isOnline, activeRide, fetchRequests]);

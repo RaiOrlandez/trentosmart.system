@@ -1002,30 +1002,41 @@ class RideViewSet(viewsets.ModelViewSet):
             )
             print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
         else:
-            # SMART DISPATCH: Find nearest drivers
-            drivers = User.objects.filter(role='driver', is_verified_driver=True).exclude(last_lat__isnull=True)
-            
+            # SMART DISPATCH: Only consider online, verified drivers
+            drivers = User.objects.filter(
+                role='driver',
+                is_verified_driver=True,
+                is_online=True,
+            ).exclude(last_lat__isnull=True)
+
             nearby_drivers = []
             if ride.pickup_lat and ride.pickup_lng:
                 driver_distances = []
                 for driver in drivers:
                     try:
                         dist = calculate_distance(
-                            float(ride.pickup_lat), float(ride.pickup_lng), 
+                            float(ride.pickup_lat), float(ride.pickup_lng),
                             float(driver.last_lat), float(driver.last_lng)
                         )
                         # Filter: Only consider drivers within their preferred search radius
-                        if dist <= driver.search_radius_km: 
+                        if dist <= driver.search_radius_km:
                             driver_distances.append((driver, dist))
                     except (ValueError, TypeError):
                         continue
-                
+
                 # Sort by distance (nearest first)
                 driver_distances.sort(key=lambda x: x[1])
                 nearby_drivers = [d[0] for d in driver_distances[:5]]
-            
-            # Fallback: Notify ALL online verified drivers if none found nearby
-            recipients = nearby_drivers if nearby_drivers else User.objects.filter(role='driver', is_verified_driver=True)
+
+            # Fallback: Notify ALL currently online verified drivers (never include offline)
+            if nearby_drivers:
+                recipients = nearby_drivers
+            else:
+                recipients = list(User.objects.filter(
+                    role='driver',
+                    is_verified_driver=True,
+                    is_online=True,
+                ))
 
             for driver in recipients:
                 async_to_sync(channel_layer.group_send)(
@@ -1035,7 +1046,7 @@ class RideViewSet(viewsets.ModelViewSet):
                         'ride': RideSerializer(ride).data
                     }
                 )
-            print(f"Smart Dispatch: Notified {len(recipients)} drivers for Ride #{ride.id}")
+            print(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
 
     def perform_update(self, serializer):
         # Fetch original instance to compare status
@@ -1288,10 +1299,10 @@ def driver_requests(request):
     # Filter: Show rides targeted specifically at OR with no target at all
     from django.db.models import Q
     from django.utils import timezone
-    # Strict 3-minute expiration for pending requests to ensure dashboard ONLY shows new, real-time requests.
-    recent_threshold = timezone.now() - timezone.timedelta(minutes=3)
+    # 10-minute expiration window — ensures drivers see requests even if they just came online
+    recent_threshold = timezone.now() - timezone.timedelta(minutes=10)
     qs = Ride.objects.filter(
-        Q(status='requested') & 
+        Q(status='requested') &
         (Q(targeted_driver=request.user) | Q(targeted_driver__isnull=True)) &
         Q(requested_at__gte=recent_threshold)
     ).order_by('-requested_at')[:20]
