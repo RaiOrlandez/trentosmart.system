@@ -1086,6 +1086,30 @@ const PassengerHome = () => {
               </AnimatePresence>
             </div>
 
+            {/* Always-visible Pin on Map button */}
+            {status === 'idle' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMapTapMode(true);
+                  setShowDestSuggestions(false);
+                  // On mobile, scroll map into view smoothly
+                  setTimeout(() => {
+                    const mapEl = document.getElementById('passenger-map-container');
+                    if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+                className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 transition-all text-sm font-bold ${
+                  mapTapMode
+                    ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20 animate-pulse'
+                    : 'bg-white dark:bg-slate-800 text-secondary dark:text-white border-slate-200 dark:border-white/10 hover:border-primary hover:text-primary'
+                }`}
+              >
+                <MapPin size={16} className={mapTapMode ? 'text-secondary' : 'text-primary'} />
+                <span>{mapTapMode ? '📍 Tap the map below to drop your pin…' : '📍 Pin Custom Location on Map'}</span>
+              </button>
+            )}
+
             {status === 'idle' && (
               <div className="pt-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Quick Places</p>
@@ -1535,7 +1559,7 @@ const PassengerHome = () => {
       </div>
 
       {/* Main Map View — centred on live GPS position */}
-      <div className="flex-1 min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
+      <div id="passenger-map-container" className="flex-1 min-h-[350px] md:min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
         {/* Map tap mode banner */}
         <AnimatePresence>
           {mapTapMode && (
@@ -1562,13 +1586,14 @@ const PassengerHome = () => {
           routeCoordinates={routeCoordinates}
           onMapClick={(lat, lng) => {
             if (!mapTapMode) return;
-            // Place/update destination marker
-            const label = `Pin at ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            // Friendly label instead of raw coordinates
+            const label = `📍 Custom Pin`;
             setDest(label);
+            setNearestLandmark('');
             destCoordsRef.current = { lat, lng };
             setMarkers(prev => [
               ...prev.filter(m => !m.isDestination),
-              { id: 'dest', lat, lng, title: 'Destination', info: label, isDestination: true, forceFocus: Date.now() },
+              { id: 'dest', lat, lng, title: 'Your Destination', info: `Custom pin at ${lat.toFixed(4)}, ${lng.toFixed(4)}`, isDestination: true, forceFocus: Date.now() },
             ]);
             setMapTapMode(false);
           }}
