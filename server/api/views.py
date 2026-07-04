@@ -981,79 +981,82 @@ class RideViewSet(viewsets.ModelViewSet):
         
         channel_layer = get_channel_layer()
         
-        if targeted_driver:
-            # TARGETED DISPATCH: Notify the chosen driver and log status
-            print(f"DEBUG: Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
-            
-            if channel_layer:
-                async_to_sync(channel_layer.group_send)(
-                    f'user_{targeted_driver.id}',
-                    {
-                        'type': 'new_ride_request',
-                        'ride': RideSerializer(ride).data
-                    }
-                )
+        try:
+            if targeted_driver:
+                # TARGETED DISPATCH: Notify the chosen driver and log status
+                print(f"DEBUG: Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
                 
-                # Broadcast to system for visibility (e.g. Admin or Global Live Map)
-                async_to_sync(channel_layer.group_send)(
-                    'global_system',
-                    {
-                        'type': 'system_event',
-                        'event': {
-                            'type': 'ride_activity',
-                            'message': f"Targeted ride request for {targeted_driver.username}",
-                            'ride_id': ride.id
-                        }
-                    }
-                )
-            print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
-        else:
-            # SMART DISPATCH: Only consider online, verified drivers
-            drivers = User.objects.filter(
-                role='driver',
-                is_verified_driver=True,
-                is_online=True,
-            ).exclude(last_lat__isnull=True)
-
-            nearby_drivers = []
-            if ride.pickup_lat and ride.pickup_lng:
-                driver_distances = []
-                for driver in drivers:
-                    try:
-                        dist = calculate_distance(
-                            float(ride.pickup_lat), float(ride.pickup_lng),
-                            float(driver.last_lat), float(driver.last_lng)
-                        )
-                        # Filter: Only consider drivers within their preferred search radius
-                        if dist <= driver.search_radius_km:
-                            driver_distances.append((driver, dist))
-                    except (ValueError, TypeError):
-                        continue
-
-                # Sort by distance (nearest first)
-                driver_distances.sort(key=lambda x: x[1])
-                nearby_drivers = [d[0] for d in driver_distances[:5]]
-
-            # Fallback: Notify ALL currently online verified drivers (never include offline)
-            if nearby_drivers:
-                recipients = nearby_drivers
-            else:
-                recipients = list(User.objects.filter(
-                    role='driver',
-                    is_verified_driver=True,
-                    is_online=True,
-                ))
-
-            if channel_layer:
-                for driver in recipients:
+                if channel_layer:
                     async_to_sync(channel_layer.group_send)(
-                        f'user_{driver.id}',
+                        f'user_{targeted_driver.id}',
                         {
                             'type': 'new_ride_request',
                             'ride': RideSerializer(ride).data
                         }
                     )
-            print(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
+                    
+                    # Broadcast to system for visibility (e.g. Admin or Global Live Map)
+                    async_to_sync(channel_layer.group_send)(
+                        'global_system',
+                        {
+                            'type': 'system_event',
+                            'event': {
+                                'type': 'ride_activity',
+                                'message': f"Targeted ride request for {targeted_driver.username}",
+                                'ride_id': ride.id
+                            }
+                        }
+                    )
+                print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
+            else:
+                # SMART DISPATCH: Only consider online, verified drivers
+                drivers = User.objects.filter(
+                    role='driver',
+                    is_verified_driver=True,
+                    is_online=True,
+                ).exclude(last_lat__isnull=True)
+
+                nearby_drivers = []
+                if ride.pickup_lat and ride.pickup_lng:
+                    driver_distances = []
+                    for driver in drivers:
+                        try:
+                            dist = calculate_distance(
+                                float(ride.pickup_lat), float(ride.pickup_lng),
+                                float(driver.last_lat), float(driver.last_lng)
+                            )
+                            # Filter: Only consider drivers within their preferred search radius
+                            if dist <= driver.search_radius_km:
+                                driver_distances.append((driver, dist))
+                        except (ValueError, TypeError):
+                            continue
+
+                    # Sort by distance (nearest first)
+                    driver_distances.sort(key=lambda x: x[1])
+                    nearby_drivers = [d[0] for d in driver_distances[:5]]
+
+                # Fallback: Notify ALL currently online verified drivers (never include offline)
+                if nearby_drivers:
+                    recipients = nearby_drivers
+                else:
+                    recipients = list(User.objects.filter(
+                        role='driver',
+                        is_verified_driver=True,
+                        is_online=True,
+                    ))
+
+                if channel_layer:
+                    for driver in recipients:
+                        async_to_sync(channel_layer.group_send)(
+                            f'user_{driver.id}',
+                            {
+                                'type': 'new_ride_request',
+                                'ride': RideSerializer(ride).data
+                            }
+                        )
+                print(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
+        except Exception as dispatch_err:
+            print(f"WebSocket dispatch failed but ride was created successfully: {dispatch_err}")
 
     def perform_update(self, serializer):
         # Fetch original instance to compare status
@@ -1333,28 +1336,32 @@ def driver_reject(request, ride_id):
         ride.save()
         
         channel_layer = get_channel_layer()
-        # Notify specific ride group so passenger dashboard resets
-        async_to_sync(channel_layer.group_send)(
-            f'ride_{ride.id}',
-            {
-                'type': 'ride_status_update',
-                'status': 'driver_rejected',
-                'message': f'Driver {request.user.username} is unavailable. Searching for other drivers...'
-            }
-        )
-        
-        # Also notify passenger personally as a backup
-        async_to_sync(channel_layer.group_send)(
-            f'user_{ride.passenger.id}',
-            {
-                'type': 'system_event',
-                'event': {
-                    'type': 'ride_activity',
-                    'message': f"Driver {request.user.username} declined. Re-routing...",
-                    'status': 'driver_rejected'
-                }
-            }
-        )
+        if channel_layer:
+            try:
+                # Notify specific ride group so passenger dashboard resets
+                async_to_sync(channel_layer.group_send)(
+                    f'ride_{ride.id}',
+                    {
+                        'type': 'ride_status_update',
+                        'status': 'driver_rejected',
+                        'message': f'Driver {request.user.username} is unavailable. Searching for other drivers...'
+                    }
+                )
+                
+                # Also notify passenger personally as a backup
+                async_to_sync(channel_layer.group_send)(
+                    f'user_{ride.passenger.id}',
+                    {
+                        'type': 'system_event',
+                        'event': {
+                            'type': 'ride_activity',
+                            'message': f"Driver {request.user.username} declined. Re-routing...",
+                            'status': 'driver_rejected'
+                        }
+                    }
+                )
+            except Exception as e:
+                print(f"WebSocket dispatch error in driver_reject: {e}")
         
     return Response({'status': 'rejected'})
 
@@ -1382,30 +1389,33 @@ def driver_accept(request, ride_id):
     
     # Notify passenger via WebSocket (Reliability: Send to both Ride and User groups)
     channel_layer = get_channel_layer()
-    
-    # Update on specific ride channel
-    async_to_sync(channel_layer.group_send)(
-        f'ride_{ride.id}',
-        {
-            'type': 'ride_status_update',
-            'status': 'accepted',
-            'data': RideSerializer(ride).data
-        }
-    )
-    
-    # Update on passenger's personal channel (Master fallback)
-    async_to_sync(channel_layer.group_send)(
-        f'user_{ride.passenger.id}',
-        {
-            'type': 'system_event',
-            'event': {
-                'type': 'ride_matched',
-                'status': 'accepted',
-                'ride': RideSerializer(ride).data
-            }
-        }
-    )
-    
+    if channel_layer:
+        try:
+            # Update on specific ride channel
+            async_to_sync(channel_layer.group_send)(
+                f'ride_{ride.id}',
+                {
+                    'type': 'ride_status_update',
+                    'status': 'accepted',
+                    'data': RideSerializer(ride).data
+                }
+            )
+            
+            # Update on passenger's personal channel (Master fallback)
+            async_to_sync(channel_layer.group_send)(
+                f'user_{ride.passenger.id}',
+                {
+                    'type': 'system_event',
+                    'event': {
+                        'type': 'ride_matched',
+                        'status': 'accepted',
+                        'ride': RideSerializer(ride).data
+                    }
+                }
+            )
+        except Exception as e:
+            print(f"WebSocket dispatch error in driver_accept: {e}")
+            
     return Response(RideSerializer(ride).data)
 
 
