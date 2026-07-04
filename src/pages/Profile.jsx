@@ -265,7 +265,7 @@ const Profile = () => {
 
                             <div className="relative z-10">
                                 <div className="w-32 h-32 mx-auto bg-slate-100 dark:bg-slate-800 rounded-full p-1 shadow-2xl mb-4 relative group">
-                                    <div 
+                                    <div
                                         className="w-full h-full rounded-full overflow-hidden bg-white dark:bg-slate-700 cursor-pointer hover:opacity-80 transition-opacity"
                                         onClick={() => setShowPictureViewer(true)}
                                     >
@@ -677,14 +677,14 @@ const Profile = () => {
                             </div>
                             <form onSubmit={handleChangePassword} className="space-y-4">
                                 <div className="relative">
-                                    <input type={showCurrentPw ? 'text' : 'password'} value={passwordForm.current_password} onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})} placeholder="Current Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
-                                    <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showCurrentPw ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                                    <input type={showCurrentPw ? 'text' : 'password'} value={passwordForm.current_password} onChange={(e) => setPasswordForm({ ...passwordForm, current_password: e.target.value })} placeholder="Current Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                    <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showCurrentPw ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                                 </div>
                                 <div className="relative">
-                                    <input type={showNewPw ? 'text' : 'password'} value={passwordForm.new_password} onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})} placeholder="New Password (min 6 chars)" required minLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
-                                    <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showNewPw ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                                    <input type={showNewPw ? 'text' : 'password'} value={passwordForm.new_password} onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })} placeholder="New Password (min 6 chars)" required minLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 pr-12 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                    <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">{showNewPw ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                                 </div>
-                                <input type="password" value={passwordForm.confirm_password} onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})} placeholder="Confirm New Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
+                                <input type="password" value={passwordForm.confirm_password} onChange={(e) => setPasswordForm({ ...passwordForm, confirm_password: e.target.value })} placeholder="Confirm New Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-primary transition-colors" />
                                 {passwordMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${passwordMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{passwordMsg.text}</div>}
                                 <button type="submit" disabled={passwordLoading} className="w-full bg-secondary dark:bg-white text-white dark:text-secondary font-black py-4 rounded-2xl hover:opacity-90 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
                                     {passwordLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <><KeyRound size={18} /> Update Password</>}
@@ -716,8 +716,8 @@ const Profile = () => {
                             {emailStep === 1 ? (
                                 <form onSubmit={handleRequestEmailChange} className="space-y-4">
                                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Step 1: Enter your new email and confirm your password</p>
-                                    <input type="email" value={emailForm.new_email} onChange={(e) => setEmailForm({...emailForm, new_email: e.target.value.toLowerCase()})} placeholder="New Email Address" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
-                                    <input type="password" value={emailForm.password} onChange={(e) => setEmailForm({...emailForm, password: e.target.value})} placeholder="Confirm Your Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    <input type="email" value={emailForm.new_email} onChange={(e) => setEmailForm({ ...emailForm, new_email: e.target.value.toLowerCase() })} placeholder="New Email Address" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    <input type="password" value={emailForm.password} onChange={(e) => setEmailForm({ ...emailForm, password: e.target.value })} placeholder="Confirm Your Password" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
                                     {emailMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${emailMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{emailMsg.text}</div>}
                                     <button type="submit" disabled={emailLoading} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
                                         {emailLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending Code...</> : <>Send Verification Code</>}
@@ -726,7 +726,7 @@ const Profile = () => {
                             ) : (
                                 <form onSubmit={handleConfirmEmailChange} className="space-y-4">
                                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Step 2: Enter the 6-digit code sent to <span className="text-blue-600 dark:text-blue-400">{emailForm.new_email}</span></p>
-                                    <input type="text" value={emailForm.otp} onChange={(e) => setEmailForm({...emailForm, otp: e.target.value.replace(/\D/g, '').slice(0, 6)})} placeholder="6-digit verification code" required maxLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-4 font-black text-2xl text-center tracking-[0.5em] text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
+                                    <input type="text" value={emailForm.otp} onChange={(e) => setEmailForm({ ...emailForm, otp: e.target.value.replace(/\D/g, '').slice(0, 6) })} placeholder="6-digit verification code" required maxLength={6} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-4 font-black text-2xl text-center tracking-[0.5em] text-secondary dark:text-white outline-none focus:border-blue-500 transition-colors" />
                                     {emailMsg.text && <div className={`p-3 rounded-xl text-sm font-bold ${emailMsg.type === 'success' ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'}`}>{emailMsg.text}</div>}
                                     <button type="submit" disabled={emailLoading || emailForm.otp.length < 6} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
                                         {emailLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <><MailCheck size={18} /> Confirm Email Change</>}
@@ -742,14 +742,14 @@ const Profile = () => {
             {/* ── Full Screen Picture Viewer ── */}
             <AnimatePresence>
                 {showPictureViewer && (
-                    <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
                         onClick={() => setShowPictureViewer(false)}
                     >
-                        <button 
+                        <button
                             className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
                             onClick={() => setShowPictureViewer(false)}
                         >

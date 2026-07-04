@@ -28,7 +28,8 @@ import {
   Wifi,
   Battery,
   Camera,
-  MessageSquare
+  MessageSquare,
+  Users
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -146,7 +147,7 @@ const DriverHome = () => {
       }
       // If savedLocal exists, trust it — the driver set it intentionally
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // Only run when user identity changes, not on every user update
 
   useEffect(() => {
@@ -342,12 +343,12 @@ const DriverHome = () => {
         // Rate limit: check distance moved and time elapsed since last send
         const now = Date.now();
         const timeElapsed = now - lastSentTimeRef.current;
-        
+
         let shouldSend = false;
         if (timeElapsed >= 2000) { // minimum 2 seconds interval
           const lastLat = lastSentCoordsRef.current.lat;
           const lastLng = lastSentCoordsRef.current.lng;
-          
+
           if (!lastLat || !lastLng) {
             shouldSend = true;
           } else {
@@ -358,16 +359,16 @@ const DriverHome = () => {
             const deltaPhi = (gpsLocation.lat - lastLat) * Math.PI / 180;
             const deltaLambda = (gpsLocation.lng - lastLng) * Math.PI / 180;
             const a = Math.sin(deltaPhi / 2) ** 2 +
-                      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+              Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             const distance = R * c;
-            
+
             if (distance >= 2.0) { // moved at least 2 metres
               shouldSend = true;
             }
           }
         }
-        
+
         if (shouldSend) {
           sendLocation(
             gpsLocation.lat,
@@ -933,8 +934,15 @@ const DriverHome = () => {
                           <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Trip</p>
                         </div>
                       </div>
-                      <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-[10px] font-black uppercase">
-                        In Progress
+                      <div className="flex items-center gap-2">
+                        {/* ✅ Passenger Count Badge on Active Ride */}
+                        <div className="flex items-center gap-1 bg-primary/20 text-primary px-3 py-1.5 rounded-full">
+                          <Users size={12} />
+                          <span className="text-[11px] font-black">{activeRide.passenger_count || 1} pax</span>
+                        </div>
+                        <div className="bg-white/10 text-primary px-3 py-1.5 rounded-full text-[10px] font-black uppercase border border-primary/30">
+                          In Progress
+                        </div>
                       </div>
                     </div>
 
@@ -1048,7 +1056,11 @@ const DriverHome = () => {
                           <div className="flex items-center gap-2 mt-1">
                             <div className="flex items-center gap-1 text-yellow-500">
                               <Star size={12} className="fill-yellow-500" />
-                              <span className="text-[10px] font-bold">4.9</span>
+                              <span className="text-[10px] font-bold">
+                                {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.average_rating
+                                  ? parseFloat(selectedRequest.passenger.average_rating).toFixed(1)
+                                  : 'New'}
+                              </span>
                             </div>
                             <span className="text-[10px] text-slate-400">•</span>
                             <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
@@ -1125,7 +1137,7 @@ const DriverHome = () => {
                     </div>
 
                     {/* Trip Metadata */}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <div className="bg-white p-3 rounded-xl border border-slate-200">
                         <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Requested</p>
                         <p className="text-xs font-bold text-secondary">{new Date(selectedRequest.requested_at).toLocaleTimeString()}</p>
@@ -1133,6 +1145,12 @@ const DriverHome = () => {
                       <div className="bg-white p-3 rounded-xl border border-slate-200">
                         <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Payment</p>
                         <p className="text-xs font-bold text-secondary uppercase italic">{selectedRequest.payment_method || 'Cash'}</p>
+                      </div>
+                      {/* ✅ Passenger Count — was missing */}
+                      <div className="bg-primary/10 p-3 rounded-xl border-2 border-primary/30 flex flex-col items-center justify-center">
+                        <Users size={14} className="text-primary mb-1" />
+                        <p className="text-lg font-black text-primary leading-none">{selectedRequest.passenger_count || 1}</p>
+                        <p className="text-[8px] font-black uppercase text-primary/70 tracking-tight">Passengers</p>
                       </div>
                     </div>
                   </div>
@@ -1293,11 +1311,10 @@ const DriverHome = () => {
             {activeRide && (
               <button
                 onClick={() => setShowChat(prev => !prev)}
-                className={`w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center transition-colors border relative ${
-                  showChat
+                className={`w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center transition-colors border relative ${showChat
                     ? 'bg-secondary text-primary border-secondary/20'
                     : 'bg-white text-slate-600 hover:text-primary border-slate-100'
-                }`}
+                  }`}
                 title="Chat with Passenger"
               >
                 <MessageSquare size={20} />
@@ -1814,9 +1831,8 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
                     playsInline
                     muted
                     autoPlay
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
-                      phase === 'preview' ? (cameraReady ? 'opacity-100' : 'opacity-0') : 'opacity-0'
-                    }`}
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${phase === 'preview' ? (cameraReady ? 'opacity-100' : 'opacity-0') : 'opacity-0'
+                      }`}
                     style={{ transform: 'scaleX(-1)' }} /* Mirror video for natural selfie feel */
                   />
 

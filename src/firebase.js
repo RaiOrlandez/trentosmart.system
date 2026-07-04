@@ -22,14 +22,14 @@ export const requestForToken = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-        const currentToken = await getToken(messaging, { 
-            // You get the VAPID key in Project Settings > Cloud Messaging > Web configuration
-            vapidKey: 'BNdDIWlhUtP-t_g6hqSLpqxkT0ycHkcbGVC2FyKn4wq0U6jq1f5gYR56xqO6i7Me2DR0t64KbdIk7GG_bSbMmlM' 
-        });
-        if (currentToken) {
-            console.log('FCM Token:', currentToken);
-            return currentToken;
-        }
+      const currentToken = await getToken(messaging, {
+        // You get the VAPID key in Project Settings > Cloud Messaging > Web configuration
+        vapidKey: 'BNdDIWlhUtP-t_g6hqSLpqxkT0ycHkcbGVC2FyKn4wq0U6jq1f5gYR56xqO6i7Me2DR0t64KbdIk7GG_bSbMmlM'
+      });
+      if (currentToken) {
+        console.log('FCM Token:', currentToken);
+        return currentToken;
+      }
     }
   } catch (err) {
     console.error('An error occurred while retrieving token. ', err);
@@ -46,7 +46,7 @@ export const signInWithGoogle = async () => {
   // Request additional scopes if needed
   provider.addScope('email');
   provider.addScope('profile');
-  
+
   const result = await signInWithPopup(auth, provider);
   // Get the Firebase ID token to send to our Django backend
   const idToken = await result.user.getIdToken();

@@ -8,13 +8,13 @@ const DriverVerification = () => {
     // Text Inputs
     const [licenseNum, setLicenseNum] = useState('');
     const [permitNum, setPermitNum] = useState('');
-    
+
     // File Inputs
     const [licenseImg, setLicenseImg] = useState(null);
     const [permitImg, setPermitImg] = useState(null);
     const [nbiClearanceImg, setNbiClearanceImg] = useState(null);
     const [barangayResidencyImg, setBarangayResidencyImg] = useState(null);
-    
+
     // Existing URLs
     const [existingLicenseImg, setExistingLicenseImg] = useState(null);
     const [existingPermitImg, setExistingPermitImg] = useState(null);
@@ -25,7 +25,7 @@ const DriverVerification = () => {
     const [verificationStatus, setVerificationStatus] = useState(null);
     const [msg, setMsg] = useState('');
     const [isEditing, setIsEditing] = useState(true);
-    
+
     // UI State for Hub
     const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances'
 
@@ -43,7 +43,7 @@ const DriverVerification = () => {
             setExistingPermitImg(data.permit_image_url || data.permit_image);
             setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
             setExistingBarangayResidencyImg(data.barangay_residency_image_url || data.barangay_residency_image);
-            
+
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
             setVerificationStatus(isApproved);
             setIsEditing(!isApproved);
@@ -101,12 +101,12 @@ const DriverVerification = () => {
 
     const DocumentUploadField = ({ id, label, file, existingUrl, setFile }) => (
         <div className="relative group cursor-pointer mt-4">
-            <input 
-                id={id} 
-                type="file" 
-                className="hidden" 
-                onChange={(e) => setFile(e.target.files[0])} 
-                accept="image/*" 
+            <input
+                id={id}
+                type="file"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files[0])}
+                accept="image/*"
                 disabled={!isEditing}
             />
             <label htmlFor={id} className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-3xl transition-all ${!isEditing ? 'border-slate-200 bg-slate-50 cursor-not-allowed opacity-80' : 'border-primary/30 bg-primary/5 hover:border-primary cursor-pointer'}`}>
@@ -207,8 +207,8 @@ const DriverVerification = () => {
                     <form onSubmit={handleUpload} className="space-y-4">
                         {/* Task 1: LTO License */}
                         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setActiveSection(activeSection === 'license' ? null : 'license')}
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
@@ -223,7 +223,7 @@ const DriverVerification = () => {
                                 </div>
                                 <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'license' ? 'rotate-90' : ''}`} />
                             </button>
-                            
+
                             <AnimatePresence>
                                 {activeSection === 'license' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
@@ -250,8 +250,8 @@ const DriverVerification = () => {
 
                         {/* Task 2: Franchise Permit */}
                         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setActiveSection(activeSection === 'permit' ? null : 'permit')}
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
@@ -266,7 +266,7 @@ const DriverVerification = () => {
                                 </div>
                                 <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'permit' ? 'rotate-90' : ''}`} />
                             </button>
-                            
+
                             <AnimatePresence>
                                 {activeSection === 'permit' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
@@ -293,8 +293,8 @@ const DriverVerification = () => {
 
                         {/* Task 3: Clearances */}
                         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={() => setActiveSection(activeSection === 'clearances' ? null : 'clearances')}
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
@@ -309,7 +309,7 @@ const DriverVerification = () => {
                                 </div>
                                 <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'clearances' ? 'rotate-90' : ''}`} />
                             </button>
-                            
+
                             <AnimatePresence>
                                 {activeSection === 'clearances' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
@@ -333,7 +333,7 @@ const DriverVerification = () => {
                         {/* Error Message */}
                         {status === 'error' && (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-sm font-bold border border-red-100 dark:border-red-900/30 flex items-start gap-3">
-                                <AlertCircle size={18} className="shrink-0 mt-0.5" /> 
+                                <AlertCircle size={18} className="shrink-0 mt-0.5" />
                                 <span className="leading-tight">{msg}</span>
                             </motion.div>
                         )}

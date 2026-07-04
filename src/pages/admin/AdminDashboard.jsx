@@ -103,7 +103,7 @@ const AdminDashboard = () => {
     }
     return [];
   });
-  
+
   useEffect(() => {
     localStorage.setItem('adminNotifications', JSON.stringify(notifications));
   }, [notifications]);
@@ -482,7 +482,7 @@ const AdminDashboard = () => {
           const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
           alert(`Failed to delete user record. Reason: ${serverMsg}`);
           // Refresh to restore correct state if deletion failed
- await fetchUsers(true);
+          await fetchUsers(true);
         }
       }
     });
@@ -875,7 +875,7 @@ const AdminDashboard = () => {
                 .map(driver => (
                   <div key={driver.id} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-white/5 shadow-sm">
                     <div className="flex items-center gap-3 mb-3">
-                      <div 
+                      <div
                         className="w-10 h-10 rounded-full overflow-hidden border border-slate-100 dark:border-white/10 relative shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={() => {
                           setSelectedAvatarUrl(ensureImageUrl(driver.profile_picture, driver.username));
@@ -937,7 +937,7 @@ const AdminDashboard = () => {
                     .map(driver => (
                       <tr key={driver.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
                         <td className="py-4 pl-4 font-bold text-secondary dark:text-white flex items-center gap-3">
-                          <div 
+                          <div
                             className="w-10 h-10 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-sm border border-slate-100 dark:border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
                             onClick={() => {
                               setSelectedAvatarUrl(ensureImageUrl(driver.profile_picture, driver.username));
@@ -1019,12 +1019,12 @@ const AdminDashboard = () => {
                               </button>
                             )}
                             {driver.verification_status === 'suspended' && (
-                               <button
-                                  onClick={() => approveDriver(driver.id)}
-                                  className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
-                                >
-                                  Restore
-                                </button>
+                              <button
+                                onClick={() => approveDriver(driver.id)}
+                                className="bg-secondary text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-secondary transition-all shadow-md"
+                              >
+                                Restore
+                              </button>
                             )}
                             <button
                               onClick={() => { setSelectedUser(driver); setShowDetailModal(true); }}
@@ -1101,7 +1101,7 @@ const AdminDashboard = () => {
               .map(user => (
                 <div key={user.id} className="p-3 md:p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between group shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div 
+                    <div
                       className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full p-1 shadow-sm relative overflow-hidden border border-slate-100 dark:border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => {
                         setSelectedAvatarUrl(ensureImageUrl(user.profile_picture, user.username));
@@ -1333,14 +1333,14 @@ const AdminDashboard = () => {
       {/* ── Full Screen Avatar Viewer ── */}
       <AnimatePresence>
         {showAvatarViewer && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }} 
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4"
             onClick={() => setShowAvatarViewer(false)}
           >
-            <button 
+            <button
               className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
               onClick={() => setShowAvatarViewer(false)}
             >
@@ -1360,11 +1360,11 @@ const AdminDashboard = () => {
         )}
       </AnimatePresence>
 
-      <AdminActionPinModal 
-        isOpen={pinModalConfig.isOpen} 
-        actionName={pinModalConfig.actionName} 
-        onClose={() => setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null })} 
-        onConfirm={pinModalConfig.onConfirm} 
+      <AdminActionPinModal
+        isOpen={pinModalConfig.isOpen}
+        actionName={pinModalConfig.actionName}
+        onClose={() => setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null })}
+        onConfirm={pinModalConfig.onConfirm}
       />
     </div>
   );

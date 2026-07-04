@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff, ArrowLeft, Scale, ShieldCheck, MapPin, Info } from 'lucide-react';
 
 const Register = () => {
   const location = useLocation();
@@ -25,6 +25,46 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1);
+
+  // Compliance & Consent States
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [consentedToGps, setConsentedToGps] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showGpsModal, setShowGpsModal] = useState(false);
+  const [gpsPermissionStatus, setGpsPermissionStatus] = useState('idle'); // idle, requesting, granted, denied
+
+  const handleGpsConsentToggle = (checked) => {
+    if (checked) {
+      setGpsPermissionStatus('requesting');
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setConsentedToGps(true);
+            setGpsPermissionStatus('granted');
+            setError(null);
+          },
+          (err) => {
+            setConsentedToGps(false);
+            setGpsPermissionStatus('denied');
+            if (err.code === 1) {
+              setError('Location access was denied. Geolocation is required for Trento Smart to match rides and track trips.');
+            } else {
+              setError('Error requesting location. Please ensure GPS is enabled on your device.');
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      } else {
+        setConsentedToGps(false);
+        setGpsPermissionStatus('denied');
+        setError('Geolocation is not supported by this browser.');
+      }
+    } else {
+      setConsentedToGps(false);
+      setGpsPermissionStatus('idle');
+    }
+  };
 
   // Availability states
   const [emailStatus, setEmailStatus] = useState('idle'); // idle, checking, available, taken, invalid, bad_domain
@@ -237,7 +277,7 @@ const Register = () => {
     else errors.push('one special character');
 
     setPasswordStrength(strength);
-    
+
     if (strength < 3) {
       setPasswordErrorMsg(`Password must contain ${errors.slice(0, 2).join(', ')}${errors.length > 2 ? '...' : ''}`);
     } else {
@@ -361,7 +401,7 @@ const Register = () => {
             ))}
           </div>
           <div className="absolute top-4 left-6 right-6 h-1 bg-slate-100 dark:bg-slate-800 rounded-full -z-0 -translate-y-1/2">
-            <motion.div 
+            <motion.div
               className="h-full bg-primary rounded-full"
               initial={{ width: '0%' }}
               animate={{ width: `${(step - 1) * 50}%` }}
@@ -562,7 +602,83 @@ const Register = () => {
                     </p>
                   </div>
                 )}
-                
+
+                {/* Compliance checkboxes */}
+                <div className="space-y-4 pt-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block pl-1">
+                    Compliance & Privacy Consent
+                  </label>
+                  
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
+                    <input
+                      type="checkbox"
+                      id="termsConsent"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-primary bg-slate-100 border-slate-300 dark:border-slate-700 rounded focus:ring-primary focus:ring-offset-0 dark:bg-slate-800 cursor-pointer"
+                    />
+                    <label htmlFor="termsConsent" className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-normal select-none cursor-pointer">
+                      I agree to the{' '}
+                      <button
+                        type="button"
+                        onClick={() => setShowTermsModal(true)}
+                        className="text-secondary dark:text-primary font-black hover:underline focus:outline-none inline"
+                      >
+                        Terms & Conditions
+                      </button>{' '}
+                      and{' '}
+                      <button
+                        type="button"
+                        onClick={() => setShowPrivacyModal(true)}
+                        className="text-secondary dark:text-primary font-black hover:underline focus:outline-none inline"
+                      >
+                        Privacy Policy
+                      </button>{' '}
+                      of Trento Smart.
+                    </label>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800 transition-colors">
+                    <input
+                      type="checkbox"
+                      id="gpsConsent"
+                      checked={consentedToGps}
+                      onChange={(e) => handleGpsConsentToggle(e.target.checked)}
+                      className="mt-1 w-4 h-4 text-primary bg-slate-100 border-slate-300 dark:border-slate-700 rounded focus:ring-primary focus:ring-offset-0 dark:bg-slate-800 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="gpsConsent" className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-normal select-none cursor-pointer block">
+                        I consent to real-time GPS tracking. This is required to show nearby tricycles, calculate fares, and monitor trip safety.{' '}
+                        <button
+                          type="button"
+                          onClick={() => setShowGpsModal(true)}
+                          className="text-secondary dark:text-primary font-black hover:underline focus:outline-none inline"
+                        >
+                          Learn more
+                        </button>
+                      </label>
+                      {gpsPermissionStatus === 'requesting' && (
+                        <div className="flex items-center gap-1.5 mt-1.5 text-[10px] text-amber-500 font-bold">
+                          <Loader2 size={10} className="animate-spin" />
+                          Requesting browser location permission...
+                        </div>
+                      )}
+                      {gpsPermissionStatus === 'granted' && (
+                        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-green-500 font-bold">
+                          <Check size={10} />
+                          Location access granted successfully
+                        </div>
+                      )}
+                      {gpsPermissionStatus === 'denied' && (
+                        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-red-500 font-bold">
+                          <XCircle size={10} />
+                          Location access denied or failed
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100 flex items-start gap-2"><XCircle size={18} className="shrink-0 mt-0.5" /> <span>{error}</span></motion.div>}
                 {message && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-4 bg-green-50 text-green-600 rounded-2xl text-sm font-bold border border-green-100 flex items-start gap-2"><CheckCircle size={18} className="shrink-0 mt-0.5" /> <span>{message}</span></motion.div>}
               </motion.div>
@@ -579,10 +695,10 @@ const Register = () => {
               <ArrowLeft size={20} />
             </button>
           )}
-          
+
           {step < 3 ? (
             <button
-              type="button" 
+              type="button"
               onClick={() => setStep(step + 1)}
               disabled={step === 1 ? !canGoNextStep1 : !canGoNextStep2}
               className="flex-1 bg-secondary text-white font-black py-4 rounded-2xl hover:bg-slate-800 transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
@@ -592,8 +708,8 @@ const Register = () => {
             </button>
           ) : (
             <button
-              type="submit" onClick={submit} disabled={loading}
-              className="flex-1 bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-primary-dark transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 group"
+              type="submit" onClick={submit} disabled={loading || !agreedToTerms || !consentedToGps}
+              className="flex-1 bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-primary-dark transition-all shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               {loading ? <Loader2 className="animate-spin" size={20} /> : 'Complete Registration'}
               {!loading && <CheckCircle size={20} />}
@@ -607,6 +723,203 @@ const Register = () => {
           </p>
         </div>
       </motion.div>
+
+      {/* Compliance Modals */}
+      <AnimatePresence>
+        {/* Terms & Conditions Modal */}
+        {showTermsModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowTermsModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 max-h-[80vh] overflow-y-auto border border-slate-100 dark:border-slate-800"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                <div className="p-3 bg-secondary/15 text-secondary dark:bg-primary/20 dark:text-primary rounded-2xl">
+                  <Scale size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-secondary dark:text-white">Terms & Conditions</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">User Agreement</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                <p>Welcome to Trento Smart. By using our application, you agree to comply with and be bound by the following terms of service:</p>
+                
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">1. User Accounts</h4>
+                  <p>You must provide accurate, complete, and current registration information. You are responsible for keeping your account password secure.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">2. Conduct and Safe Usage</h4>
+                  <p>Both drivers and passengers are expected to interact respectfully. Harassment, verbal abuse, dangerous driving, or violations of traffic regulations will result in immediate account suspension or termination.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">3. Fares and Commission</h4>
+                  <p>Fares are calculated based on LGU rules (₱30 base fare and ₱8 per kilometer). Drivers agree to the automated 5% LGU commission deduction on all completed rides.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">4. Cancellation Policy</h4>
+                  <p>Excessive cancellations of requested or accepted rides may restrict your account access temporarily to maintain system integrity.</p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(false)}
+                  className="bg-secondary text-white font-black px-6 py-3 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Privacy Policy Modal */}
+        {showPrivacyModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowPrivacyModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 max-h-[80vh] overflow-y-auto border border-slate-100 dark:border-slate-800"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                <div className="p-3 bg-secondary/15 text-secondary dark:bg-primary/20 dark:text-primary rounded-2xl">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-secondary dark:text-white">Privacy Policy</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Data Protection</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                <p>We take your privacy seriously. This policy outlines how we collect, protect, and use your personal information:</p>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">1. Information We Collect</h4>
+                  <p>We collect registration details (name, email, phone number, address, date of birth) and live GPS location coordinates when the app is active to facilitate matching and secure operations.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">2. How We Use Location Data</h4>
+                  <p>Location coordinates are used to locate drivers, calculate ride distances, calculate fares, and enable passenger tracking. This tracking runs only when a ride is active or when a driver is online.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">3. Data Sharing</h4>
+                  <p>Your name, location, and contact information are shared only with the matched passenger or driver during an active ride. We do not sell or lease your data to third parties.</p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">4. Security Standards</h4>
+                  <p>All data is encrypted and transferred securely over SSL/TLS endpoints, storing verification details safely on our backends and database systems.</p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowPrivacyModal(false)}
+                  className="bg-secondary text-white font-black px-6 py-3 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* GPS Consent Modal */}
+        {showGpsModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowGpsModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 max-h-[80vh] overflow-y-auto border border-slate-100 dark:border-slate-800"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+                <div className="p-3 bg-secondary/15 text-secondary dark:bg-primary/20 dark:text-primary rounded-2xl">
+                  <MapPin size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-secondary dark:text-white">GPS Location tracking</h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Geolocation Consent</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                <p>Trento Smart requires location access to offer a professional and reliable transport service:</p>
+
+                <div className="flex items-start gap-3 p-3 bg-blue-50/50 dark:bg-slate-800 rounded-xl border border-blue-100/50 dark:border-slate-700">
+                  <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 dark:text-blue-200">
+                    Your location coordinates are tracked only while you are explicitly using the application features (such as searching for ride matches or serving active passenger calls).
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">For Passengers:</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Pinpoints your pickup location accurately.</li>
+                    <li>Estimates trip route, distance, and LGU-approved fare.</li>
+                    <li>Tracks the driver's real-time position on your map.</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-black text-secondary dark:text-white mb-1">For Drivers:</h4>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Registers your availability on the nearby drivers map.</li>
+                    <li>Calculates navigation coordinates to pickup and drop-off.</li>
+                    <li>Synchronizes telemetry over secure WebSockets.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowGpsModal(false)}
+                  className="bg-secondary text-white font-black px-6 py-3 rounded-xl hover:bg-slate-800 transition-colors text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div >
   );
 };

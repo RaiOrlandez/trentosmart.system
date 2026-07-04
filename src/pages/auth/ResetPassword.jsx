@@ -11,7 +11,7 @@ const ResetPassword = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState('idle'); // idle, loading, success, error
   const [message, setMessage] = useState('');
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -120,10 +120,10 @@ const ResetPassword = () => {
               {status === 'loading' ? 'Saving...' : 'Save New Password'}
               {status !== 'loading' && <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />}
             </button>
-            
+
             {!token && (
               <div className="mt-4 text-center">
-                 <Link to="/forgot-password" className="text-secondary dark:text-primary text-sm font-bold hover:underline">Request a new link</Link>
+                <Link to="/forgot-password" className="text-secondary dark:text-primary text-sm font-bold hover:underline">Request a new link</Link>
               </div>
             )}
           </form>

@@ -25,7 +25,7 @@ const VerifyEmail = () => {
 
     const handleChange = (index, value) => {
         if (isNaN(value)) return; // Only numbers
-        
+
         const newOtp = [...otp];
         newOtp[index] = value.substring(value.length - 1);
         setOtp(newOtp);

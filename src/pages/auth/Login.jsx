@@ -99,7 +99,7 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login({ email, password });
-      
+
       // Enforce role match
       if (activeRole === 'driver' && user.role !== 'driver') {
         setError('This account is not a driver account. Please use the Passenger tab.');

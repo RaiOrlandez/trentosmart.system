@@ -79,7 +79,7 @@ const PassengerHome = () => {
 
   // Refs to capture real geocoded coordinates from computeFare() for use in requestRide()
   const pickupCoordsRef = useRef(null); // { lat, lng } — geocoded pickup point
-  const destCoordsRef   = useRef(null); // { lat, lng } — geocoded destination point
+  const destCoordsRef = useRef(null); // { lat, lng } — geocoded destination point
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
@@ -94,11 +94,11 @@ const PassengerHome = () => {
       try {
         const res = await api.get('/system-config/');
         const configList = Array.isArray(res.data) ? res.data : (res.data.results || []);
-        
+
         const baseFareObj = configList.find(c => c.key === 'base_fare');
         const ratePerKmObj = configList.find(c => c.key === 'rate_per_km');
         const surgeObj = configList.find(c => c.key === 'surge_multiplier');
-        
+
         const base = baseFareObj ? parseFloat(baseFareObj.value) : 30;
         const perKm = ratePerKmObj ? parseFloat(ratePerKmObj.value) : 8;
         const multiplier = surgeObj ? parseFloat(surgeObj.value) : 1.0;
@@ -160,7 +160,7 @@ const PassengerHome = () => {
 
     // Initialize coordinate refs with local fallbacks so that requests can still proceed if Nominatim geocoding fails
     pickupCoordsRef.current = { lat: parseFloat(userCenter.lat), lng: parseFloat(userCenter.lng) };
-    destCoordsRef.current   = { lat: parseFloat(userCenter.lat) + 0.005, lng: parseFloat(userCenter.lng) + 0.008 };
+    destCoordsRef.current = { lat: parseFloat(userCenter.lat) + 0.005, lng: parseFloat(userCenter.lng) + 0.008 };
 
     try {
       // 1. Geocode Pickup & Destination using OpenStreetMap Nominatim
@@ -192,7 +192,7 @@ const PassengerHome = () => {
 
         // ✅ Store real geocoded coords in refs so requestRide() can use them
         pickupCoordsRef.current = { lat: parseFloat(pLat), lng: parseFloat(pLon) };
-        destCoordsRef.current   = { lat: parseFloat(dLat), lng: parseFloat(dLon) };
+        destCoordsRef.current = { lat: parseFloat(dLat), lng: parseFloat(dLon) };
 
         const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
         const routeRes = await fetchWithTimeout(`${osrmUrl}/${pLon},${pLat};${dLon},${dLat}?overview=full&geometries=geojson`);
@@ -799,10 +799,10 @@ const PassengerHome = () => {
       setStatus('completed');
       setMarkers([]);
       setRouteCoordinates(null);
-      
+
       // Show success message
       alert(`Payment successful! Reference: ${transactionRef.slice(0, 8)}...`);
-      
+
       // Show rating modal after a short delay
       setTimeout(() => {
         setShowRating(true);
@@ -1073,11 +1073,10 @@ const PassengerHome = () => {
                           key={num}
                           type="button"
                           onClick={() => setPassengerCount(num)}
-                          className={`w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${
-                            passengerCount === num
+                          className={`w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${passengerCount === num
                               ? 'bg-primary text-secondary border-primary shadow-md'
                               : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
-                          }`}
+                            }`}
                         >
                           {num}
                         </button>
@@ -1475,11 +1474,10 @@ const PassengerHome = () => {
           {(status === 'matched' || status === 'ongoing') && (
             <button
               onClick={() => setShowChat(prev => !prev)}
-              className={`p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border relative ${
-                showChat
+              className={`p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border relative ${showChat
                   ? 'bg-secondary text-white border-white/10'
                   : 'bg-white text-secondary border-slate-100'
-              }`}
+                }`}
             >
               <MessageSquare size={20} className={showChat ? 'text-primary' : 'text-secondary'} />
               <span className="text-sm font-bold">Chat with Driver</span>
