@@ -933,7 +933,12 @@ class RideViewSet(viewsets.ModelViewSet):
         targeted_driver_id = self.request.data.get('targeted_driver_id')
         targeted_driver = None
         if targeted_driver_id:
-            targeted_driver = User.objects.filter(id=targeted_driver_id, role='driver').first()
+            try:
+                # Safely parse targeted_driver_id to int to handle non-numeric strings ('null', 'undefined', etc.)
+                driver_id_int = int(targeted_driver_id)
+                targeted_driver = User.objects.filter(id=driver_id_int, role='driver').first()
+            except (ValueError, TypeError):
+                targeted_driver = None
         
         # Enforce passenger capacity
         passenger_count = self.request.data.get('passenger_count', 1)
@@ -980,26 +985,27 @@ class RideViewSet(viewsets.ModelViewSet):
             # TARGETED DISPATCH: Notify the chosen driver and log status
             print(f"DEBUG: Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
             
-            async_to_sync(channel_layer.group_send)(
-                f'user_{targeted_driver.id}',
-                {
-                    'type': 'new_ride_request',
-                    'ride': RideSerializer(ride).data
-                }
-            )
-            
-            # Broadcast to system for visibility (e.g. Admin or Global Live Map)
-            async_to_sync(channel_layer.group_send)(
-                'global_system',
-                {
-                    'type': 'system_event',
-                    'event': {
-                        'type': 'ride_activity',
-                        'message': f"Targeted ride request for {targeted_driver.username}",
-                        'ride_id': ride.id
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'user_{targeted_driver.id}',
+                    {
+                        'type': 'new_ride_request',
+                        'ride': RideSerializer(ride).data
                     }
-                }
-            )
+                )
+                
+                # Broadcast to system for visibility (e.g. Admin or Global Live Map)
+                async_to_sync(channel_layer.group_send)(
+                    'global_system',
+                    {
+                        'type': 'system_event',
+                        'event': {
+                            'type': 'ride_activity',
+                            'message': f"Targeted ride request for {targeted_driver.username}",
+                            'ride_id': ride.id
+                        }
+                    }
+                )
             print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
         else:
             # SMART DISPATCH: Only consider online, verified drivers
@@ -1038,14 +1044,15 @@ class RideViewSet(viewsets.ModelViewSet):
                     is_online=True,
                 ))
 
-            for driver in recipients:
-                async_to_sync(channel_layer.group_send)(
-                    f'user_{driver.id}',
-                    {
-                        'type': 'new_ride_request',
-                        'ride': RideSerializer(ride).data
-                    }
-                )
+            if channel_layer:
+                for driver in recipients:
+                    async_to_sync(channel_layer.group_send)(
+                        f'user_{driver.id}',
+                        {
+                            'type': 'new_ride_request',
+                            'ride': RideSerializer(ride).data
+                        }
+                    )
             print(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
 
     def perform_update(self, serializer):
