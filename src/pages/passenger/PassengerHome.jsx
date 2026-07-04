@@ -36,6 +36,7 @@ import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
 import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
+import { searchLandmarks, QUICK_DESTINATIONS } from '../../data/trentoLandmarks';
 
 // Default map centre (Trento ADS)
 const TRENTO_CENTER = { lat: 8.2965, lng: 126.0630 };
@@ -87,6 +88,12 @@ const PassengerHome = () => {
   const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
   const [showFallbackButton, setShowFallbackButton] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+
+  // Grab-style booking enhancements
+  const [nearestLandmark, setNearestLandmark] = useState('');
+  const [rideNotes, setRideNotes] = useState('');
+  const [mapTapMode, setMapTapMode] = useState(false);
+  const [lmSuggestions, setLmSuggestions] = useState([]); // live landmark search results
 
   // Fetch real system configuration fare policies on load
   useEffect(() => {
@@ -661,7 +668,9 @@ const PassengerHome = () => {
         fare: fare,
         payment_method: paymentMethod,
         passenger_count: passengerCount,
-        targeted_driver_id: selectedDriverId // Custom driver selection
+        targeted_driver_id: selectedDriverId,
+        nearest_landmark: nearestLandmark,
+        notes: rideNotes,
       });
 
       const createdRide = response.data;
@@ -930,45 +939,94 @@ const PassengerHome = () => {
                 <Navigation size={18} />
               </button>
             </div>
-            <div className="relative">
+              <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <Search size={18} />
               </div>
               <input
                 value={dest}
                 onChange={(e) => {
-                  setDest(e.target.value);
+                  const v = e.target.value;
+                  setDest(v);
                   setShowDestSuggestions(true);
+                  setLmSuggestions(searchLandmarks(v));
                 }}
-                onFocus={() => setShowDestSuggestions(true)}
+                onFocus={() => {
+                  setShowDestSuggestions(true);
+                  setLmSuggestions(searchLandmarks(dest));
+                }}
                 onBlur={() => setTimeout(() => setShowDestSuggestions(false), 200)}
-                placeholder="Enter destination (e.g. Public Market)"
+                placeholder="Search destination (Market, Hospital, Brgy…)"
                 className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all dark:text-white text-sm"
               />
               <AnimatePresence>
-                {showDestSuggestions && !dest && (
+                {showDestSuggestions && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
+                    exit={{ opacity: 0, y: -8 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
                   >
-                    <div className="p-2">
-                      <p className="text-[10px] font-black uppercase text-slate-400 ml-2 mb-1">Suggested Landmarks</p>
-                      {['Public Market', 'Trento Municipal Hall', 'Trento Bus Terminal', 'Trento Hospital', 'Trento National High School'].map((landmark) => (
-                        <button
-                          key={landmark}
-                          type="button"
-                          onClick={() => {
-                            setDest(landmark);
-                            setShowDestSuggestions(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-secondary dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                          <MapPin size={14} className="text-primary" />
-                          {landmark}
-                        </button>
-                      ))}
+                    <div className="p-2 max-h-64 overflow-y-auto">
+                      {/* Live search results from Trento DB */}
+                      {lmSuggestions.length > 0 ? (
+                        <>
+                          <p className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1">Matching Landmarks</p>
+                          {lmSuggestions.map((lm) => (
+                            <button
+                              key={lm.id}
+                              type="button"
+                              onClick={() => {
+                                setDest(lm.name);
+                                setNearestLandmark(lm.name);
+                                destCoordsRef.current = { lat: lm.lat, lng: lm.lng };
+                                setShowDestSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-secondary dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-3"
+                            >
+                              <span className="text-base">{lm.icon}</span>
+                              <div className="min-w-0">
+                                <p className="font-bold truncate">{lm.name}</p>
+                                <p className="text-[10px] text-slate-400">{lm.category}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      ) : dest.length >= 2 ? (
+                        <div className="px-3 py-3 text-center">
+                          <p className="text-xs text-slate-400 font-bold">No local landmarks found.</p>
+                          <button
+                            type="button"
+                            onClick={() => { setMapTapMode(true); setShowDestSuggestions(false); }}
+                            className="mt-1 text-xs text-primary font-black hover:underline"
+                          >
+                            📍 Tap the map to pin your destination
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-[9px] font-black uppercase text-slate-400 ml-2 mb-1">Quick Destinations</p>
+                          {QUICK_DESTINATIONS.map((lm) => (
+                            <button
+                              key={lm.id}
+                              type="button"
+                              onClick={() => {
+                                setDest(lm.name);
+                                setNearestLandmark(lm.name);
+                                destCoordsRef.current = { lat: lm.lat, lng: lm.lng };
+                                setShowDestSuggestions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-secondary dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-3"
+                            >
+                              <span className="text-base">{lm.icon}</span>
+                              <div className="min-w-0">
+                                <p className="font-bold truncate">{lm.name}</p>
+                                <p className="text-[10px] text-slate-400">{lm.category}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -1063,6 +1121,30 @@ const PassengerHome = () => {
                         <span>+₱{(fare - (fare / surgeInfo.multiplier)).toFixed(0)}.00</span>
                       </div>
                     )}
+                  </div>
+
+                  {/* Nearest Landmark */}
+                  <div className="mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-1.5">📍 Nearest Landmark <span className="normal-case font-medium opacity-60">(helps driver find you)</span></p>
+                    <input
+                      type="text"
+                      value={nearestLandmark}
+                      onChange={(e) => setNearestLandmark(e.target.value)}
+                      placeholder="e.g. Near Public Market, Beside Mercury Drug…"
+                      className="w-full bg-white/10 text-white placeholder-white/40 border border-white/20 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-white/30"
+                    />
+                  </div>
+
+                  {/* Ride Notes */}
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-1.5">📝 Ride Instructions <span className="normal-case font-medium opacity-60">(optional)</span></p>
+                    <input
+                      type="text"
+                      value={rideNotes}
+                      onChange={(e) => setRideNotes(e.target.value)}
+                      placeholder="e.g. Blue Gate, Waiting Outside, Second House…"
+                      className="w-full bg-white/10 text-white placeholder-white/40 border border-white/20 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-white/30"
+                    />
                   </div>
 
                   <div className="mb-4">
@@ -1349,7 +1431,44 @@ const PassengerHome = () => {
 
       {/* Main Map View — centred on live GPS position */}
       <div className="flex-1 min-h-[500px] relative rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
-        <Map center={userCenter} markers={markers} routeCoordinates={routeCoordinates} />
+        {/* Map tap mode banner */}
+        <AnimatePresence>
+          {mapTapMode && (
+            <motion.div
+              initial={{ y: -60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -60, opacity: 0 }}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] bg-secondary text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border-2 border-white"
+            >
+              <MapPin size={16} className="text-primary" />
+              <span className="text-xs font-black">Tap anywhere to set your destination</span>
+              <button
+                onClick={() => setMapTapMode(false)}
+                className="ml-1 text-white/60 hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <Map
+          center={userCenter}
+          markers={markers}
+          routeCoordinates={routeCoordinates}
+          onMapClick={(lat, lng) => {
+            if (!mapTapMode) return;
+            // Place/update destination marker
+            const label = `Pin at ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            setDest(label);
+            destCoordsRef.current = { lat, lng };
+            setMarkers(prev => [
+              ...prev.filter(m => !m.isDestination),
+              { id: 'dest', lat, lng, title: 'Destination', info: label, isDestination: true, forceFocus: Date.now() },
+            ]);
+            setMapTapMode(false);
+          }}
+          mapClickEnabled={mapTapMode}
+        />
 
         {/* GPS status badge */}
         <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>

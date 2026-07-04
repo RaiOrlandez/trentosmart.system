@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useContext, useState } from 'react';
 import { ThemeContext } from '../context/ThemeContext';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, CircleMarker, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, CircleMarker, Circle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { ensureImageUrl } from '../utils/url';
 import 'leaflet/dist/leaflet.css';
@@ -139,6 +139,19 @@ function MapController({ markers, center }) {
     return null;
 }
 
+// ── Map Click Handler ────────────────────────────────────────────────────────
+// Fires onMapClick(lat, lng) when the user taps/clicks on the map
+function MapClickHandler({ onMapClick, enabled }) {
+    useMapEvents({
+        click(e) {
+            if (enabled && onMapClick) {
+                onMapClick(e.latlng.lat, e.latlng.lng);
+            }
+        },
+    });
+    return null;
+}
+
 // ── Smooth Marker ─────────────────────────────────────────────────────────────
 const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
     const markerRef     = useRef(null);
@@ -206,7 +219,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
 };
 
 // ── Main Map Component ────────────────────────────────────────────────────────
-const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], routeCoordinates = null, heatPoints = [] }) => {
+const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], routeCoordinates = null, heatPoints = [], onMapClick = null, mapClickEnabled = false }) => {
     const { isDarkMode } = useContext(ThemeContext);
     const [history, setHistory] = useState([]);
 
@@ -365,6 +378,7 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                 })}
 
                 <MapController markers={markers} center={center} />
+                <MapClickHandler onMapClick={onMapClick} enabled={mapClickEnabled} />
             </MapContainer>
 
             {/* Live Legend */}

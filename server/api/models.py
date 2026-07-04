@@ -120,6 +120,8 @@ class Ride(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
     fare = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     passenger_count = models.IntegerField(default=1)
+    nearest_landmark = models.CharField(max_length=255, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
     
     # LGU Commission System (5% default)
     lgu_commission = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)

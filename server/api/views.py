@@ -955,10 +955,15 @@ class RideViewSet(viewsets.ModelViewSet):
         if passenger_count < 1:
             raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
 
+        nearest_landmark = self.request.data.get('nearest_landmark', '')
+        notes = self.request.data.get('notes', '')
+
         ride = serializer.save(
             passenger=self.request.user,
             targeted_driver=targeted_driver,
-            passenger_count=passenger_count
+            passenger_count=passenger_count,
+            nearest_landmark=nearest_landmark,
+            notes=notes
         )
         log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} for {passenger_count} passenger(s) to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
 

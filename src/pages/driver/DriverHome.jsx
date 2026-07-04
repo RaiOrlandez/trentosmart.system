@@ -964,6 +964,19 @@ const DriverHome = () => {
                       </div>
                     </div>
 
+                    {activeRide.nearest_landmark && (
+                      <div className="mb-4 px-4 py-3 text-xs bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
+                        <span className="font-black text-primary uppercase text-[9px] block tracking-widest mb-1">📍 Nearest Landmark</span>
+                        <span className="font-medium text-slate-200">{activeRide.nearest_landmark}</span>
+                      </div>
+                    )}
+                    {activeRide.notes && (
+                      <div className="mb-4 px-4 py-3 text-xs bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
+                        <span className="font-black text-primary uppercase text-[9px] block tracking-widest mb-1">📝 Passenger Instructions</span>
+                        <span className="font-medium text-slate-200">{activeRide.notes}</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 mb-6 px-1">
                       <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/5 flex items-center gap-2">
                         <CreditCard size={12} className="text-primary" />
@@ -1135,6 +1148,19 @@ const DriverHome = () => {
                         </div>
                       </div>
                     </div>
+
+                    {selectedRequest.nearest_landmark && (
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-secondary">
+                        <span className="font-black text-primary-dark uppercase text-[9px] block tracking-wider mb-1">📍 Nearest Landmark</span>
+                        <p className="font-bold">{selectedRequest.nearest_landmark}</p>
+                      </div>
+                    )}
+                    {selectedRequest.notes && (
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-secondary">
+                        <span className="font-black text-primary-dark uppercase text-[9px] block tracking-wider mb-1">📝 Passenger Instructions</span>
+                        <p className="font-bold">{selectedRequest.notes}</p>
+                      </div>
+                    )}
 
                     {/* Trip Metadata */}
                     <div className="grid grid-cols-3 gap-2">
