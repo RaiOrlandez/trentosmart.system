@@ -95,31 +95,45 @@ function MapController({ markers, center }) {
     const map = useMap();
     const lastCenterRef = useRef({ lat: center.lat, lng: center.lng });
     const isFirstLoad = useRef(true);
+    const lastHandledFocusRef = useRef(null);
+    const [userInteracted, setUserInteracted] = useState(false);
 
-    // Smart pan: only flyTo if moved significantly, with a fast animation for tracking
+    // Watch for user map interactions to suspend auto-centering
+    useMapEvents({
+        dragstart() {
+            setUserInteracted(true);
+        },
+        zoomstart() {
+            setUserInteracted(true);
+        }
+    });
+
+    // Smart pan: only flyTo if moved significantly and user is not inspecting other parts of map
     useEffect(() => {
-        if (!center?.lat || !center?.lng) return;
+        if (!center?.lat || !center?.lng || userInteracted) return;
         const latDiff = Math.abs(center.lat - lastCenterRef.current.lat);
         const lngDiff = Math.abs(center.lng - lastCenterRef.current.lng);
 
         if (latDiff > DEAD_ZONE_DEG || lngDiff > DEAD_ZONE_DEG) {
             map.flyTo([center.lat, center.lng], map.getZoom(), {
                 animate: true,
-                duration: 0.8,   // Faster than default 1.5s for live tracking
+                duration: 0.8,
                 easeLinearity: 0.5,
             });
             lastCenterRef.current = { lat: center.lat, lng: center.lng };
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [center.lat, center.lng, map]);
+    }, [center.lat, center.lng, map, userInteracted]);
 
-    // Fit bounds to show all markers on first load or focus marker
+    // Fit bounds to show all markers on first load or handle explicit focus markers
     useEffect(() => {
         if (!markers?.length) return;
 
         const focusMarker = markers.find(m => m.forceFocus);
-        if (focusMarker) {
+        if (focusMarker && focusMarker.forceFocus !== lastHandledFocusRef.current) {
+            setUserInteracted(false); // Reset interaction override when user explicitly sets pin or select landmark
             map.flyTo([focusMarker.lat, focusMarker.lng], 17, { animate: true, duration: 0.8 });
+            lastHandledFocusRef.current = focusMarker.forceFocus;
             return;
         }
 
@@ -136,7 +150,37 @@ function MapController({ markers, center }) {
         }
     }, [markers, map]);
 
-    return null;
+    return (
+        userInteracted ? (
+            <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}>
+                <button
+                    onClick={() => {
+                        setUserInteracted(false);
+                        if (center) {
+                            map.flyTo([center.lat, center.lng], 15, { animate: true, duration: 0.8 });
+                        } else if (markers.length > 0) {
+                            const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
+                            map.fitBounds(bounds, { padding: [40, 40], animate: true });
+                        }
+                    }}
+                    style={{
+                        background: '#FFD700',
+                        color: '#0f172a',
+                        fontWeight: 'bold',
+                        fontSize: '11px',
+                        padding: '8px 16px',
+                        borderRadius: '999px',
+                        border: '2px solid white',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                        cursor: 'pointer'
+                    }}
+                    className="hover:scale-105 transition-transform"
+                >
+                    🎯 Recenter Map
+                </button>
+            </div>
+        ) : null
+    );
 }
 
 // ── Map Click Handler ────────────────────────────────────────────────────────

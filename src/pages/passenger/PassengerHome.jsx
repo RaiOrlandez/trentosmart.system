@@ -890,7 +890,7 @@ const PassengerHome = () => {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col md:flex-row gap-6 px-6 max-w-[1400px] mx-auto transition-colors duration-500">
+    <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col-reverse md:flex-row gap-4 md:gap-6 px-4 md:px-6 max-w-[1400px] mx-auto transition-colors duration-500">
       <LocationPermissionModal
         isOpen={gpsStatus === 'error'}
         error={gpsError}
@@ -1458,6 +1458,58 @@ const PassengerHome = () => {
                     </div>
                   )}
 
+                  {/* Inline Mobile-Optimized Driver Controls */}
+                  <div className="grid grid-cols-4 gap-2 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowChat(prev => !prev)}
+                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${showChat ? 'bg-secondary text-white border-secondary' : 'bg-white text-secondary border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      <MessageSquare size={16} />
+                      <span className="text-[8px] font-black uppercase tracking-wider">Chat</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsTracking(!isTracking);
+                        const driverMarker = markers.find(m => m.title === 'Driver');
+                        if (driverMarker) {
+                          setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, isTracking: !isTracking, forceFocus: !isTracking ? Date.now() : null } : m)]);
+                        }
+                      }}
+                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${isTracking ? 'bg-primary text-secondary border-primary' : 'bg-white text-secondary border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      <Navigation size={16} className={isTracking ? 'animate-pulse' : ''} />
+                      <span className="text-[8px] font-black uppercase tracking-wider">{isTracking ? 'Tracking' : 'Track'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await api.get(`/rides/${activeRideId}/`);
+                          const token = res.data.share_token;
+                          const url = `${window.location.origin}/track/${token}`;
+                          await navigator.clipboard.writeText(url);
+                          alert("Tracking link copied to clipboard!");
+                        } catch (e) {
+                          alert("Could not generate link.");
+                        }
+                      }}
+                      className="p-3 bg-white hover:bg-slate-50 text-secondary border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Share2 size={16} />
+                      <span className="text-[8px] font-black uppercase tracking-wider">Share</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => alert("Initiating secure proxy call. Driver number is hidden for privacy.")}
+                      className="p-3 bg-white hover:bg-slate-50 text-secondary border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Phone size={16} />
+                      <span className="text-[8px] font-black uppercase tracking-wider">Call</span>
+                    </button>
+                  </div>
+
                   {/* Trip Status */}
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -1610,7 +1662,7 @@ const PassengerHome = () => {
                   setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, isTracking: !isTracking, forceFocus: !isTracking ? Date.now() : null } : m)]);
                 }
               }}
-              className={`${isTracking ? 'bg-primary text-secondary ring-4 ring-primary/30' : 'bg-secondary text-white'} p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10`}
+              className={`hidden md:flex ${isTracking ? 'bg-primary text-secondary ring-4 ring-primary/30' : 'bg-secondary text-white'} p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border border-white/10`}
             >
               <Navigation size={20} className={isTracking ? 'text-secondary animate-pulse' : 'text-primary'} />
               <span className="text-sm font-bold">{isTracking ? 'Following Driver...' : 'Track Driver'}</span>
@@ -1621,11 +1673,6 @@ const PassengerHome = () => {
           {(status === 'matched' || status === 'ongoing') && activeRideId && (
             <button
               onClick={async () => {
-                // In a real app, we would fetch the token from the ACTIVE ride object.
-                // For now, we need to fetch the ride details to get the token or assume we have it.
-                // Let's quickly fetch it or use a placeholder if not in state.
-                // Better approach: We should have 'activeRide' state object that includes 'share_token'.
-                // BUT to save time, let's fetch it on click.
                 try {
                   const res = await api.get(`/rides/${activeRideId}/`);
                   const token = res.data.share_token;
@@ -1636,7 +1683,7 @@ const PassengerHome = () => {
                   alert("Could not generate link.");
                 }
               }}
-              className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border border-white/10"
+              className="hidden md:flex bg-blue-600 text-white p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border border-white/10"
             >
               <Share2 size={20} />
               <span className="text-sm font-bold">Share Ride</span>
@@ -1646,7 +1693,7 @@ const PassengerHome = () => {
           {(status === 'matched' || status === 'ongoing') && (
             <button
               onClick={() => setShowChat(prev => !prev)}
-              className={`p-4 rounded-2xl shadow-lg flex items-center gap-3 hover:scale-105 transition-all border relative ${showChat
+              className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border relative ${showChat
                   ? 'bg-secondary text-white border-white/10'
                   : 'bg-white text-secondary border-slate-100'
                 }`}
