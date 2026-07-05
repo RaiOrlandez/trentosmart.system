@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { ensureImageUrl } from '../../utils/url';
 import useRideTracking from '../../hooks/useRideTracking';
 import useSystemEvents from '../../hooks/useSystemEvents';
 import ChatWindow from '../../components/ChatWindow';
@@ -1090,8 +1091,18 @@ const DriverHome = () => {
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center overflow-hidden">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}`} alt="P" />
+                        <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
+                          <img
+                            src={(() => {
+                              const passengerObj = typeof activeRide.passenger === 'object' ? activeRide.passenger : null;
+                              const pName = passengerObj ? passengerObj.username : activeRide.passenger;
+                              return passengerObj
+                                ? ensureImageUrl(passengerObj.profile_picture, pName, passengerObj.profile_picture_url)
+                                : `https://api.dicebear.com/7.x/avataaars/svg?seed=${pName}`;
+                            })()}
+                            alt="P"
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                         <div>
                           <p className="font-bold text-lg">{typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}</p>
@@ -1214,44 +1225,61 @@ const DriverHome = () => {
                   exit={{ scale: 0.9, opacity: 0, y: 20 }}
                   className="bg-white border-2 border-primary p-6 rounded-[2.5rem] shadow-2xl relative"
                 >
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-secondary px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest animate-bounce shadow-lg">
-                    New Ride Request
+                  {/* Premium top status header */}
+                  <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Incoming Request
+                      </span>
+                    </div>
+                    <button
+                      onClick={fetchRequests}
+                      className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-xl transition-all"
+                      title="Refresh Request"
+                    >
+                      <Clock size={14} />
+                    </button>
                   </div>
-                  <button
-                    onClick={fetchRequests}
-                    className="absolute top-4 right-4 p-2 text-slate-300 hover:text-primary transition-colors"
-                    title="Refresh Request"
-                  >
-                    <Clock size={16} />
-                  </button>
 
-                  <div className="space-y-4 pt-2">
+                  <div className="space-y-4 pt-1">
                     {/* Passenger Info Header */}
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-lg">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}`} alt="P" className="w-full h-full" />
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-14 h-14 bg-slate-100 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm shrink-0">
+                          <img
+                            src={(() => {
+                              const passengerObj = typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger : null;
+                              const pName = passengerObj ? passengerObj.username : selectedRequest.passenger;
+                              return passengerObj
+                                ? ensureImageUrl(passengerObj.profile_picture, pName, passengerObj.profile_picture_url)
+                                : `https://api.dicebear.com/7.x/avataaars/svg?seed=${pName}`;
+                            })()}
+                            alt="Passenger"
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <div>
-                          <p className="font-black text-secondary text-xl leading-tight">{typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex items-center gap-1 text-yellow-500">
-                              <Star size={12} className="fill-yellow-500" />
-                              <span className="text-[10px] font-bold">
+                        <div className="min-w-0">
+                          <p className="font-black text-secondary text-base truncate leading-tight">
+                            {typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            <div className="flex items-center gap-0.5 text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded-lg">
+                              <Star size={10} className="fill-yellow-500" />
+                              <span className="text-[9px] font-bold">
                                 {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.average_rating
                                   ? parseFloat(selectedRequest.passenger.average_rating).toFixed(1)
                                   : 'New'}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-400">•</span>
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Verified</span>
+                            <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">Verified</span>
                             {typeof selectedRequest.passenger === 'object' && (
                               <>
                                 {selectedRequest.passenger.gender && (
-                                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">{selectedRequest.passenger.gender}</span>
+                                  <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg uppercase">{selectedRequest.passenger.gender}</span>
                                 )}
                                 {selectedRequest.passenger.date_of_birth && (
-                                  <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                  <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg whitespace-nowrap">
                                     {Math.floor((new Date() - new Date(selectedRequest.passenger.date_of_birth)) / 31557600000)} Y/O
                                   </span>
                                 )}
@@ -1260,9 +1288,9 @@ const DriverHome = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-black text-primary text-3xl">₱{selectedRequest.fare}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">{getDistanceToPickup(selectedRequest)} away</p>
+                      <div className="text-right shrink-0">
+                        <p className="font-black text-primary text-2xl leading-none">₱{selectedRequest.fare}</p>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-1">{getDistanceToPickup(selectedRequest)} away</p>
                       </div>
                     </div>
 
