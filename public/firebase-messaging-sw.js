@@ -57,8 +57,9 @@ self.addEventListener('activate', event => {
 // Fetch: CRITICAL FIX
 // Do NOT intercept:
 //   1. Navigation requests (React Router pages like /register, /login, /driver)
-//   2. API calls (Railway backend)
-//   3. Cross-origin requests (Cloudinary, Firebase, Google)
+//   2. Client-side routes (paths without extensions like /history, /passenger)
+//   3. API calls (Railway/backend)
+//   4. Cross-origin requests (Cloudinary, Firebase, Google)
 // Only cache same-origin static assets.
 self.addEventListener('fetch', event => {
     const { request } = event;
@@ -66,6 +67,10 @@ self.addEventListener('fetch', event => {
 
     // Skip navigation requests — let React Router handle them
     if (request.mode === 'navigate') return;
+
+    // Skip client-side routes (paths without extensions, except root /)
+    const path = url.pathname;
+    if (path !== '/' && !path.includes('.')) return;
 
     // Skip non-GET requests
     if (request.method !== 'GET') return;
