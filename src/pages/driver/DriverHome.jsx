@@ -100,6 +100,7 @@ const DriverHome = () => {
   const [completedRideId, setCompletedRideId] = useState(null);
   const [completedPassengerName, setCompletedPassengerName] = useState('');
   const [showSelfieModal, setShowSelfieModal] = useState(false);
+  const [isWaitingForGCashPayment, setIsWaitingForGCashPayment] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [navModalData, setNavModalData] = useState(null); // { lat, lng, label }
@@ -240,10 +241,37 @@ const DriverHome = () => {
     if (passengerLivePos && passengerLivePos.type === 'status_update' && (passengerLivePos.status === 'cancelled' || passengerLivePos.status === 'driver_rejected')) {
       if (activeRide) {
         alert("Ride update: This request is no longer available.");
+        setIsWaitingForGCashPayment(false);
         setActiveRide(null);
       }
     }
   }, [passengerLivePos, activeRide]);
+
+  // Handle passenger GCash payment verification and completion
+  useEffect(() => {
+    if (passengerLivePos && passengerLivePos.status === 'completed' && passengerLivePos.data?.payment_verified) {
+      setIsWaitingForGCashPayment(false);
+      
+      const pData = passengerLivePos.data;
+      const gainedEarnings = pData.driver_earnings ? parseFloat(pData.driver_earnings) : parseFloat(activeRide?.fare || 0);
+
+      setTodayEarnings(prev => prev + gainedEarnings);
+      setTripsCount(prev => prev + 1);
+      if (getProfile) getProfile();
+      fetchAnalytics();
+
+      setCommissionData({
+        totalFare: pData.total_fare,
+        lguCommission: pData.lgu_commission,
+        driverEarnings: pData.driver_earnings,
+        commissionRate: pData.commission_rate
+      });
+      setActiveRide(null);
+      
+      // Delay LGU receipt modal display slightly for smoother transition
+      setTimeout(() => setShowCommissionModal(true), 500);
+    }
+  }, [passengerLivePos, activeRide, getProfile]);
 
   // ✅ Persist online status to localStorage on every change (survives page refresh)
   useEffect(() => {
@@ -697,11 +725,23 @@ const DriverHome = () => {
   const completeRide = async () => {
     if (!activeRide) return;
 
+    // For GCash payments, request payment via WS and wait for confirmation
+    if (activeRide.payment_method === 'gcash') {
+      try {
+        sendMessage('Driver is requesting GCash payment.', user?.username || 'Driver', 'payment_request');
+        setIsWaitingForGCashPayment(true);
+      } catch (err) {
+        console.error('Failed to broadcast payment request', err);
+        setIsWaitingForGCashPayment(true);
+      }
+      return;
+    }
+
     try {
       const currentRideId = activeRide.id;
       const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
 
-      // Inform the server that the ride is completed
+      // Inform the server that the ride is completed (Cash/Wallet only)
       const response = await api.post(`/rides/${currentRideId}/complete/`);
       const data = response.data;
 
@@ -1722,6 +1762,32 @@ const DriverHome = () => {
         amount={activeRide?.fare}
         refNo={verificationRef}
       />
+
+      {/* Real-time GCash Payment Waiting Screen */}
+      <AnimatePresence>
+        {isWaitingForGCashPayment && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-lg text-white text-center">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="flex flex-col items-center max-w-sm space-y-6 bg-slate-950/80 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl"
+            >
+              <div className="relative">
+                <div className="w-20 h-20 border-[4px] border-white/20 rounded-full animate-pulse" />
+                <div className="absolute inset-0 border-[4px] border-primary rounded-full border-t-transparent animate-spin" />
+              </div>
+              <h3 className="text-2xl font-black uppercase tracking-tight text-primary">Waiting for Payment</h3>
+              <p className="text-sm text-slate-300 font-medium leading-relaxed">
+                Passenger is authorizing a payment of <span className="text-white font-bold">₱{activeRide?.fare}</span> via GCash. Please wait.
+              </p>
+              <div className="px-4 py-2 bg-white/5 rounded-full text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Connected to secure gateway
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <SelfieVerificationModal
         isOpen={showSelfieModal}
         onClose={() => setShowSelfieModal(false)}

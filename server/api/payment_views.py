@@ -243,6 +243,24 @@ def verify_paymongo_payment(request):
                         f"₱{amount_php:.2f} paid for Ride #{ride.id}. Thank you!"
                     )
 
+                    # Broadcast status update to ride group so driver's screen automatically transitions
+                    from channels.layers import get_channel_layer
+                    from asgiref.sync import async_to_sync
+                    from .serializers import RideSerializer
+                    
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'ride_{ride.id}',
+                        {
+                            'type': 'ride_status_update',
+                            'status': 'completed',
+                            'data': {
+                                **RideSerializer(ride).data,
+                                'payment_verified': True
+                            }
+                        }
+                    )
+
                 return Response({
                     'success':         True,
                     'is_ride_payment': True,

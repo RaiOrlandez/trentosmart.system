@@ -568,6 +568,20 @@ const PassengerHome = () => {
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
 
+  // Handle driver requesting payment via WebSocket
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.msgType === 'payment_request') {
+        if (paymentMethod === 'gcash') {
+          setShowGCashPayment(true);
+        } else {
+          setShowPayment(true);
+        }
+      }
+    }
+  }, [messages, paymentMethod]);
+
   // Send passenger location to driver
   useEffect(() => {
     let watchId;
