@@ -894,7 +894,9 @@ class UserViewSet(viewsets.ModelViewSet):
                 'vehicle_plate': d.vehicle_plate,
                 'body_number': d.body_number,
                 'vehicle_color': d.vehicle_color,
+                'sidecar_type': d.sidecar_type,
                 'average_rating': d.average_rating,
+                'profile_picture': request.build_absolute_uri(d.profile_picture.url) if d.profile_picture else None,
                 'distance': None
             }
             

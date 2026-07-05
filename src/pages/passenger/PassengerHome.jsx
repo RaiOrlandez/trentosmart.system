@@ -37,6 +37,7 @@ import { Settings, X } from 'lucide-react';
 import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 import { searchLandmarks, QUICK_DESTINATIONS, TRENTO_LANDMARKS } from '../../data/trentoLandmarks';
+import { ensureImageUrl } from '../../utils/url';
 
 /**
  * Reverse geocode (lat, lng) → human-readable place name
@@ -1404,35 +1405,35 @@ const PassengerHome = () => {
                     <div
                       key={driver.id}
                       onClick={() => setSelectedDriverId(driver.id)}
-                      className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-3 ${selectedDriverId === driver.id ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' : 'border-slate-100 bg-white hover:border-primary/30'}`}
+                      className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-3 ${selectedDriverId === driver.id ? 'border-primary bg-primary/5 shadow-md scale-[1.02]' : 'border-slate-100 bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5 hover:border-primary/30'}`}
                     >
                       <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-white/5 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                        {driver.profile_picture ? (
-                          <img src={driver.profile_picture} alt="Driver" className="w-full h-full object-cover" />
-                        ) : (
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${driver.username}`} alt="Driver" className="w-full h-full" />
-                        )}
+                        <img
+                          src={ensureImageUrl(driver.profile_picture, driver.username)}
+                          alt="Driver"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                          <p className="text-xs font-black text-secondary truncate">{driver.username}</p>
+                          <p className="text-xs font-black text-secondary dark:text-white truncate">{driver.username}</p>
                           <div className="flex items-center gap-1 text-yellow-600 font-bold text-xs">
                             <Star size={10} className="fill-yellow-400 mr-0.5" />
-                            {driver.average_rating || '5.0'}
+                            {driver.average_rating > 0 ? parseFloat(driver.average_rating).toFixed(1) : '5.0 (New)'}
                             {driver.average_rating >= 4.5 && (
                               <span className="ml-1 text-[8px] bg-green-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Top Rated</span>
                             )}
                           </div>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                          {driver.vehicle_model} • {driver.vehicle_plate} • {driver.sidecar_type || 'Standard'}
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">
+                          {driver.vehicle_model || 'Trike'} • {driver.vehicle_plate || 'No Plate'} • {driver.sidecar_type || 'Standard'}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded">
                             UNIT {driver.body_number || '---'}
                           </span>
                           <span className="text-[9px] font-bold text-slate-400 italic">
-                            {driver.distance} km away
+                            {driver.distance !== null && driver.distance !== undefined ? `${driver.distance} km away` : 'Calculating…'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1 opacity-70">
