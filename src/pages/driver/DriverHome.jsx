@@ -1743,6 +1743,7 @@ const DriverHome = () => {
               <button
                 onClick={() => {
                   setShowCommissionModal(false);
+                  setCommissionData(null);
                   setCompletedRideId(null);
                   setCompletedPassengerName('');
                 }}
