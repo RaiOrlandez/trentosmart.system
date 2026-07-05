@@ -491,6 +491,11 @@ class GoogleLoginView(APIView):
 
         # 4. Generate JWT tokens (same format as normal login)
         try:
+            import uuid
+            # Generate new session salt on login to invalidate all other active sessions!
+            user.jwt_session_salt = uuid.uuid4().hex
+            user.save(update_fields=['jwt_session_salt'])
+
             refresh = RefreshToken.for_user(user)
         except Exception as e:
             return Response(
@@ -502,6 +507,7 @@ class GoogleLoginView(APIView):
         refresh['role'] = user.role
         refresh['username'] = user.username
         refresh['email'] = user.email
+        refresh['jwt_session_salt'] = user.jwt_session_salt
         refresh['is_verified_driver'] = user.is_verified_driver
         refresh['verification_status'] = user.verification_status
         if user.profile_picture:
@@ -2826,5 +2832,12 @@ class ScheduledRideViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+from rest_framework_simplejwt.views import TokenRefreshView
+from .serializers import CustomTokenRefreshSerializer
 
-
+class CustomTokenRefreshView(TokenRefreshView):
+    """
+    Overrides the default TokenRefreshView to use CustomTokenRefreshSerializer,
+    which validates the jwt_session_salt claim and blocks stale device refresh attempts.
+    """
+    serializer_class = CustomTokenRefreshSerializer

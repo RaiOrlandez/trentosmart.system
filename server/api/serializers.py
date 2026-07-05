@@ -242,12 +242,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
+        import uuid
+        # Generate new session salt on login to invalidate all other active sessions!
+        user.jwt_session_salt = uuid.uuid4().hex
+        user.save(update_fields=['jwt_session_salt'])
+
         token = super().get_token(user)
 
         # Add custom claims
         token['role'] = user.role
         token['username'] = user.username
         token['email'] = user.email
+        token['jwt_session_salt'] = user.jwt_session_salt
         token['is_verified_driver'] = user.is_verified_driver
         token['verification_status'] = user.verification_status
         if user.profile_picture:
@@ -289,3 +295,42 @@ class ScheduledRideSerializer(serializers.ModelSerializer):
         model = ScheduledRide
         fields = '__all__'
         read_only_fields = ('passenger', 'status', 'ride', 'created_at', 'updated_at')
+
+
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+    """
+    Custom refresh token serializer that validates the session salt.
+    Prevents refresh token loops and handles single session invalidation immediately.
+    """
+    def validate(self, attrs):
+        # Retrieve the original validation data (which checks signature/expiration)
+        try:
+            data = super().validate(attrs)
+        except InvalidToken as e:
+            raise e
+
+        # Decode the refresh token to get user_id and session salt
+        try:
+            refresh = RefreshToken(attrs['refresh'])
+            user_id = refresh.payload.get('user_id')
+            token_salt = refresh.payload.get('jwt_session_salt')
+
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+
+            # Enforce single session validation on refresh
+            if user.role != 'admin' and token_salt:
+                if getattr(user, 'jwt_session_salt', None) != token_salt:
+                    raise InvalidToken('Your session has expired because you logged in on another device.')
+        except Exception as e:
+            if isinstance(e, InvalidToken):
+                raise e
+            raise InvalidToken('Invalid refresh token or session has expired.')
+
+        return data
+

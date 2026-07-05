@@ -78,6 +78,9 @@ class User(AbstractUser):
     is_email_verified = models.BooleanField(default=False)
     email_otp = models.CharField(max_length=6, blank=True, null=True)
 
+    # Session management to prevent concurrent logins
+    jwt_session_salt = models.CharField(max_length=255, default=uuid.uuid4)
+
     # Driver Operational Settings
     auto_accept_rides = models.BooleanField(default=False)
     receive_notifications = models.BooleanField(default=True)

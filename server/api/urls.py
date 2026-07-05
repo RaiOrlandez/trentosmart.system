@@ -1,8 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
-    RegisterView, CheckEmailView, CheckUsernameView, LoginView, GoogleLoginView, ProfileView, RideViewSet, driver_requests, 
+    RegisterView, CheckEmailView, CheckUsernameView, LoginView, GoogleLoginView, ProfileView, RideViewSet, driver_requests,
     driver_accept, driver_reject, ride_complete, DriverVerificationView, WalletViewSet,
     ReviewViewSet, IncidentViewSet, ComplaintViewSet, UserViewSet,
     DriverAnalyticsView, SavedPlaceViewSet, SystemConfigViewSet, BroadcastViewSet,
@@ -10,6 +9,7 @@ from .views import (
     LocationUpdateView, NearbyLocationsView, VerifyEmailView, ResendOTPView,
     ChangePasswordView, ChangeEmailView, ConfirmEmailChangeView,
     PasswordResetRequestView, PasswordResetConfirmView, ActivityLogViewSet, ScheduledRideViewSet,
+    CustomTokenRefreshView,
 )
 from .views import TestEmailView
 from .fcm_views import update_fcm_token
@@ -44,7 +44,7 @@ urlpatterns = [
     path('security/pin/', PINManagementView.as_view(), name='security-pin'),
     path('auth/login/', LoginView.as_view(), name='token_obtain_pair'),
     path('auth/google-login/', GoogleLoginView.as_view(), name='google_login'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('user/profile/', ProfileView.as_view(), name='profile'),
     path('user/change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('user/change-email/', ChangeEmailView.as_view(), name='change-email'),
