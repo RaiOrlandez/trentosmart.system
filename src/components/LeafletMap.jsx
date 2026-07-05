@@ -15,81 +15,81 @@ L.Icon.Default.mergeOptions({
 
 // ── Icon Builders ────────────────────────────────────────────────────────────
 
-// Driver icon — rotatable arrow, dynamically built with heading
 const buildDriverIcon = (headingDeg = 0) => new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <circle cx="20" cy="20" r="18" fill="#FFD700" stroke="#1e293b" stroke-width="2.5" filter="url(#s)"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
       <defs>
         <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.4"/>
         </filter>
       </defs>
-      <polygon points="20,7 26,27 20,22 14,27" fill="#1e293b" transform="rotate(${headingDeg},20,20)"/>
+      <circle cx="22" cy="22" r="20" fill="#FFD700" stroke="#1e293b" stroke-width="2.5" filter="url(#s)"/>
+      <circle cx="22" cy="22" r="16" fill="#FFC300" stroke="none"/>
+      <polygon points="22,8 29,30 22,24 15,30" fill="#1e293b" transform="rotate(${headingDeg},22,22)"/>
     </svg>
   `),
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-    popupAnchor: [0, -22],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -24],
 });
 
 const pickupIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
       <defs>
         <filter id="s">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.35"/>
         </filter>
       </defs>
-      <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 24 16 24S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#22c55e" filter="url(#s)"/>
-      <circle cx="16" cy="16" r="6" fill="white"/>
+      <path d="M18 0C8.059 0 0 8.059 0 18c0 11.5 18 28 18 28S36 29.5 36 18C36 8.059 27.941 0 18 0z" fill="#22c55e" filter="url(#s)"/>
+      <circle cx="18" cy="18" r="8" fill="white"/>
+      <circle cx="18" cy="18" r="4" fill="#22c55e"/>
     </svg>
   `),
-    iconSize: [32, 40],
-    iconAnchor: [16, 40],
-    popupAnchor: [0, -42],
+    iconSize: [36, 46],
+    iconAnchor: [18, 46],
+    popupAnchor: [0, -48],
 });
 
 const destIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46">
       <defs>
         <filter id="s">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.35"/>
         </filter>
       </defs>
-      <path d="M16 0C7.163 0 0 7.163 0 16c0 10.5 16 24 16 24S32 26.5 32 16C32 7.163 24.837 0 16 0z" fill="#ef4444" filter="url(#s)"/>
-      <path d="M12 12 L20 20 M20 12 L12 20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M18 0C8.059 0 0 8.059 0 18c0 11.5 18 28 18 28S36 29.5 36 18C36 8.059 27.941 0 18 0z" fill="#ef4444" filter="url(#s)"/>
+      <path d="M13 13 L23 23 M23 13 L13 23" stroke="white" stroke-width="3" stroke-linecap="round"/>
     </svg>
   `),
-    iconSize: [32, 40],
-    iconAnchor: [16, 40],
-    popupAnchor: [0, -42],
+    iconSize: [36, 46],
+    iconAnchor: [18, 46],
+    popupAnchor: [0, -48],
 });
 
 const youAreHereIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" fill="#3b82f6" stroke="white" stroke-width="3" filter="url(#s)"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
       <defs>
         <filter id="s">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.4"/>
+          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-opacity="0.45"/>
         </filter>
       </defs>
+      <circle cx="14" cy="14" r="12" fill="#3b82f6" stroke="white" stroke-width="3.5" filter="url(#s)"/>
+      <circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>
     </svg>
   `),
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -14],
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
 });
 
 // ── Easing helper ────────────────────────────────────────────────────────────
-// Ease-out cubic — produces smooth, decelerating motion (feels natural, not robotic)
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 // ── Map Controller ────────────────────────────────────────────────────────────
-// Only fly if center changed by more than ~15 m to prevent rubber-banding on GPS jitter
-const DEAD_ZONE_DEG = 0.00015; // ≈ 15 m in latitude degrees
+const DEAD_ZONE_DEG = 0.00015;
 
 function MapController({ markers, center }) {
     const map = useMap();
@@ -98,17 +98,11 @@ function MapController({ markers, center }) {
     const lastHandledFocusRef = useRef(null);
     const [userInteracted, setUserInteracted] = useState(false);
 
-    // Watch for user map interactions to suspend auto-centering
     useMapEvents({
-        dragstart() {
-            setUserInteracted(true);
-        },
-        zoomstart() {
-            setUserInteracted(true);
-        }
+        dragstart() { setUserInteracted(true); },
+        zoomstart() { setUserInteracted(true); }
     });
 
-    // Smart pan: only flyTo if moved significantly and user is not inspecting other parts of map
     useEffect(() => {
         if (!center?.lat || !center?.lng || userInteracted) return;
         const latDiff = Math.abs(center.lat - lastCenterRef.current.lat);
@@ -125,13 +119,12 @@ function MapController({ markers, center }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [center.lat, center.lng, map, userInteracted]);
 
-    // Fit bounds to show all markers on first load or handle explicit focus markers
     useEffect(() => {
         if (!markers?.length) return;
 
         const focusMarker = markers.find(m => m.forceFocus);
         if (focusMarker && focusMarker.forceFocus !== lastHandledFocusRef.current) {
-            setUserInteracted(false); // Reset interaction override when user explicitly sets pin or select landmark
+            setUserInteracted(false);
             map.flyTo([focusMarker.lat, focusMarker.lng], 17, { animate: true, duration: 0.8 });
             lastHandledFocusRef.current = focusMarker.forceFocus;
             return;
@@ -183,8 +176,27 @@ function MapController({ markers, center }) {
     );
 }
 
+// ── FitBoundsController — auto-fits map to a set of [lat,lng] points ─────────
+// Pass `fitBoundsKey` (any incrementing value) to trigger a new fit.
+function FitBoundsController({ points, fitBoundsKey }) {
+    const map = useMap();
+    const lastKeyRef = useRef(null);
+
+    useEffect(() => {
+        if (!points || points.length < 2) return;
+        if (fitBoundsKey === lastKeyRef.current) return;
+        lastKeyRef.current = fitBoundsKey;
+
+        try {
+            const bounds = L.latLngBounds(points);
+            map.fitBounds(bounds, { padding: [70, 70], maxZoom: 17, animate: true, duration: 1.0 });
+        } catch (_) {}
+    }, [map, points, fitBoundsKey]);
+
+    return null;
+}
+
 // ── Map Click Handler ────────────────────────────────────────────────────────
-// Fires onMapClick(lat, lng) when the user taps/clicks on the map
 function MapClickHandler({ onMapClick, enabled }) {
     useMapEvents({
         click(e) {
@@ -211,8 +223,6 @@ const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
         targetPosRef.current = { lat: position[0], lng: position[1] };
         startTimeRef.current = null;
 
-        // Rotate driver icon using real GPS heading if available,
-        // else calculate bearing from movement direction
         if (isDriver) {
             let angle = heading ?? null;
             if (angle === null) {
@@ -223,7 +233,6 @@ const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
                 }
             }
             if (angle !== null) {
-                // Apply rotation via CSS transform on the DOM element
                 const el = markerRef.current.getElement();
                 if (el) {
                     el.style.transition = 'transform 0.5s ease-out';
@@ -235,7 +244,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
 
         const animate = (timestamp) => {
             if (!startTimeRef.current) startTimeRef.current = timestamp;
-            const progress = (timestamp - startTimeRef.current) / 900; // 900 ms animation
+            const progress = (timestamp - startTimeRef.current) / 900;
             const t = easeOutCubic(Math.min(progress, 1));
 
             const lat = startPosRef.current.lat + (targetPosRef.current.lat - startPosRef.current.lat) * t;
@@ -263,32 +272,39 @@ const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
 };
 
 // ── Main Map Component ────────────────────────────────────────────────────────
-const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers = [], routeCoordinates = null, heatPoints = [], onMapClick = null, mapClickEnabled = false }) => {
+const LeafletMap = ({
+    center = { lat: 8.050, lng: 126.062 },
+    zoom = 15,
+    markers = [],
+    routeCoordinates = null,          // Primary route: driver→pickup or pickup→dest
+    secondaryRouteCoordinates = null, // Secondary route: pickup→destination (dashed preview)
+    heatPoints = [],
+    onMapClick = null,
+    mapClickEnabled = false,
+    fitBoundsPoints = null,           // Array of [lat,lng] to auto-fit map bounds
+    fitBoundsKey = 0,                 // Increment to trigger a new fit
+}) => {
     const { isDarkMode } = useContext(ThemeContext);
     const [history, setHistory] = useState([]);
 
-    // Track driver movement history for trajectory trail
     useEffect(() => {
         const driver = markers.find(m => m.isDriver);
         if (driver) {
             setHistory(prev => {
                 const latest = prev[prev.length - 1];
                 if (!latest || (latest[0] !== driver.lat || latest[1] !== driver.lng)) {
-                    return [...prev, [driver.lat, driver.lng]].slice(-75); // Keep last 75 points
+                    return [...prev, [driver.lat, driver.lng]].slice(-75);
                 }
                 return prev;
             });
         }
     }, [markers]);
 
-    // High-quality tile layers
     const tileLayer = isDarkMode
         ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
-    const attribution = isDarkMode
-        ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
     const pickup      = markers.find(m => m.isPickup);
     const destination = markers.find(m => m.isDestination);
@@ -311,38 +327,59 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                 {history.length > 1 && (
                     <Polyline
                         positions={history}
-                        pathOptions={{ color: '#FFD700', weight: 3.5, opacity: 0.35, dashArray: '5, 10' }}
+                        pathOptions={{ color: '#FFD700', weight: 3, opacity: 0.3, dashArray: '5, 10' }}
                     />
                 )}
 
-                {/* OSRM Road Route */}
+                {/* ── PRIMARY ROUTE (Blue solid) — driver→pickup or active navigation ── */}
                 {routeCoordinates && routeCoordinates.length > 0 ? (
                     <>
-                        {/* Route shadow for depth */}
+                        {/* Glow shadow */}
                         <Polyline
                             positions={routeCoordinates}
-                            pathOptions={{ color: '#1e293b', weight: 10, opacity: 0.15 }}
+                            pathOptions={{ color: '#93c5fd', weight: 14, opacity: 0.2 }}
                         />
+                        {/* Outer stroke */}
                         <Polyline
                             positions={routeCoordinates}
-                            pathOptions={{ color: '#3b82f6', weight: 5, opacity: 0.9 }}
+                            pathOptions={{ color: '#1d4ed8', weight: 7, opacity: 0.5 }}
+                        />
+                        {/* Primary line */}
+                        <Polyline
+                            positions={routeCoordinates}
+                            pathOptions={{ color: '#3b82f6', weight: 5, opacity: 1.0 }}
                         />
                     </>
                 ) : (
                     <>
-                        {/* Fallback straight-line dashes when no road route */}
+                        {/* Fallback: straight-line dash driver→pickup */}
                         {driver && pickup && (
                             <Polyline
                                 positions={[[driver.lat, driver.lng], [pickup.lat, pickup.lng]]}
-                                pathOptions={{ color: '#22c55e', weight: 2.5, opacity: 0.6, dashArray: '10, 10' }}
+                                pathOptions={{ color: '#22c55e', weight: 2, opacity: 0.5, dashArray: '8, 8' }}
                             />
                         )}
-                        {pickup && destination && (
+                        {/* Fallback: straight-line dash pickup→dest */}
+                        {pickup && destination && !secondaryRouteCoordinates && (
                             <Polyline
                                 positions={[[pickup.lat, pickup.lng], [destination.lat, destination.lng]]}
-                                pathOptions={{ color: isDarkMode ? '#94a3b8' : '#475569', weight: 1.5, opacity: 0.3, dashArray: '6, 6' }}
+                                pathOptions={{ color: isDarkMode ? '#94a3b8' : '#64748b', weight: 1.5, opacity: 0.3, dashArray: '6, 6' }}
                             />
                         )}
+                    </>
+                )}
+
+                {/* ── SECONDARY ROUTE (Dashed slate) — pickup→destination preview ── */}
+                {secondaryRouteCoordinates && secondaryRouteCoordinates.length > 0 && (
+                    <>
+                        <Polyline
+                            positions={secondaryRouteCoordinates}
+                            pathOptions={{ color: '#64748b', weight: 4, opacity: 0.25 }}
+                        />
+                        <Polyline
+                            positions={secondaryRouteCoordinates}
+                            pathOptions={{ color: '#94a3b8', weight: 2.5, opacity: 0.7, dashArray: '10, 8' }}
+                        />
                     </>
                 )}
 
@@ -359,27 +396,36 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                 {destination && (
                     <Circle
                         center={[destination.lat, destination.lng]}
-                        radius={30}
-                        pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.15, weight: 2 }}
+                        radius={35}
+                        pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.12, weight: 2, dashArray: '6, 4' }}
                     />
                 )}
 
-                {/* GPS Accuracy Confidence Circle — shows how precise the driver location is */}
+                {/* Pickup pulse ring */}
+                {pickup && (
+                    <Circle
+                        center={[pickup.lat, pickup.lng]}
+                        radius={28}
+                        pathOptions={{ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.1, weight: 1.5 }}
+                    />
+                )}
+
+                {/* GPS Accuracy Confidence Circle */}
                 {driver && driver.accuracy && driver.accuracy > 0 && driver.accuracy < 500 && (
                     <Circle
                         center={[driver.lat, driver.lng]}
                         radius={driver.accuracy}
-                        pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.06, weight: 1.5, dashArray: '4, 4' }}
+                        pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.05, weight: 1, dashArray: '4, 4' }}
                     />
                 )}
 
                 {/* Markers */}
                 {markers.map((marker, index) => {
                     let icon;
-                    if (marker.isDriver)      icon = buildDriverIcon(marker.heading ?? 0);
-                    else if (marker.isPickup) icon = pickupIcon;
+                    if (marker.isDriver)           icon = buildDriverIcon(marker.heading ?? 0);
+                    else if (marker.isPickup)      icon = pickupIcon;
                     else if (marker.isDestination) icon = destIcon;
-                    else                      icon = youAreHereIcon;
+                    else                           icon = youAreHereIcon;
 
                     return (
                         <SmoothMarker
@@ -403,6 +449,11 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
                                             <div className="min-w-0">
                                                 <div className="text-[10px] font-black uppercase tracking-widest text-primary leading-tight">Driver</div>
                                                 <div className="text-secondary truncate font-black">{marker.title}</div>
+                                                {marker.eta && (
+                                                    <div className="text-[10px] font-bold text-blue-600 mt-0.5">
+                                                        ~{marker.eta} min away
+                                                    </div>
+                                                )}
                                                 {marker.accuracy && (
                                                     <div className="text-[9px] text-slate-400 font-bold mt-0.5">
                                                         ±{Math.round(marker.accuracy)} m accuracy
@@ -423,22 +474,30 @@ const LeafletMap = ({ center = { lat: 8.050, lng: 126.062 }, zoom = 15, markers 
 
                 <MapController markers={markers} center={center} />
                 <MapClickHandler onMapClick={onMapClick} enabled={mapClickEnabled} />
+                {/* Auto-fit controller — triggers map.fitBounds when fitBoundsPoints changes */}
+                {fitBoundsPoints && fitBoundsPoints.length >= 2 && (
+                    <FitBoundsController points={fitBoundsPoints} fitBoundsKey={fitBoundsKey} />
+                )}
             </MapContainer>
 
             {/* Live Legend */}
-            <div className="absolute bottom-6 left-6 z-[400] bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-4 py-2 rounded-2xl border border-black/5 shadow-xl pointer-events-none">
+            <div className="absolute bottom-6 left-6 z-[400] bg-white/85 dark:bg-slate-900/85 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-black/5 shadow-xl pointer-events-none">
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-slate-400"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-600 shadow-sm"></div>
                         <span className="text-[10px] font-black uppercase text-slate-500">Driver</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm"></div>
                         <span className="text-[10px] font-black uppercase text-slate-500">Pickup</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
                         <span className="text-[10px] font-black uppercase text-slate-500">Dest</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-8 h-1 rounded-full" style={{ background: 'linear-gradient(to right, #3b82f6, #1d4ed8)' }}></div>
+                        <span className="text-[10px] font-black uppercase text-slate-500">Route</span>
                     </div>
                 </div>
             </div>

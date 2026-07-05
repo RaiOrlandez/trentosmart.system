@@ -75,12 +75,17 @@ const PassengerHome = () => {
   const [nearbyDriverList, setNearbyDriverList] = useState([]); // New: Detailed driver list
   const [selectedDriverId, setSelectedDriverId] = useState(null); // New: Choosen driver ID
   const [routeCoordinates, setRouteCoordinates] = useState(null); // Real driving path
+  const [secondaryRouteCoordinates, setSecondaryRouteCoordinates] = useState(null); // Pickup to Destination path when matched
+  const [fitBoundsPoints, setFitBoundsPoints] = useState(null); // LatLng bounds coordinates
+  const [fitBoundsKey, setFitBoundsKey] = useState(0); // Trigger bounds fitting
+  const [driverEta, setDriverEta] = useState(null); // Estimated arrival time in minutes
   const [showDestSuggestions, setShowDestSuggestions] = useState(false);
   const [estimatedTime, setEstimatedTime] = useState(0);
 
   // Refs to capture real geocoded coordinates from computeFare() for use in requestRide()
   const pickupCoordsRef = useRef(null); // { lat, lng } — geocoded pickup point
   const destCoordsRef = useRef(null); // { lat, lng } — geocoded destination point
+  const lastRouteFetchedCoordsRef = useRef({ lat: 0, lng: 0 }); // Rate limit dynamic OSRM calls
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
@@ -276,6 +281,15 @@ const PassengerHome = () => {
             { id: 'dest', lat: destCoordsRef.current.lat, lng: destCoordsRef.current.lng, title: 'Destination', info: dest, isDestination: true }
           ];
         });
+
+        // Trigger map fit bounds for pickup + destination
+        if (pickupCoordsRef.current && destCoordsRef.current) {
+          setFitBoundsPoints([
+            [pickupCoordsRef.current.lat, pickupCoordsRef.current.lng],
+            [destCoordsRef.current.lat, destCoordsRef.current.lng]
+          ]);
+          setFitBoundsKey(prev => prev + 1);
+        }
       }
 
       // 3. Fallback logic: If they input "Home" or unmappable custom saved places,
@@ -673,28 +687,110 @@ const PassengerHome = () => {
     return () => clearInterval(timer);
   }, [status, requestTimeRemaining]);
 
+  // Handle Real-time Driver Markers & Dynamic Navigation Routing (Passenger Screen)
   useEffect(() => {
     if (wsData && wsData.lat && wsData.lng && (status === 'matched' || status === 'ongoing')) {
-      setMarkers(current => {
-        // Keep pickup and dest, update driver
-        const otherMarkers = current.filter(m => m.title !== 'Driver');
+      const driverLat = parseFloat(wsData.lat);
+      const driverLng = parseFloat(wsData.lng);
 
+      // Update map marker
+      setMarkers(current => {
+        const otherMarkers = current.filter(m => m.title !== 'Driver');
         return [
           ...otherMarkers,
           {
-            lat: parseFloat(wsData.lat),
-            lng: parseFloat(wsData.lng),
+            lat: driverLat,
+            lng: driverLng,
             title: 'Driver',
-            info: 'On the way to you!',
+            info: status === 'matched' ? 'On the way to pick you up!' : 'Heading to destination!',
             isDriver: true,
             heading: wsData.heading || 0,
             accuracy: wsData.accuracy || null,
-            isTracking: isTracking
+            isTracking: isTracking,
+            eta: driverEta
           }
         ];
       });
+
+      // Live Routing Call
+      let targetLat, targetLng;
+      if (status === 'matched') {
+        targetLat = pickupCoordsRef.current?.lat;
+        targetLng = pickupCoordsRef.current?.lng;
+      } else {
+        targetLat = destCoordsRef.current?.lat;
+        targetLng = destCoordsRef.current?.lng;
+      }
+
+      if (targetLat && targetLng) {
+        // Rate-limit: skip if driver has moved less than 10 meters
+        const latDiff = Math.abs(driverLat - lastRouteFetchedCoordsRef.current.lat);
+        const lngDiff = Math.abs(driverLng - lastRouteFetchedCoordsRef.current.lng);
+        
+        if (latDiff >= 0.0001 || lngDiff >= 0.0001 || !routeCoordinates) {
+          const fetchLiveRoute = async () => {
+            try {
+              const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+              const res = await fetch(`${osrmUrl}/${driverLng},${driverLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
+              const data = await res.json();
+              if (data.code === 'Ok' && data.routes?.length > 0) {
+                const pathCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                setRouteCoordinates(pathCoords);
+
+                // OSRM duration is in seconds
+                const durationMins = Math.ceil(data.routes[0].duration / 60);
+                setDriverEta(durationMins);
+
+                lastRouteFetchedCoordsRef.current = { lat: driverLat, lng: driverLng };
+              }
+            } catch (err) {
+              console.warn("Failed to fetch live routing update:", err);
+            }
+          };
+          fetchLiveRoute();
+        }
+      }
     }
-  }, [wsData, status, isTracking]);
+  }, [wsData, status, isTracking, driverEta]);
+
+  // Handle status transitions for Grab-style camera fitBounds & secondary routes
+  useEffect(() => {
+    if (status === 'matched') {
+      // Preserve pickup -> dest route as secondary dashed route
+      if (routeCoordinates && !secondaryRouteCoordinates) {
+        setSecondaryRouteCoordinates(routeCoordinates);
+      }
+      
+      // Focus camera on Driver + Pickup
+      if (wsData?.lat && pickupCoordsRef.current) {
+        setFitBoundsPoints([
+          [parseFloat(wsData.lat), parseFloat(wsData.lng)],
+          [pickupCoordsRef.current.lat, pickupCoordsRef.current.lng]
+        ]);
+        setFitBoundsKey(prev => prev + 1);
+      } else if (pickupCoordsRef.current) {
+        setFitBoundsPoints([
+          [userCenter.lat, userCenter.lng],
+          [pickupCoordsRef.current.lat, pickupCoordsRef.current.lng]
+        ]);
+        setFitBoundsKey(prev => prev + 1);
+      }
+    } else if (status === 'ongoing') {
+      setSecondaryRouteCoordinates(null);
+      
+      // Focus camera on Driver + Destination
+      if (wsData?.lat && destCoordsRef.current) {
+        setFitBoundsPoints([
+          [parseFloat(wsData.lat), parseFloat(wsData.lng)],
+          [destCoordsRef.current.lat, destCoordsRef.current.lng]
+        ]);
+        setFitBoundsKey(prev => prev + 1);
+      }
+    } else if (status === 'idle') {
+      setSecondaryRouteCoordinates(null);
+      setDriverEta(null);
+    }
+  }, [status]);
 
   const requestRide = async (e) => {
     e.preventDefault();
@@ -1552,7 +1648,11 @@ const PassengerHome = () => {
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <p className="text-[9px] font-black uppercase tracking-widest text-green-600">Trip Status</p>
                     </div>
-                    <p className="text-sm font-bold text-green-700">Driver is on the way to your location</p>
+                    <p className="text-sm font-bold text-green-700">
+                      {status === 'matched' 
+                        ? `Driver is arriving in ${driverEta != null ? `${driverEta} min` : 'a few minutes'}`
+                        : 'Trip in progress to destination!'}
+                    </p>
                     <p className="text-xs text-green-600 mt-1">Track your driver on the map in real-time</p>
                   </div>
 
@@ -1596,6 +1696,9 @@ const PassengerHome = () => {
           center={userCenter}
           markers={markers}
           routeCoordinates={routeCoordinates}
+          secondaryRouteCoordinates={secondaryRouteCoordinates}
+          fitBoundsPoints={fitBoundsPoints}
+          fitBoundsKey={fitBoundsKey}
           onMapClick={(lat, lng) => {
             if (!mapTapMode) return;
             // Friendly label instead of raw coordinates

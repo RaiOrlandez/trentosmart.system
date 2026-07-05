@@ -83,6 +83,12 @@ const DriverHome = () => {
   const [maintenanceLogs, setMaintenanceLogs] = useState([]);
   const [trikeHealth, setTrikeHealth] = useState({ status: 'good', message: 'All systems operational' });
   const [dailyGoal, setDailyGoal] = useState(1500); // Default ₱1500 goal
+  
+  // Grab-style routing and bounds states
+  const [secondaryRouteCoords, setSecondaryRouteCoords] = useState(null);
+  const [fitBoundsPoints, setFitBoundsPoints] = useState(null);
+  const [fitBoundsKey, setFitBoundsKey] = useState(0);
+  const [driverEta, setDriverEta] = useState(null);
 
   const fetchMaintenanceLogs = useCallback(async () => {
     try {
@@ -255,10 +261,17 @@ const DriverHome = () => {
     return `${dist.toFixed(1)} km`;
   }, [gpsLocation]);
 
+  // Refs for tracking changes and rate-limiting status changes
+  const lastActiveRideIdRef = useRef(null);
+  const lastActiveRideStatusRef = useRef(null);
+  const lastSelectedRequestIdRef = useRef(null);
+
   // Fetch real-time OSRM navigation route (driver -> pickup, driver -> destination, or preview request)
   useEffect(() => {
     if (!gpsLocation) {
       setDriverRouteCoords(null);
+      setSecondaryRouteCoords(null);
+      setDriverEta(null);
       lastFetchedCoords.current = { lat: 0, lng: 0 };
       return;
     }
@@ -267,30 +280,50 @@ const DriverHome = () => {
     const startLng = gpsLocation.lng;
 
     let targetLat, targetLng;
+    let pickupLat, pickupLng;
+    let destLat, destLng;
+    let fetchSecondary = false;
+
     if (activeRide) {
       const isOngoing = activeRide.status === 'on_route';
-      targetLat = isOngoing ? parseFloat(activeRide.dest_lat) : parseFloat(activeRide.pickup_lat);
-      targetLng = isOngoing ? parseFloat(activeRide.dest_lng) : parseFloat(activeRide.pickup_lng);
+      pickupLat = parseFloat(activeRide.pickup_lat);
+      pickupLng = parseFloat(activeRide.pickup_lng);
+      destLat = parseFloat(activeRide.dest_lat);
+      destLng = parseFloat(activeRide.dest_lng);
+      
+      targetLat = isOngoing ? destLat : pickupLat;
+      targetLng = isOngoing ? destLng : pickupLng;
+      fetchSecondary = !isOngoing; // only fetch pickup -> dest as secondary if we are still going to pickup
     } else if (selectedRequest) {
-      targetLat = parseFloat(selectedRequest.pickup_lat);
-      targetLng = parseFloat(selectedRequest.pickup_lng);
+      pickupLat = parseFloat(selectedRequest.pickup_lat);
+      pickupLng = parseFloat(selectedRequest.pickup_lng);
+      destLat = parseFloat(selectedRequest.dest_lat);
+      destLng = parseFloat(selectedRequest.dest_lng);
+      
+      targetLat = pickupLat;
+      targetLng = pickupLng;
+      fetchSecondary = true;
     } else {
       setDriverRouteCoords(null);
+      setSecondaryRouteCoords(null);
+      setDriverEta(null);
       lastFetchedCoords.current = { lat: 0, lng: 0 };
       return;
     }
 
     if (isNaN(targetLat) || isNaN(targetLng)) {
       setDriverRouteCoords(null);
+      setSecondaryRouteCoords(null);
+      setDriverEta(null);
       return;
     }
 
-    // Rate limit OSRM requests: skip if driver hasn't moved at least 15 meters
+    // Rate limit OSRM requests: skip if driver hasn't moved at least 8 meters
     const latDiff = Math.abs(startLat - lastFetchedCoords.current.lat);
     const lngDiff = Math.abs(startLng - lastFetchedCoords.current.lng);
     const distanceDiff = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
 
-    if (distanceDiff < 0.00015 && driverRouteCoords) {
+    if (distanceDiff < 0.00008 && driverRouteCoords) {
       return;
     }
 
@@ -298,12 +331,31 @@ const DriverHome = () => {
     const fetchRoute = async () => {
       try {
         const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
+        
+        // 1. Fetch Primary Route (Driver -> Target)
         const res = await fetch(`${osrmUrl}/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
         const data = await res.json();
         if (active && data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const pathCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
           setDriverRouteCoords(pathCoords);
+          
+          // OSRM duration is in seconds
+          const durationMins = Math.ceil(data.routes[0].duration / 60);
+          setDriverEta(durationMins);
+          
           lastFetchedCoords.current = { lat: startLat, lng: startLng };
+        }
+        
+        // 2. Fetch Secondary Route if required (Pickup -> Dest)
+        if (active && fetchSecondary && !isNaN(pickupLat) && !isNaN(destLat)) {
+          const resSec = await fetch(`${osrmUrl}/${pickupLng},${pickupLat};${destLng},${destLat}?overview=full&geometries=geojson`);
+          const dataSec = await resSec.json();
+          if (active && dataSec.code === 'Ok' && dataSec.routes && dataSec.routes.length > 0) {
+            const pathCoordsSec = dataSec.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            setSecondaryRouteCoords(pathCoordsSec);
+          }
+        } else {
+          setSecondaryRouteCoords(null);
         }
       } catch (err) {
         console.error('Failed to fetch driver navigation route:', err);
@@ -314,8 +366,45 @@ const DriverHome = () => {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.id, activeRide?.status, selectedRequest?.id, gpsLocation?.lat, gpsLocation?.lng]);
+
+  // Handle status changes for camera auto-fit
+  useEffect(() => {
+    if (!gpsLocation) return;
+
+    if (activeRide) {
+      const isOngoing = activeRide.status === 'on_route';
+      const points = [];
+      points.push([gpsLocation.lat, gpsLocation.lng]);
+      if (!isOngoing && activeRide.pickup_lat) {
+        points.push([parseFloat(activeRide.pickup_lat), parseFloat(activeRide.pickup_lng)]);
+      }
+      if (activeRide.dest_lat) {
+        points.push([parseFloat(activeRide.dest_lat), parseFloat(activeRide.dest_lng)]);
+      }
+
+      if (activeRide.id !== lastActiveRideIdRef.current || activeRide.status !== lastActiveRideStatusRef.current) {
+        lastActiveRideIdRef.current = activeRide.id;
+        lastActiveRideStatusRef.current = activeRide.status;
+        setFitBoundsPoints(points);
+        setFitBoundsKey(prev => prev + 1);
+      }
+    } else if (selectedRequest) {
+      if (selectedRequest.id !== lastSelectedRequestIdRef.current) {
+        lastSelectedRequestIdRef.current = selectedRequest.id;
+        setFitBoundsPoints([
+          [gpsLocation.lat, gpsLocation.lng],
+          [parseFloat(selectedRequest.pickup_lat), parseFloat(selectedRequest.pickup_lng)]
+        ]);
+        setFitBoundsKey(prev => prev + 1);
+      }
+    } else {
+      lastActiveRideIdRef.current = null;
+      lastActiveRideStatusRef.current = null;
+      lastSelectedRequestIdRef.current = null;
+    }
+  }, [activeRide, selectedRequest, gpsLocation]);
 
   // Update Driver map pinning dynamically based on GPS changes
   useEffect(() => {
@@ -931,7 +1020,11 @@ const DriverHome = () => {
                         </div>
                         <div>
                           <p className="font-bold text-lg">{typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}</p>
-                          <p className="text-[10px] text-primary font-black uppercase tracking-widest">Active Trip</p>
+                          <p className="text-[10px] text-primary font-black uppercase tracking-widest">
+                            {activeRide.status === 'on_route' 
+                              ? 'Heading to Destination' 
+                              : `Arriving in ${driverEta != null ? `${driverEta} min` : 'a few mins'}`}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1242,7 +1335,14 @@ const DriverHome = () => {
 
         {/* Right Column: Map and Navigation */}
         <div className="flex-1 min-h-[600px] relative rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
-          <Map markers={markers} center={driverCenter} routeCoordinates={driverRouteCoords} />
+          <Map
+            markers={markers}
+            center={driverCenter}
+            routeCoordinates={driverRouteCoords}
+            secondaryRouteCoordinates={secondaryRouteCoords}
+            fitBoundsPoints={fitBoundsPoints}
+            fitBoundsKey={fitBoundsKey}
+          />
 
           {/* GPS status badge */}
           <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, pointerEvents: 'none' }}>
