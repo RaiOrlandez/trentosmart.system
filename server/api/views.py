@@ -1888,26 +1888,6 @@ class PINManagementView(APIView):
             return Response({'detail': 'No PIN found. Please set one first.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ReviewViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = ReviewSerializer
-
-    def get_queryset(self):
-        return Review.objects.filter(passenger=self.request.user)
-
-    def perform_create(self, serializer):
-        ride_id = self.request.data.get('ride')
-        ride = get_object_or_404(Ride, id=ride_id)
-        if ride.passenger != self.request.user:
-            raise serializers.ValidationError("You can only review rides you were a passenger of.")
-        if not ride.driver:
-            raise serializers.ValidationError("This ride has no assigned driver.")
-        
-        serializer.save(
-            passenger=self.request.user,
-            driver=ride.driver,
-            ride=ride
-        )
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
@@ -2203,7 +2183,8 @@ class ReviewViewSet(viewsets.ModelViewSet):
         # Save the review
         review = serializer.save(
             reviewer=reviewer,
-            reviewee=reviewee
+            reviewee=reviewee,
+            ride=ride
         )
 
         # Broadcast to Admin Activity Feed

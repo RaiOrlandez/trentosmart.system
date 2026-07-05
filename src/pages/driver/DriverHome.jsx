@@ -97,7 +97,6 @@ const DriverHome = () => {
   const [showHeatMapModal, setShowHeatMapModal] = useState(false);
   const [showGCashVerify, setShowGCashVerify] = useState(false);
   const [verificationRef, setVerificationRef] = useState('');
-  const [showRating, setShowRating] = useState(false);
   const [completedRideId, setCompletedRideId] = useState(null);
   const [completedPassengerName, setCompletedPassengerName] = useState('');
   const [showSelfieModal, setShowSelfieModal] = useState(false);
@@ -730,7 +729,8 @@ const DriverHome = () => {
       } else {
         // Fallback for old API behavior
         setActiveRide(null);
-        setTimeout(() => setShowRating(true), 500);
+        setCompletedRideId(null);
+        setCompletedPassengerName('');
       }
 
     } catch (err) {
@@ -1703,7 +1703,8 @@ const DriverHome = () => {
               <button
                 onClick={() => {
                   setShowCommissionModal(false);
-                  setTimeout(() => setShowRating(true), 300); // Show rating after closing
+                  setCompletedRideId(null);
+                  setCompletedPassengerName('');
                 }}
                 className="w-full py-4 bg-secondary text-white rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg"
               >
@@ -1714,17 +1715,7 @@ const DriverHome = () => {
         )}
       </AnimatePresence>
 
-      <RatingModal
-        isOpen={showRating}
-        onClose={() => {
-          setShowRating(false);
-          setCompletedRideId(null);
-          setCompletedPassengerName('');
-        }}
-        rideId={completedRideId}
-        targetName={completedPassengerName}
-        targetRole="Passenger"
-      />
+
       <GCashVerifyModal
         isOpen={showGCashVerify}
         onClose={() => setShowGCashVerify(false)}

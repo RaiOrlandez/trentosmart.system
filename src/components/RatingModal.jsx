@@ -260,23 +260,33 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
               />
             </div>
 
-            {/* ── Submit ────────────────────────────────────────────────────── */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="w-full bg-secondary text-white font-black py-5 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Star size={18} className="fill-primary text-primary" />
-                  <span>Submit Feedback</span>
-                </>
-              )}
-            </motion.button>
+            {/* ── Submit & Skip ─────────────────────────────────────────────── */}
+            <div className="space-y-3">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="w-full bg-secondary text-white font-black py-5 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Star size={18} className="fill-primary text-primary" />
+                    <span>Submit Feedback</span>
+                  </>
+                )}
+              </motion.button>
+
+              <button
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="w-full text-slate-400 hover:text-slate-600 font-black text-sm py-2 text-center transition-colors block active:scale-95"
+              >
+                Skip Feedback
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>
