@@ -1232,11 +1232,21 @@ class RideViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def my_rides(self, request):
         if request.user.role == 'driver':
-            qs = Ride.objects.filter(driver=request.user)
+            qs = Ride.objects.filter(driver=request.user, hidden_from_driver=False).order_by('-requested_at')
         else:
-            qs = Ride.objects.filter(passenger=request.user)
+            qs = Ride.objects.filter(passenger=request.user, hidden_from_passenger=False).order_by('-requested_at')
         ser = RideSerializer(qs, many=True)
         return Response(ser.data)
+
+    @action(detail=True, methods=['post', 'patch'], permission_classes=[IsAuthenticated])
+    def hide_from_history(self, request, pk=None):
+        ride = self.get_object()
+        if request.user.role == 'driver':
+            ride.hidden_from_driver = True
+        else:
+            ride.hidden_from_passenger = True
+        ride.save()
+        return Response({'status': 'hidden'})
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def active_ride(self, request):

@@ -144,6 +144,10 @@ class Ride(models.Model):
     # List of drivers who declined this request
     rejected_by = models.ManyToManyField('api.User', blank=True, related_name='rejected_rides')
 
+    # History display controls (Soft delete per role)
+    hidden_from_passenger = models.BooleanField(default=False)
+    hidden_from_driver = models.BooleanField(default=False)
+
     def __str__(self):
         return f"Ride {self.id} - {self.status}"
 
