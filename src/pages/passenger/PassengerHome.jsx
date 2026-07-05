@@ -1775,7 +1775,7 @@ const PassengerHome = () => {
               <span className="font-bold">Ride Completed!</span>
             </motion.div>
           )}
-          <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4">
+          <div className="hidden md:flex bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 items-center gap-4">
             <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
               <MapPin size={20} />
             </div>
@@ -1784,7 +1784,7 @@ const PassengerHome = () => {
               <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
             </div>
           </div>
-          <div className="bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 flex items-center gap-4">
+          <div className="hidden md:flex bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-slate-100 items-center gap-4">
             <div className="w-10 h-10 bg-accent/10 rounded-xl flex items-center justify-center text-accent">
               <Clock size={20} />
             </div>

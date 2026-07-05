@@ -1376,7 +1376,7 @@ const DriverHome = () => {
 
           {/* Map Overlays (Removed Profile Link from here) */}
 
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-[1000] w-[90%] md:w-auto justify-center">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-[1000] w-[95%] md:w-auto justify-center">
             {selectedRequest && (
               <button
                 onClick={() => {
@@ -1385,9 +1385,9 @@ const DriverHome = () => {
                     setMarkers([...markers.map(m => m.isPickup ? { ...m, forceFocus: Date.now() } : m)]);
                   }
                 }}
-                className="bg-primary text-secondary px-6 py-3 rounded-2xl font-black text-sm shadow-2xl flex items-center gap-2 hover:scale-105 transition-all border-2 border-white"
+                className="bg-primary text-secondary px-3 py-2.5 md:px-6 md:py-3 rounded-2xl font-black text-xs md:text-sm shadow-2xl flex items-center gap-1.5 hover:scale-105 transition-all border-2 border-white"
               >
-                <MapPin size={18} />
+                <MapPin size={16} />
                 <span>Focus on Pickup</span>
               </button>
             )}
@@ -1398,10 +1398,11 @@ const DriverHome = () => {
                     // Force a fit bounds by updating markers state slightly
                     setMarkers([...markers.map(m => ({ ...m, forceUpdate: Date.now() }))]);
                   }}
-                  className="bg-white text-secondary px-6 py-3 rounded-2xl font-black text-sm shadow-2xl flex items-center gap-2 hover:scale-105 transition-all border-2 border-slate-100"
+                  className="bg-white text-secondary px-3 py-2.5 md:px-6 md:py-3 rounded-2xl font-black text-xs md:text-sm shadow-2xl flex items-center gap-1.5 hover:scale-105 transition-all border-2 border-slate-100"
                 >
-                  <Navigation2 size={18} />
-                  <span>Center View</span>
+                  <Navigation2 size={16} />
+                  <span className="hidden md:inline">Center View</span>
+                  <span className="md:hidden">Center</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1411,10 +1412,11 @@ const DriverHome = () => {
                     const label = isOngoing ? 'Dropoff Location' : 'Pickup Location';
                     openNativeNavigation(targetLat, targetLng, label);
                   }}
-                  className="bg-secondary text-white px-6 py-3 rounded-2xl font-black text-sm shadow-2xl flex items-center gap-2 hover:scale-105 transition-all border-2 border-white/10"
+                  className="bg-secondary text-white px-3 py-2.5 md:px-6 md:py-3 rounded-2xl font-black text-xs md:text-sm shadow-2xl flex items-center gap-1.5 hover:scale-105 transition-all border-2 border-white/10"
                 >
-                  <MapPin size={18} className="text-primary" />
-                  <span>{activeRide.status === 'on_route' ? 'Navigate to Dropoff' : 'Navigate to Passenger'}</span>
+                  <MapPin size={16} className="text-primary" />
+                  <span className="hidden md:inline">{activeRide.status === 'on_route' ? 'Navigate to Dropoff' : 'Navigate to Passenger'}</span>
+                  <span className="md:hidden">Navigate</span>
                 </button>
               </>
             )}
