@@ -37,10 +37,8 @@ def create_paymongo_source(request):
         
     try:
         amt = Decimal(str(amount))
-        if amt <= 0: 
+        if amt < 1:
             return Response({'detail': 'Amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
-        if amt < 50:
-            return Response({'detail': 'Minimum payment amount is ₱50'}, status=status.HTTP_400_BAD_REQUEST)
         if amt > 50000:
             return Response({'detail': 'Maximum payment amount is ₱50,000'}, status=status.HTTP_400_BAD_REQUEST)
     except (ValueError, TypeError):

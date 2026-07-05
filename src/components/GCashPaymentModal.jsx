@@ -46,11 +46,8 @@ const GCashPaymentModal = ({ isOpen, onClose, amount, onSuccess, rideId }) => {
     try {
       // Validate amount before API call
       const parsedAmount = parseFloat(amount);
-      if (!parsedAmount || parsedAmount <= 0) {
+      if (parsedAmount < 1) {
         throw new Error('Invalid payment amount');
-      }
-      if (parsedAmount < 50) {
-        throw new Error('Minimum payment amount is ₱50');
       }
       if (parsedAmount > 50000) {
         throw new Error('Maximum payment amount is ₱50,000');
