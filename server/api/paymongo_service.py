@@ -30,81 +30,46 @@ def get_auth_header():
 
 def create_gcash_source(amount_php, success_url, failed_url):
     """
-    Creates a PayMongo source for GCash checkout.
+    Creates a simulated PayMongo source for GCash checkout.
     amount_php: float/Decimal (e.g. 100.00)
     Returns: (success: bool, data: dict)
     """
-    secret_key = os.environ.get("PAYMONGO_SECRET_KEY", "").strip()
-    is_test_mode = secret_key.startswith("sk_test_") or not secret_key
     amount_centavos = int(float(amount_php) * 100)
 
-    # Attempt real API call if key is configured
-    if secret_key:
-        url = f"{PAYMONGO_BASE_URL}/sources"
-        payload = {
-            "data": {
-                "attributes": {
-                    "type": "gcash",
-                    "amount": amount_centavos,
-                    "currency": "PHP",
-                    "redirect": {
-                        "success": success_url,
-                        "failed": failed_url
-                    }
-                }
+    # Sandbox Simulation Fallback (Always enabled for Capstone Demonstration)
+    from urllib.parse import urlparse, quote
+    parsed = urlparse(success_url)
+    frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+    
+    import uuid
+    mock_source_id = f"src_mock_{amount_centavos}_{uuid.uuid4().hex[:8]}"
+    
+    # Build URL to our custom frontend GCash gateway sandbox page
+    success_encoded = quote(success_url)
+    failed_encoded = quote(failed_url)
+    
+    checkout_url = (
+        f"{frontend_base}/gcash-gateway"
+        f"?source_id={mock_source_id}"
+        f"&amount={amount_php}"
+        f"&success_url={success_encoded}"
+        f"&failed_url={failed_encoded}"
+    )
+    
+    mock_data = {
+        "id": mock_source_id,
+        "type": "source",
+        "attributes": {
+            "type": "gcash",
+            "amount": amount_centavos,
+            "currency": "PHP",
+            "status": "chargeable",
+            "redirect": {
+                "checkout_url": checkout_url
             }
         }
-        try:
-            response = requests.post(url, json=payload, headers=get_auth_header(), timeout=15)
-            response_data = response.json()
-            if response.status_code in [200, 201]:
-                return True, response_data["data"]
-            else:
-                if not is_test_mode:
-                    errors = response_data.get("errors", [{"detail": "Unknown PayMongo Error"}])
-                    return False, {"detail": errors[0]["detail"]}
-                print(f"[PayMongo Sandbox Fallback] Real API failed: {response_data}. Simulating GCash payment...")
-        except Exception as e:
-            if not is_test_mode:
-                return False, {"detail": str(e)}
-            print(f"[PayMongo Sandbox Fallback] Connection failed: {e}. Simulating GCash payment...")
-
-    # Sandbox Simulation Fallback
-    if is_test_mode:
-        from urllib.parse import urlparse, quote
-        parsed = urlparse(success_url)
-        frontend_base = f"{parsed.scheme}://{parsed.netloc}"
-        
-        mock_source_id = f"src_mock_{amount_centavos}_{uuid.uuid4().hex[:8]}"
-        
-        # Build URL to our custom frontend GCash gateway sandbox page
-        success_encoded = quote(success_url)
-        failed_encoded = quote(failed_url)
-        
-        checkout_url = (
-            f"{frontend_base}/gcash-gateway"
-            f"?source_id={mock_source_id}"
-            f"&amount={amount_php}"
-            f"&success_url={success_encoded}"
-            f"&failed_url={failed_encoded}"
-        )
-        
-        mock_data = {
-            "id": mock_source_id,
-            "type": "source",
-            "attributes": {
-                "type": "gcash",
-                "amount": amount_centavos,
-                "currency": "PHP",
-                "status": "chargeable",
-                "redirect": {
-                    "checkout_url": checkout_url
-                }
-            }
-        }
-        return True, mock_data
-
-    return False, {"detail": "PAYMONGO_SECRET_KEY environment variable is not configured."}
+    }
+    return True, mock_data
 
 def retrieve_source(source_id):
     """

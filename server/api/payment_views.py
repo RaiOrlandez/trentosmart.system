@@ -26,13 +26,8 @@ def create_paymongo_source(request):
     Creates a PayMongo source for GCash top-up or ride payment.
     Expects {'amount': 150.00, 'ride_id': Optional[int]}
     """
-    # Check if GCash is enabled
-    secret_key = os.environ.get("PAYMONGO_SECRET_KEY", "").strip()
-    is_test_mode = secret_key.startswith("sk_test_") or not secret_key
-    default_enabled = 'true' if is_test_mode else 'false'
-    gcash_enabled = getattr(settings, 'GCASH_ENABLED', os.environ.get('GCASH_ENABLED', default_enabled).lower() == 'true')
-    if not gcash_enabled:
-        return Response({'detail': 'GCash payments are currently disabled.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    # GCash is always enabled for Sandbox Demo simulation
+    gcash_enabled = True
     
     amount = request.data.get('amount')
     ride_id = request.data.get('ride_id')
