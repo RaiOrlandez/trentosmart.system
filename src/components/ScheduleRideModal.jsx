@@ -67,7 +67,9 @@ const ScheduleRideModal = ({ isOpen, onClose, onSuccess, editingSchedule = null 
             onClose();
             resetForm();
         } catch (err) {
-            setError(err.response?.data?.detail || 'Failed to schedule ride');
+            const detailMsg = err.response?.data?.detail;
+            const serverErr = err.response?.data?.server_error;
+            setError(serverErr ? `${detailMsg} (Server Error: ${serverErr})` : (detailMsg || 'Failed to schedule ride'));
         } finally {
             setLoading(false);
         }

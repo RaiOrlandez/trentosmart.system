@@ -749,7 +749,10 @@ const PassengerHome = () => {
 
     } catch (err) {
       console.error('Failed to create ride', err);
-      const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to request ride';
+      let errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to request ride';
+      if (err.response?.data?.server_error) {
+        errorMsg += ` (Server Error: ${err.response.data.server_error})`;
+      }
       alert(`Failed to request ride: ${errorMsg}`);
       setStatus('idle');
       setActiveRideId(null); // ✅ Clear stale ride ID so WS doesn't reconnect to a failed ride

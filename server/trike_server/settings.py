@@ -70,16 +70,24 @@ CHANNEL_LAYERS = {
     },
 }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('MYSQLDATABASE', os.environ.get('MYSQL_DATABASE', 'transport')),
-        'USER': os.environ.get('MYSQLUSER', os.environ.get('MYSQL_USER', 'root')),
-        'PASSWORD': os.environ.get('MYSQLPASSWORD', os.environ.get('MYSQL_PASSWORD', '')),
-        'HOST': os.environ.get('MYSQLHOST', os.environ.get('MYSQL_HOST', '127.0.0.1')),
-        'PORT': os.environ.get('MYSQLPORT', os.environ.get('MYSQL_PORT', '3306')),
+if os.environ.get('USE_SQLITE') == 'True':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get('MYSQLDATABASE', os.environ.get('MYSQL_DATABASE', 'transport')),
+            'USER': os.environ.get('MYSQLUSER', os.environ.get('MYSQL_USER', 'root')),
+            'PASSWORD': os.environ.get('MYSQLPASSWORD', os.environ.get('MYSQL_PASSWORD', '')),
+            'HOST': os.environ.get('MYSQLHOST', os.environ.get('MYSQL_HOST', '127.0.0.1')),
+            'PORT': os.environ.get('MYSQLPORT', os.environ.get('MYSQL_PORT', '3306')),
+        }
+    }
 
 # Production Database Override
 if 'MYSQL_URL' in os.environ:

@@ -963,7 +963,7 @@ class RideViewSet(viewsets.ModelViewSet):
         nearest_landmark = self.request.data.get('nearest_landmark', '')
         notes = self.request.data.get('notes', '')
 
-        from django.db import OperationalError
+        from django.db import DatabaseError
         try:
             ride = serializer.save(
                 passenger=self.request.user,
@@ -972,24 +972,23 @@ class RideViewSet(viewsets.ModelViewSet):
                 nearest_landmark=nearest_landmark,
                 notes=notes
             )
-        except OperationalError as db_err:
+            # Create Payment record
+            Payment.objects.create(
+                ride=ride,
+                method=payment_method,
+                amount=ride.fare or 0
+            )
+        except DatabaseError as db_err:
             # Most likely cause: unapplied migration (missing column in DB).
             # Run `python manage.py migrate` on the server to fix this.
             error_msg = str(db_err)
-            print(f"[RideViewSet] DB OperationalError during ride creation: {error_msg}")
+            print(f"[RideViewSet] DB DatabaseError during ride creation: {error_msg}")
             raise serializers.ValidationError({
-                "detail": "Ride creation failed due to a server configuration issue. Please contact support.",
+                "detail": "Ride creation failed due to a database or server configuration issue. Please ensure all database migrations are applied.",
                 "server_error": error_msg
             })
 
         log_activity(self.request.user, "Ride Requested", f"Passenger {self.request.user.username} requested Ride #{ride.id} for {passenger_count} passenger(s) to {ride.dest_address} (Fare: ₱{ride.fare})", self.request)
-
-        # Create Payment record
-        Payment.objects.create(
-            ride=ride,
-            method=payment_method,
-            amount=ride.fare or 0
-        )
 
         
         channel_layer = get_channel_layer()
@@ -2742,11 +2741,21 @@ class ScheduledRideViewSet(viewsets.ModelViewSet):
         if passenger_count < 1:
             raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
 
-        scheduled_ride = serializer.save(
-            passenger=self.request.user, 
-            status='pending',
-            passenger_count=passenger_count
-        )
+        from django.db import DatabaseError
+        try:
+            scheduled_ride = serializer.save(
+                passenger=self.request.user, 
+                status='pending',
+                passenger_count=passenger_count
+            )
+        except DatabaseError as db_err:
+            error_msg = str(db_err)
+            print(f"[ScheduledRideViewSet] DB DatabaseError during scheduled ride creation: {error_msg}")
+            raise serializers.ValidationError({
+                "detail": "Scheduled ride creation failed due to a database or server configuration issue. Please ensure all database migrations are applied.",
+                "server_error": error_msg
+            })
+
         log_activity(
             user=self.request.user,
             action="Scheduled Ride Created",
