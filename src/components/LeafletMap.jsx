@@ -209,12 +209,25 @@ function MapClickHandler({ onMapClick, enabled }) {
 }
 
 // ── Smooth Marker ─────────────────────────────────────────────────────────────
-const SmoothMarker = ({ position, icon, isDriver, heading, children }) => {
+const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, children }) => {
     const markerRef     = useRef(null);
+    const popupRef      = useRef(null);
     const requestRef    = useRef();
     const startTimeRef  = useRef(null);
     const startPosRef   = useRef(position);
     const targetPosRef  = useRef(position);
+
+    // Auto-open popup when marker first mounts (e.g., after a custom pin drop)
+    useEffect(() => {
+        if (autoOpenPopup && markerRef.current) {
+            // Small delay to ensure popup is attached
+            const t = setTimeout(() => {
+                if (markerRef.current) markerRef.current.openPopup();
+            }, 250);
+            return () => clearTimeout(t);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoOpenPopup]);
 
     useEffect(() => {
         if (!markerRef.current) return;
@@ -434,6 +447,7 @@ const LeafletMap = ({
                             icon={icon}
                             isDriver={marker.isDriver}
                             heading={marker.heading}
+                            autoOpenPopup={!!marker.autoOpenPopup}
                         >
                             <Popup className="custom-popup">
                                 <div className="text-sm font-bold p-2 min-w-[160px]">
@@ -462,10 +476,16 @@ const LeafletMap = ({
                                             </div>
                                         </div>
                                     )}
-                                    {!marker.isDriver && (
+                                    {marker.isDestination && !marker.isDriver && (
+                                        <div className="mb-1">
+                                            <div className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">📍 Destination</div>
+                                            <div className="text-secondary font-black text-sm leading-snug">{marker.title?.replace('📍 ', '')}</div>
+                                        </div>
+                                    )}
+                                    {!marker.isDriver && !marker.isDestination && (
                                         <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1">{marker.title}</div>
                                     )}
-                                    <div className="text-slate-600 text-xs font-medium leading-relaxed italic">{marker.info}</div>
+                                    <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
                                 </div>
                             </Popup>
                         </SmoothMarker>

@@ -38,6 +38,31 @@ import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 import { searchLandmarks, QUICK_DESTINATIONS, TRENTO_LANDMARKS } from '../../data/trentoLandmarks';
 
+/**
+ * Reverse geocode (lat, lng) → human-readable place name
+ * Uses Nominatim (free, OSM-based). Returns a concise local label.
+ */
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrentoSmartApp/1.0' } });
+    if (!res.ok) throw new Error('Nominatim error');
+    const data = await res.json();
+    if (!data || !data.address) return null;
+    const a = data.address;
+    // Build a concise label: Road/Neighbourhood + Barangay/City
+    const parts = [
+      a.road || a.pedestrian || a.path || a.footway,
+      a.neighbourhood || a.hamlet || a.suburb,
+      a.village || a.city_district || a.county,
+    ].filter(Boolean);
+    if (parts.length === 0) return data.display_name ? data.display_name.split(',').slice(0, 3).join(', ') : null;
+    return parts.slice(0, 3).join(', ');
+  } catch {
+    return null;
+  }
+}
+
 // Default map centre (Trento ADS)
 const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
 
@@ -1699,18 +1724,40 @@ const PassengerHome = () => {
           secondaryRouteCoordinates={secondaryRouteCoordinates}
           fitBoundsPoints={fitBoundsPoints}
           fitBoundsKey={fitBoundsKey}
-          onMapClick={(lat, lng) => {
+          onMapClick={async (lat, lng) => {
             if (!mapTapMode) return;
-            // Friendly label instead of raw coordinates
-            const label = `Custom Pin`;
-            setDest(label);
-            setNearestLandmark('');
+            setMapTapMode(false);
             destCoordsRef.current = { lat, lng };
+
+            // Placeholder while geocoding
+            const coordLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            setDest('Resolving location…');
+            setNearestLandmark('');
+
+            // Drop the pin immediately so the passenger sees it
             setMarkers(prev => [
               ...prev.filter(m => !m.isDestination),
-              { id: 'dest', lat, lng, title: 'Your Destination', info: `Custom pin at ${lat.toFixed(4)}, ${lng.toFixed(4)}`, isDestination: true, forceFocus: Date.now() },
+              {
+                id: 'dest', lat, lng,
+                title: '📍 Custom Pin',
+                info: `Fetching address…`,
+                isDestination: true,
+                autoOpenPopup: true,
+                forceFocus: Date.now(),
+              },
             ]);
-            setMapTapMode(false);
+
+            // Resolve real address in background
+            const placeName = await reverseGeocode(lat, lng);
+            const finalLabel = placeName || coordLabel;
+            setDest(finalLabel);
+
+            // Update the pin popup with the resolved name
+            setMarkers(prev => prev.map(m =>
+              m.id === 'dest'
+                ? { ...m, title: '📍 ' + finalLabel, info: `Custom pin · ${coordLabel}` }
+                : m
+            ));
           }}
           mapClickEnabled={mapTapMode}
         />
