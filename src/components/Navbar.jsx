@@ -154,6 +154,12 @@ const Navbar = () => {
                       <span>Reviews</span>
                     </Link>
                   </motion.div>
+                  <motion.div custom={2} variants={navLinkVariants} initial="hidden" animate="visible">
+                    <Link to="/history" className={`nav-link flex items-center space-x-1 font-bold ${isActive('/history') ? 'text-primary' : ''}`}>
+                      <HistoryIcon size={18} />
+                      <span>History</span>
+                    </Link>
+                  </motion.div>
                 </>
               )}
 
@@ -299,6 +305,7 @@ const Navbar = () => {
                     {[
                       { to: '/driver', label: '🚗 Drive' },
                       { to: '/driver/earnings', label: '💰 Earnings Hub' },
+                      { to: '/history', label: '🕐 Job History' },
                       { to: '/driver/reviews', label: '⭐ My Reviews' },
                       { to: '/profile', label: '👤 My Profile' },
                     ].map((item) => (

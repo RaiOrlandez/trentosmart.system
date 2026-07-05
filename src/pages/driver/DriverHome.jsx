@@ -1057,10 +1057,22 @@ const DriverHome = () => {
                 </div>
                 <p className="text-xl font-black text-secondary">{user?.average_rating ? parseFloat(user.average_rating).toFixed(1) : '0.0'}</p>
               </Link>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Trips</p>
-                <p className="text-xl font-black text-secondary">{tripsCount}</p>
-              </div>
+              <Link to="/history" className="bg-slate-50 p-4 rounded-2xl border border-slate-100 block hover:border-primary transition-colors group">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Job History</p>
+                  <Clock size={12} className="text-slate-300 group-hover:text-primary transition-colors" />
+                </div>
+                <p className="text-xl font-black text-secondary">{tripsCount} trips</p>
+              </Link>
+              <Link to="/driver/maintenance" className="bg-slate-50 p-4 rounded-2xl border border-slate-100 block hover:border-primary transition-colors group">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Maintenance</p>
+                  <Wrench size={12} className="text-slate-300 group-hover:text-primary transition-colors" />
+                </div>
+                <p className="text-sm font-black text-secondary mt-1 truncate">
+                  {trikeHealth.status === 'good' ? 'Healthy' : 'Check Logs'}
+                </p>
+              </Link>
             </div>
           </motion.div>
 
