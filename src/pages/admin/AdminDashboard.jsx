@@ -1717,6 +1717,90 @@ const FinanceTab = ({ stats }) => {
   );
 };
 
+const FareSimulator = ({ configs }) => {
+  const [distance, setDistance] = useState(5);
+
+  const getVal = (key) => parseFloat(configs.find(c => c.key === key)?.value || 0);
+  const baseFare = getVal('base_fare');
+  const ratePerKm = getVal('rate_per_km');
+  const surgeMultiplier = getVal('surge_multiplier');
+  const surgeThreshold = getVal('surge_threshold');
+
+  const normalFare = baseFare + (ratePerKm * Math.max(0, distance - 1));
+  const surgeFare = normalFare * surgeMultiplier;
+
+  const surgeSensLabel = surgeMultiplier >= 2 ? 'HIGH' : surgeMultiplier >= 1.5 ? 'MODERATE' : 'LOW';
+  const surgeSensColor = surgeMultiplier >= 2 ? 'text-red-400' : surgeMultiplier >= 1.5 ? 'text-primary' : 'text-green-400';
+  const surgeSensBg = surgeMultiplier >= 2 ? 'bg-red-500/10 border-red-500/20' : surgeMultiplier >= 1.5 ? 'bg-primary/10 border-primary/20' : 'bg-green-500/10 border-green-500/20';
+
+  return (
+    <div className="glass-card p-10 rounded-[3rem] bg-slate-900 text-white relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32" />
+      <div className="relative z-10">
+        <h3 className="text-xl font-black italic uppercase tracking-tight mb-8">Fare Simulator</h3>
+
+        <div className="space-y-8">
+          <div className="p-6 bg-white/5 border border-white/10 rounded-[2rem]">
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trip Distance</p>
+              <span className="text-2xl font-black text-primary">{distance} km</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={30}
+              value={distance}
+              onChange={(e) => setDistance(Number(e.target.value))}
+              className="w-full accent-yellow-400 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+              <span>1 km</span>
+              <span>30 km</span>
+            </div>
+          </div>
+
+          <div className="p-8 bg-white/5 border border-white/10 rounded-[2rem] backdrop-blur-md">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">Earnings Projection</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between text-sm">
+                <span className="opacity-60">Base Fare</span>
+                <span className="font-bold">₱{baseFare.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-60">Distance ({distance}km × ₱{ratePerKm}/km)</span>
+                <span className="font-bold">₱{(ratePerKm * Math.max(0, distance - 1)).toFixed(2)}</span>
+              </div>
+              <div className="pt-4 mt-2 border-t border-white/10 flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] font-black text-primary uppercase tracking-widest">Normal Fare</p>
+                  <p className="text-4xl font-black italic">₱{normalFare.toFixed(2)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">With Surge ({surgeMultiplier}×)</p>
+                  <p className="text-xl font-black text-primary italic">₱{surgeFare.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className={`p-6 border rounded-3xl ${surgeSensBg}`}>
+              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${surgeSensColor}`}>Surge Sensitivity</p>
+              <p className={`text-lg font-black ${surgeSensColor}`}>{surgeSensLabel}</p>
+              <p className="text-[9px] text-slate-500 mt-1">Threshold: {surgeThreshold}×</p>
+            </div>
+            <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-3xl">
+              <p className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-1">Fleet Stability</p>
+              <p className="text-lg font-black">HEALTHY</p>
+              <p className="text-[9px] text-slate-500 mt-1">System normal</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const FareControlTab = () => {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1733,7 +1817,6 @@ const FareControlTab = () => {
       const configData = Array.isArray(res.data) ? res.data : [];
       setConfigs(configData);
 
-      // If empty, create defaults
       if (configData.length === 0) {
         const defaults = [
           { key: 'base_fare', value: '30.00', description: 'Starting price for every ride in PHP' },
@@ -1784,95 +1867,59 @@ const FareControlTab = () => {
             </div>
           </div>
 
-          <div className="space-y-8">
-            {configs.map(config => (
-              <div key={config.id} className="group">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{config.key.replace(/_/g, ' ')}</label>
-                  <div className="flex items-center gap-2">
-                    {savingId === config.id && <RefreshCw size={10} className="animate-spin text-primary" />}
-                    {showSuccessFor === config.id && <CheckCircle2 size={10} className="text-green-500" />}
-                    <span className="text-[10px] font-bold text-primary-dark bg-primary/10 px-2 py-0.5 rounded-md">LIVE</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={config.value}
-                      onChange={(e) => updateValue(config.id, e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-white/5 rounded-2xl py-4 px-6 text-xl font-black text-secondary dark:text-white focus:border-primary outline-none transition-all group-hover:bg-white dark:group-hover:bg-slate-800"
-                    />
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 font-bold group-hover:text-primary">
-                      {config.key.includes('multiplier') || config.key.includes('threshold') ? '×' : '₱'}
+          <div className="space-y-6">
+            {configs.map(config => {
+              const isMultiplier = config.key.includes('multiplier') || config.key.includes('threshold');
+              return (
+                <div key={config.id} className="group p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all">
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{config.key.replace(/_/g, ' ')}</label>
+                    <div className="flex items-center gap-2">
+                      {savingId === config.id && <RefreshCw size={10} className="animate-spin text-primary" />}
+                      {showSuccessFor === config.id && <CheckCircle2 size={10} className="text-green-500" />}
+                      <span className="text-[10px] font-bold text-primary-dark bg-primary/10 px-2 py-0.5 rounded-md">LIVE</span>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        step={isMultiplier ? '0.1' : '1'}
+                        min="0"
+                        value={config.value}
+                        onChange={(e) => setConfigs(prev => prev.map(c => c.id === config.id ? { ...c, value: e.target.value } : c))}
+                        className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-white/5 rounded-xl py-3 px-5 text-lg font-black text-secondary dark:text-white focus:border-primary outline-none transition-all"
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                        {isMultiplier ? '×' : '₱'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateValue(config.id, config.value)}
+                      disabled={savingId === config.id}
+                      className="px-5 py-3 bg-secondary dark:bg-primary text-white dark:text-secondary rounded-xl text-xs font-black uppercase tracking-widest hover:opacity-80 transition-all disabled:opacity-40 whitespace-nowrap shadow-md"
+                    >
+                      {savingId === config.id ? '...' : 'Save'}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[10px] font-medium text-slate-400 italic px-1">{config.description}</p>
                 </div>
-                <p className="mt-2 text-[10px] font-medium text-slate-500 italic px-2">{config.description}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="mt-12 p-6 bg-secondary dark:bg-slate-800 rounded-[2rem] text-white">
+          <div className="mt-8 p-6 bg-secondary dark:bg-slate-800 rounded-[2rem] text-white">
             <div className="flex items-center gap-3 mb-2 text-primary">
               <Settings size={18} className="animate-spin-slow" />
               <span className="text-xs font-black uppercase tracking-widest">Deployment Status</span>
             </div>
-            <p className="text-sm font-medium opacity-80 leading-relaxed">Changes to these values are synchronized in real-time across all user dashboards in Trento. Use caution when adjusting multipliers during peak hours.</p>
+            <p className="text-sm font-medium opacity-80 leading-relaxed">Changes are synchronized in real-time across all user dashboards in Trento. Use caution when adjusting multipliers during peak hours.</p>
           </div>
         </div>
       </div>
 
       <div className="space-y-6">
-        <div className="glass-card p-10 rounded-[3rem] bg-slate-900 text-white relative overflow-hidden h-full">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
-          <div className="relative z-10">
-            <h3 className="text-xl font-black italic uppercase tracking-tight mb-8">Economy Simulation</h3>
-
-            <div className="space-y-8">
-              <div className="p-8 bg-white/5 border border-white/10 rounded-[2rem] backdrop-blur-md">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Earnings Projection (5km trip)</p>
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="opacity-60">Standard Base Fare</span>
-                    <span className="font-bold">₱{configs.find(c => c.key === 'base_fare')?.value || '30.00'}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="opacity-60">Distance (5km)</span>
-                    <span className="font-bold">₱{(parseFloat(configs.find(c => c.key === 'rate_per_km')?.value || '8.00') * 5).toFixed(2)}</span>
-                  </div>
-                  <div className="pt-4 mt-4 border-t border-white/10 flex justify-between items-end">
-                    <div>
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Grand Total</p>
-                      <p className="text-4xl font-black italic">₱{(
-                        parseFloat(configs.find(c => c.key === 'base_fare')?.value || '30.00') +
-                        (parseFloat(configs.find(c => c.key === 'rate_per_km')?.value || '8.00') * 5)
-                      ).toFixed(2)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">With Surge (1.5x)</p>
-                      <p className="text-lg font-black text-primary italic">₱{(
-                        (parseFloat(configs.find(c => c.key === 'base_fare')?.value || '30.00') +
-                          (parseFloat(configs.find(c => c.key === 'rate_per_km')?.value || '8.00') * 5)) * 1.5
-                      ).toFixed(2)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-6 bg-primary/10 border border-primary/20 rounded-3xl">
-                  <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Surge Sensitivity</p>
-                  <p className="text-lg font-black">MODERATE</p>
-                </div>
-                <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-3xl">
-                  <p className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-1">Fleet Stability</p>
-                  <p className="text-lg font-black">HEALTHY</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FareSimulator configs={configs} />
       </div>
     </div>
   );
