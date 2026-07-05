@@ -71,9 +71,23 @@ def create_gcash_source(amount_php, success_url, failed_url):
 
     # Sandbox Simulation Fallback
     if is_test_mode:
+        from urllib.parse import urlparse, quote
+        parsed = urlparse(success_url)
+        frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+        
         mock_source_id = f"src_mock_{amount_centavos}_{uuid.uuid4().hex[:8]}"
-        separator = "&" if "?" in success_url else "?"
-        checkout_url = f"{success_url}{separator}source_id={mock_source_id}"
+        
+        # Build URL to our custom frontend GCash gateway sandbox page
+        success_encoded = quote(success_url)
+        failed_encoded = quote(failed_url)
+        
+        checkout_url = (
+            f"{frontend_base}/gcash-gateway"
+            f"?source_id={mock_source_id}"
+            f"&amount={amount_php}"
+            f"&success_url={success_encoded}"
+            f"&failed_url={failed_encoded}"
+        )
         
         mock_data = {
             "id": mock_source_id,

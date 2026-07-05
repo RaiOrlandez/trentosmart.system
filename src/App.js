@@ -29,6 +29,7 @@ const SupportComplaints = lazy(() => import('./pages/passenger/SupportComplaints
 const DriverReviews = lazy(() => import('./pages/driver/DriverReviews'));
 const MaintenanceLogs = lazy(() => import('./pages/driver/MaintenanceLogs'));
 const PublicTracking = lazy(() => import('./pages/PublicTracking'));
+const GCashGateway = lazy(() => import('./pages/GCashGateway'));
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/track/:token" element={<PublicTracking />} />
+                <Route path="/gcash-gateway" element={<GCashGateway />} />
 
                 <Route path="/passenger" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
                 <Route path="/passenger/home" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
