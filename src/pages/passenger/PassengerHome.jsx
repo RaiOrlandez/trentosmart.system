@@ -421,6 +421,42 @@ const PassengerHome = () => {
 
   // Restore Active Ride State on Mount
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gcash_paid') === 'true') {
+      // Clean URL parameters immediately so fresh reloads don't trigger it again
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      const savedDriver = sessionStorage.getItem('gcash_assigned_driver');
+      const savedRideId = sessionStorage.getItem('gcash_ride_id') || sessionStorage.getItem('active_ride_id_for_gcash');
+      
+      if (savedDriver) {
+        try {
+          setAssignedDriver(JSON.parse(savedDriver));
+        } catch (e) {
+          console.error('Failed to parse saved driver details', e);
+        }
+      }
+      if (savedRideId) {
+        setActiveRideId(parseInt(savedRideId));
+      }
+      
+      // Clean up session storage
+      sessionStorage.removeItem('gcash_assigned_driver');
+      sessionStorage.removeItem('gcash_ride_id');
+      sessionStorage.removeItem('active_ride_id_for_gcash');
+      
+      // Clear ride markers/routes and set completed state
+      setStatus('completed');
+      setMarkers([]);
+      setRouteCoordinates(null);
+      
+      // Trigger the rating modal after a small delay
+      setTimeout(() => {
+        setShowRating(true);
+      }, 1000);
+      return; // Skip active ride fetch since this ride was just completed
+    }
+
     const fetchActiveRide = async () => {
       try {
         const res = await api.get('/rides/active_ride/');
@@ -938,6 +974,12 @@ const PassengerHome = () => {
     }
 
     if (paymentMethod === 'gcash') {
+      if (assignedDriver) {
+        sessionStorage.setItem('gcash_assigned_driver', JSON.stringify(assignedDriver));
+      }
+      if (activeRideId) {
+        sessionStorage.setItem('active_ride_id_for_gcash', activeRideId.toString());
+      }
       setShowGCashPayment(true);
     } else if (paymentMethod !== 'cash') {
       setShowPayment(true);
@@ -974,21 +1016,11 @@ const PassengerHome = () => {
     try {
       // Verify payment with backend before completing ride
       const verifyRes = await api.get('/payments/gcash/verify/', {
-        params: { source_id: transactionRef }
+        params: { source_id: transactionRef, ride_id: activeRideId }
       });
 
       if (!verifyRes.data.success) {
         throw new Error('Payment verification failed. Please contact support.');
-      }
-
-      // Mark ride as completed in database with payment reference
-      if (activeRideId) {
-        await api.patch(`/rides/${activeRideId}/`, {
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          payment_reference: transactionRef,
-          payment_verified: true
-        });
       }
 
       setShowGCashPayment(false);

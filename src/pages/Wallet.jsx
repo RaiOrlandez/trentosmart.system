@@ -29,50 +29,70 @@ const Wallet = () => {
     // ── Handle PayMongo redirect back from GCash ──────────────────────────────
     useEffect(() => {
         const paymentStatus = searchParams.get('status');
-        const sourceId = searchParams.get('source_id') || sessionStorage.getItem('gcash_source_id');
+        const sourceId      = searchParams.get('source_id') || sessionStorage.getItem('gcash_source_id');
+        const urlRideId     = searchParams.get('ride_id');   // set by backend for ride payments
+        const ssRideId      = sessionStorage.getItem('gcash_ride_id');
+        const rideId        = urlRideId || ssRideId;
 
         if (paymentStatus === 'success' && sourceId) {
             setMsg({ type: '', text: '' });
             setIsProcessing(true);
-            
-            // Get amount value before removing from session storage
+
+            // Capture amount before clearing session storage
             const amountVal = sessionStorage.getItem('gcash_amount') || 0;
-            
-            // Clear URL params to avoid re-triggering on refresh
+
+            // Clear URL params + session to avoid re-triggering on refresh
             setSearchParams({});
             sessionStorage.removeItem('gcash_source_id');
             sessionStorage.removeItem('gcash_amount');
             sessionStorage.removeItem('gcash_ride_id');
 
-            api.get(`/payments/gcash/verify/?source_id=${sourceId}`)
+            // Build verify URL — include ride_id so backend knows this is a ride payment
+            const verifyUrl = rideId
+                ? `/payments/gcash/verify/?source_id=${sourceId}&ride_id=${rideId}`
+                : `/payments/gcash/verify/?source_id=${sourceId}`;
+
+            api.get(verifyUrl)
                 .then(res => {
                     if (res.data.is_ride_payment) {
+                        // Ride payment verified — redirect passenger home so rating modal can appear
                         setMsg({
                             type: 'success',
-                            text: `✅ GCash payment verified! ₱${parseFloat(res.data.amount || amountVal).toFixed(2)} for Ride #${res.data.ride_id} has been processed successfully. Redirecting you home...`
+                            text: `✅ GCash payment of ₱${parseFloat(res.data.amount || amountVal).toFixed(2)} for Ride #${res.data.ride_id} verified! Redirecting you home...`
                         });
                         setTimeout(() => {
-                            navigate('/passenger');
-                        }, 3000);
+                            // Pass flag so PassengerHome can trigger the rating modal
+                            navigate('/passenger?gcash_paid=true');
+                        }, 2000);
                     } else {
                         setBalance(res.data.balance);
                         setMsg({
                             type: 'success',
-                            text: `✅ GCash payment verified! ₱${parseFloat(amountVal).toFixed(2)} has been credited to your wallet.`
+                            text: `✅ ₱${parseFloat(amountVal).toFixed(2)} credited to your wallet successfully!`
                         });
                         fetchWalletData();
                     }
                 })
                 .catch(err => {
                     const detail = err.response?.data?.detail || 'Payment verification failed. Contact support.';
-                    setMsg({ type: 'error', text: detail });
-                    fetchWalletData();
+                    setMsg({ type: 'error', text: `❌ ${detail}` });
+                    if (rideId) {
+                        // Still go back to passenger dashboard even on verify error
+                        setTimeout(() => navigate('/passenger'), 3000);
+                    } else {
+                        fetchWalletData();
+                    }
                 })
                 .finally(() => setIsProcessing(false));
         } else {
             if (paymentStatus === 'failed') {
                 setSearchParams({});
+                const wasRide = rideId || ssRideId;
                 setMsg({ type: 'error', text: '❌ GCash payment was not completed. Please try again.' });
+                if (wasRide) {
+                    setTimeout(() => navigate('/passenger'), 3000);
+                    return;
+                }
             }
             fetchWalletData();
         }
