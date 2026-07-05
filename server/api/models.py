@@ -140,6 +140,9 @@ class Ride(models.Model):
     # Cancellation tracking
     cancellation_reason = models.TextField(blank=True)
     cancelled_by = models.ForeignKey('api.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='cancelled_rides')
+    
+    # List of drivers who declined this request
+    rejected_by = models.ManyToManyField('api.User', blank=True, related_name='rejected_rides')
 
     def __str__(self):
         return f"Ride {self.id} - {self.status}"

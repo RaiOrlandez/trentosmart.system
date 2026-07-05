@@ -1334,7 +1334,7 @@ def driver_requests(request):
     if request.user.role != 'driver':
         return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
     
-    # Filter: Show rides targeted specifically at OR with no target at all
+    # Filter: Show rides targeted specifically at OR with no target at all, excluding already declined ones
     from django.db.models import Q
     from django.utils import timezone
     # 10-minute expiration window — ensures drivers see requests even if they just came online
@@ -1343,8 +1343,9 @@ def driver_requests(request):
         Q(status='requested') &
         (Q(targeted_driver=request.user) | Q(targeted_driver__isnull=True)) &
         Q(requested_at__gte=recent_threshold)
-    ).order_by('-requested_at')[:20]
+    ).exclude(rejected_by=request.user).order_by('-requested_at')[:20]
     
+    # Serializer will return full serialized fields including passenger detail
     ser = RideSerializer(qs, many=True)
     return Response(ser.data)
 
@@ -1356,6 +1357,9 @@ def driver_reject(request, ride_id):
         return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
         
     ride = get_object_or_404(Ride, id=ride_id)
+    
+    # Track that this driver declined the request so it does not reappear for them
+    ride.rejected_by.add(request.user)
     
     # If the driver rejects a targeted request, we make it "Public" so other drivers can pick it up
     # or notify the passenger. Let's make it public but notify the passenger.
