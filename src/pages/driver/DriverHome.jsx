@@ -45,6 +45,37 @@ import LocationPermissionModal from '../../components/LocationPermissionModal';
 
 const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
 
+/**
+ * Reverse geocode (lat, lng) → human-readable place name using Nominatim.
+ */
+async function reverseGeocode(lat, lng) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrentoSmartApp/1.0' } });
+    if (!res.ok) throw new Error('Nominatim error');
+    const data = await res.json();
+    if (!data || !data.address) return null;
+    const a = data.address;
+    const parts = [
+      a.road || a.pedestrian || a.path || a.footway,
+      a.neighbourhood || a.hamlet || a.suburb,
+      a.village || a.city_district || a.county,
+    ].filter(Boolean);
+    if (parts.length === 0) return data.display_name ? data.display_name.split(',').slice(0, 3).join(', ') : null;
+    return parts.slice(0, 3).join(', ');
+  } catch {
+    return null;
+  }
+}
+
+/** Returns true if the string is raw coordinates or a generic pin label */
+function isGenericDestLabel(label) {
+  if (!label) return true;
+  if (label === 'Custom Pin' || label.startsWith('Resolving')) return true;
+  // matches "8.03555, 126.06432" pattern
+  return /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(label.trim());
+}
+
 const DriverHome = () => {
   const { user, getProfile } = React.useContext(AuthContext);
   const [requests, setRequests] = useState([]);
@@ -83,7 +114,10 @@ const DriverHome = () => {
   const [maintenanceLogs, setMaintenanceLogs] = useState([]);
   const [trikeHealth, setTrikeHealth] = useState({ status: 'good', message: 'All systems operational' });
   const [dailyGoal, setDailyGoal] = useState(1500); // Default ₱1500 goal
-  
+
+  // Resolved destination place name (reverse-geocoded from coordinates)
+  const [resolvedDestName, setResolvedDestName] = useState('');
+
   // Grab-style routing and bounds states
   const [secondaryRouteCoords, setSecondaryRouteCoords] = useState(null);
   const [fitBoundsPoints, setFitBoundsPoints] = useState(null);
@@ -529,6 +563,33 @@ const DriverHome = () => {
     }
   }, [newRide, isOnline, activeRide]);
 
+  // Auto-resolve destination name whenever the selected request or active ride changes
+  useEffect(() => {
+    const ride = activeRide || selectedRequest;
+    if (!ride) { setResolvedDestName(''); return; }
+
+    const destLabel = ride.dest_address || ride.dest || '';
+    const destLat   = parseFloat(ride.dest_lat);
+    const destLng   = parseFloat(ride.dest_lng);
+
+    // If the stored label is already a real name, just use it
+    if (!isGenericDestLabel(destLabel)) {
+      setResolvedDestName(destLabel);
+      return;
+    }
+
+    // Otherwise reverse-geocode the coordinates
+    if (!isNaN(destLat) && !isNaN(destLng)) {
+      setResolvedDestName('Resolving…');
+      reverseGeocode(destLat, destLng).then(name => {
+        setResolvedDestName(name || `${destLat.toFixed(5)}, ${destLng.toFixed(5)}`);
+      });
+    } else {
+      setResolvedDestName(destLabel || 'Unknown Destination');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRide?.id, selectedRequest?.id]);
+
   // Consolidate marker generation
   useEffect(() => {
     if (!isOnline || !driverPos) {
@@ -558,11 +619,13 @@ const DriverHome = () => {
         });
       }
 
+      // Destination pin — use resolved name so driver sees real place name in popup
+      const destDisplayName = resolvedDestName || activeRide.dest_address || activeRide.dest || 'Destination';
       newMarkers.push({
         lat: activeRide.dest_lat || 8.056,
         lng: activeRide.dest_lng || 126.072,
-        title: 'Destination',
-        info: activeRide.dest_address || activeRide.dest,
+        title: '📍 ' + destDisplayName,
+        info: `Destination · ${parseFloat(activeRide.dest_lat).toFixed(5)}, ${parseFloat(activeRide.dest_lng).toFixed(5)}`,
         isDestination: true
       });
     } else if (selectedRequest) {
@@ -573,10 +636,22 @@ const DriverHome = () => {
         info: `Pickup at ${selectedRequest.pickup_address || selectedRequest.pickup}`,
         isPickup: true
       });
+
+      // Also show destination pin in preview — driver can see where they'd be going
+      if (selectedRequest.dest_lat && selectedRequest.dest_lng) {
+        const destDisplayName = resolvedDestName || selectedRequest.dest_address || selectedRequest.dest || 'Destination';
+        newMarkers.push({
+          lat: parseFloat(selectedRequest.dest_lat),
+          lng: parseFloat(selectedRequest.dest_lng),
+          title: '📍 ' + destDisplayName,
+          info: `Destination · ${parseFloat(selectedRequest.dest_lat).toFixed(5)}, ${parseFloat(selectedRequest.dest_lng).toFixed(5)}`,
+          isDestination: true
+        });
+      }
     }
 
     setMarkers(newMarkers);
-  }, [driverPos, activeRide, selectedRequest, isOnline, passengerLivePos]);
+  }, [driverPos, activeRide, selectedRequest, isOnline, passengerLivePos, resolvedDestName]);
 
   const acceptRide = async (ride) => {
     try {
@@ -1052,7 +1127,7 @@ const DriverHome = () => {
                         <Navigation2 size={18} className="text-accent mt-1" />
                         <div className="min-w-0">
                           <p className="text-[10px] uppercase font-bold text-slate-400">Destination</p>
-                          <p className="text-sm truncate">{activeRide.dest_address || activeRide.dest}</p>
+                          <p className="text-sm truncate">{resolvedDestName || activeRide.dest_address || activeRide.dest}</p>
                         </div>
                       </div>
                     </div>
@@ -1232,7 +1307,7 @@ const DriverHome = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1">Destination</p>
-                          <p className="text-sm font-bold text-secondary leading-tight">{selectedRequest.dest_address || selectedRequest.dest}</p>
+                          <p className="text-sm font-bold text-secondary leading-tight">{resolvedDestName || selectedRequest.dest_address || selectedRequest.dest}</p>
                           {selectedRequest.dest_lat && selectedRequest.dest_lng && (
                             <p className="text-[10px] text-slate-400 font-mono mt-1">
                               📍 {parseFloat(selectedRequest.dest_lat).toFixed(4)}, {parseFloat(selectedRequest.dest_lng).toFixed(4)}
