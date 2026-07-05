@@ -48,9 +48,28 @@ def create_paymongo_source(request):
     except Exception as e:
         return Response({'detail': f'Amount validation error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         
-    # Get frontend URL for redirects. Fallback to localhost.
-    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-    
+    # Resolve the frontend URL for GCash redirects.
+    # Priority: 1) FRONTEND_URL env var (if not localhost)
+    #           2) HTTP_ORIGIN from the incoming request
+    #           3) Parsed from HTTP_REFERER
+    #           4) Hard-coded Vercel production URL as last resort
+    env_frontend_url = os.environ.get('FRONTEND_URL', '').rstrip('/')
+    is_localhost = not env_frontend_url or 'localhost' in env_frontend_url or '127.0.0.1' in env_frontend_url
+
+    if not is_localhost:
+        frontend_url = env_frontend_url
+    else:
+        origin  = request.META.get('HTTP_ORIGIN', '')
+        referer = request.META.get('HTTP_REFERER', '')
+        if origin and 'localhost' not in origin and '127.0.0.1' not in origin:
+            frontend_url = origin.rstrip('/')
+        elif referer and 'localhost' not in referer and '127.0.0.1' not in referer:
+            from urllib.parse import urlparse as _urlp
+            _p = _urlp(referer)
+            frontend_url = f"{_p.scheme}://{_p.netloc}"
+        else:
+            frontend_url = 'https://trentosmart-system.vercel.app'
+
     # For ride payments, encode ride_id in the redirect URL so Wallet.jsx
     # can detect it and route the passenger back home after verification.
     if ride_id:
@@ -59,6 +78,7 @@ def create_paymongo_source(request):
     else:
         success_url = f"{frontend_url}/wallet?status=success"
         failed_url  = f"{frontend_url}/wallet?status=failed"
+
     
     # Call the service layer to create GCash source
     try:
