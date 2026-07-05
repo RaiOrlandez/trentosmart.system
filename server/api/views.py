@@ -960,8 +960,16 @@ class RideViewSet(viewsets.ModelViewSet):
         if passenger_count < 1:
             raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
 
-        nearest_landmark = self.request.data.get('nearest_landmark', '')
-        notes = self.request.data.get('notes', '')
+        # Clean string inputs to remove non-BMP characters (emojis) to prevent MySQL 1366 errors
+        def clean_text(val):
+            if not val:
+                return ''
+            return ''.join(c for c in str(val) if ord(c) <= 0xFFFF).strip()
+
+        pickup_address = clean_text(self.request.data.get('pickup_address', ''))
+        dest_address = clean_text(self.request.data.get('dest_address', ''))
+        nearest_landmark = clean_text(self.request.data.get('nearest_landmark', ''))
+        notes = clean_text(self.request.data.get('notes', ''))
 
         from django.db import DatabaseError
         try:
@@ -969,6 +977,8 @@ class RideViewSet(viewsets.ModelViewSet):
                 passenger=self.request.user,
                 targeted_driver=targeted_driver,
                 passenger_count=passenger_count,
+                pickup_address=pickup_address,
+                dest_address=dest_address,
                 nearest_landmark=nearest_landmark,
                 notes=notes
             )
@@ -2741,12 +2751,25 @@ class ScheduledRideViewSet(viewsets.ModelViewSet):
         if passenger_count < 1:
             raise serializers.ValidationError({"detail": "Passenger count must be at least 1."})
 
+        # Clean string inputs to remove non-BMP characters (emojis) to prevent MySQL 1366 errors
+        def clean_text(val):
+            if not val:
+                return ''
+            return ''.join(c for c in str(val) if ord(c) <= 0xFFFF).strip()
+
+        pickup_address = clean_text(self.request.data.get('pickup_address', ''))
+        dest_address = clean_text(self.request.data.get('dest_address', ''))
+        notes = clean_text(self.request.data.get('notes', ''))
+
         from django.db import DatabaseError
         try:
             scheduled_ride = serializer.save(
                 passenger=self.request.user, 
                 status='pending',
-                passenger_count=passenger_count
+                passenger_count=passenger_count,
+                pickup_address=pickup_address,
+                dest_address=dest_address,
+                notes=notes
             )
         except DatabaseError as db_err:
             error_msg = str(db_err)

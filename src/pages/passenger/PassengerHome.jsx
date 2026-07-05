@@ -1599,7 +1599,7 @@ const PassengerHome = () => {
           onMapClick={(lat, lng) => {
             if (!mapTapMode) return;
             // Friendly label instead of raw coordinates
-            const label = `📍 Custom Pin`;
+            const label = `Custom Pin`;
             setDest(label);
             setNearestLandmark('');
             destCoordsRef.current = { lat, lng };
