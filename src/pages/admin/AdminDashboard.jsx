@@ -922,8 +922,8 @@ const AdminDashboard = () => {
               {users
                 .filter(u => u.role === 'driver')
                 .filter(u =>
-                  u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                  (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
                 )
                 .sort((a, b) => new Date(b.date_joined) - new Date(a.date_joined))
                 .map(driver => (
@@ -984,8 +984,8 @@ const AdminDashboard = () => {
                   {users
                     .filter(u => u.role === 'driver')
                     .filter(u =>
-                      u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                      (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .sort((a, b) => new Date(b.date_joined) - new Date(a.date_joined)) // Sort by date_joined descending
                     .map(driver => (
@@ -1148,8 +1148,8 @@ const AdminDashboard = () => {
             {users
               .filter(u => u.role === 'passenger')
               .filter(u =>
-                u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
               )
               .sort((a, b) => new Date(b.date_joined) - new Date(a.date_joined)) // Sort by date_joined descending
               .map(user => (
