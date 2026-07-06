@@ -583,91 +583,127 @@ const AdminDashboard = () => {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative z-[100]">
-        <div className="flex items-center gap-6">
-          <div>
-            <h1 className="text-3xl font-black text-secondary dark:text-white tracking-tight">Authority Console</h1>
-            <p className="text-slate-500 dark:text-slate-400">Monitoring & Control Center</p>
+      <div className="flex flex-col gap-3 mb-8 relative z-[100]">
+
+        {/* ── Mobile: Title Row + Bell pinned right ── */}
+        <div className="flex items-center justify-between gap-3">
+          {/* Title */}
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-black text-secondary dark:text-white tracking-tight truncate">Authority Console</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm hidden sm:block">Monitoring &amp; Control Center</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportCSV}
-              className="bg-primary/20 text-primary-dark dark:text-primary px-4 py-2 border border-primary/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all flex items-center gap-2 shadow-sm"
-            >
-              <Download size={16} /> CSV
-            </button>
-            <button
-              onClick={handleExportPDF}
-              className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-4 py-2 border border-red-200 dark:border-red-700/40 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
-            >
-              <Download size={16} /> PDF
-            </button>
-          </div>
+          {/* Right side: Export buttons (desktop only) + Bell always visible */}
 
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-white/10 text-slate-400 hover:text-primary transition-all relative"
-            >
-              <Bell size={24} />
-              {notifications.length > 0 && (
-                <span className="absolute top-2 right-2 w-4 h-4 bg-primary text-secondary text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900">
-                  {notifications.length}
-                </span>
-              )}
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Export buttons — only on md+ */}
+            <div className="hidden md:flex items-center gap-2">
+              <button
+                onClick={handleExportCSV}
+                className="bg-primary/20 text-primary-dark dark:text-primary px-4 py-2 border border-primary/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-black transition-all flex items-center gap-2 shadow-sm"
+              >
+                <Download size={16} /> CSV
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-4 py-2 border border-red-200 dark:border-red-700/40 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2 shadow-sm"
+              >
+                <Download size={16} /> PDF
+              </button>
+            </div>
 
-            <AnimatePresence>
-              {showNotifications && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute left-0 mt-4 w-[85vw] sm:w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
-                >
-                  <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-                    <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">System Activity</h3>
-                    <button onClick={() => setNotifications([])} className="text-[10px] font-bold text-primary hover:underline">Clear All</button>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <div className="p-8 text-center">
-                        <Bell className="mx-auto text-slate-200 mb-2" size={32} />
-                        <p className="text-xs font-bold text-slate-400">No new notifications</p>
+            {/* Mobile export mini-buttons */}
+            <div className="flex md:hidden items-center gap-1.5">
+              <button
+                onClick={handleExportCSV}
+                title="Export CSV"
+                className="p-2.5 bg-primary/10 text-primary-dark dark:text-primary border border-primary/20 rounded-xl text-xs font-black transition-all hover:bg-primary hover:text-black"
+              >
+                <Download size={15} />
+              </button>
+              <button
+                onClick={handleExportPDF}
+                title="Export PDF"
+                className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-200 dark:border-red-700/40 rounded-xl transition-all hover:bg-red-500 hover:text-white"
+              >
+                <Download size={15} />
+              </button>
+            </div>
+
+            {/* Bell — always visible on all screen sizes */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2.5 md:p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-white/10 text-slate-400 hover:text-primary transition-all relative"
+              >
+                <Bell size={22} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 px-0.5 animate-pulse">
+                    {notifications.length > 99 ? '99+' : notifications.length}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-[200] overflow-hidden"
+                  >
+                    <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">System Activity</h3>
                       </div>
-                    ) : (
-                      notifications.map(n => (
-                        <div key={n.id} className={`p-4 border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${n.urgent ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                              n.type === 'Safety' ? 'bg-red-100 text-red-600 border-red-200' :
-                              n.type === 'Ride' ? 'bg-blue-100 text-blue-600 border-blue-200' :
-                              n.type === 'Wallet' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' :
-                              n.type === 'User' ? 'bg-purple-100 text-purple-600 border-purple-200' :
-                              n.type === 'Fare' ? 'bg-amber-100 text-amber-600 border-amber-200' :
-                              n.type === 'Feedback' ? 'bg-indigo-100 text-indigo-600 border-indigo-200' :
-                              'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}>
-                              {n.type}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400">{n.time}</span>
-                          </div>
-                          <p className="text-xs font-bold text-secondary dark:text-white leading-tight">{n.msg}</p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  {notifications.length > 0 && (
-                    <div className="p-3 bg-slate-50 dark:bg-white/5 text-center">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">End of Feed</p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-slate-300">{notifications.length} events</span>
+                        <button onClick={() => setNotifications([])} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest transition-colors">Clear</button>
+                      </div>
                     </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-10 text-center">
+                          <Bell className="mx-auto text-slate-200 mb-3" size={36} />
+                          <p className="text-sm font-bold text-slate-400">All quiet</p>
+                          <p className="text-xs text-slate-300 mt-1">No recent system events</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className={`px-4 py-3 border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${n.urgent ? 'bg-red-50/60 dark:bg-red-900/10' : ''}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                n.type === 'Safety' ? 'bg-red-100 text-red-600 border-red-200' :
+                                n.type === 'Ride' ? 'bg-blue-100 text-blue-600 border-blue-200' :
+                                n.type === 'Wallet' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' :
+                                n.type === 'User' ? 'bg-purple-100 text-purple-600 border-purple-200' :
+                                n.type === 'Fare' ? 'bg-amber-100 text-amber-600 border-amber-200' :
+                                n.type === 'Feedback' ? 'bg-indigo-100 text-indigo-600 border-indigo-200' :
+                                'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                                {n.urgent && '🔴 '}{n.type}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-400">{n.time}</span>
+                            </div>
+                            <p className="text-xs font-semibold text-secondary dark:text-white leading-snug">{n.msg}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {notifications.length > 0 && (
+                      <div className="p-3 bg-slate-50 dark:bg-white/5 text-center border-t border-slate-100 dark:border-white/5">
+                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">End of Activity Feed</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
+
+        {/* ── Tab Navigation Bar ── */}
         <div className="flex gap-2 bg-white dark:bg-slate-900 p-1 rounded-2xl shadow-sm border border-slate-200 dark:border-white/10 overflow-x-auto">
           {['overview', 'drivers', 'passengers', 'live', 'economy', 'fares', 'safety', 'broadcast', 'audit'].map(tab => (
             <button
@@ -683,6 +719,7 @@ const AdminDashboard = () => {
           ))}
         </div>
       </div>
+
 
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in duration-500">
