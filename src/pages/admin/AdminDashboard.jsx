@@ -624,7 +624,7 @@ const AdminDashboard = () => {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 sm:right-auto sm:left-0 mt-4 w-[90vw] max-w-[20rem] sm:w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
+                  className="absolute left-0 mt-4 w-[85vw] sm:w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-white/10 z-50 overflow-hidden"
                 >
                   <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
                     <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">System Activity</h3>
@@ -640,10 +640,15 @@ const AdminDashboard = () => {
                       notifications.map(n => (
                         <div key={n.id} className={`p-4 border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors ${n.urgent ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${n.type === 'Safety' ? 'bg-red-100 text-red-600' :
-                              n.type === 'Ride' ? 'bg-blue-100 text-blue-600' :
-                                'bg-primary/20 text-secondary dark:text-primary'
-                              }`}>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                              n.type === 'Safety' ? 'bg-red-100 text-red-600 border-red-200' :
+                              n.type === 'Ride' ? 'bg-blue-100 text-blue-600 border-blue-200' :
+                              n.type === 'Wallet' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' :
+                              n.type === 'User' ? 'bg-purple-100 text-purple-600 border-purple-200' :
+                              n.type === 'Fare' ? 'bg-amber-100 text-amber-600 border-amber-200' :
+                              n.type === 'Feedback' ? 'bg-indigo-100 text-indigo-600 border-indigo-200' :
+                              'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
                               {n.type}
                             </span>
                             <span className="text-[9px] font-bold text-slate-400">{n.time}</span>
