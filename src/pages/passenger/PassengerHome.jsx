@@ -974,7 +974,10 @@ const PassengerHome = () => {
       await api.post('/incidents/', {
         lat: currentLat,
         lng: currentLng,
-        description: 'Passenger SOS Triggered from Mobile App'
+        ride: activeRideId || null,
+        description: activeRideId
+          ? `Passenger SOS Triggered during Ride #${activeRideId}`
+          : 'Passenger SOS Triggered from Mobile App Dashboard'
       });
     } catch (err) {
       console.error('Failed to send SOS alert', err);

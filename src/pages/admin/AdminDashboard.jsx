@@ -326,6 +326,18 @@ const AdminDashboard = () => {
           username: d.username
         };
       });
+      if (activeSOS && activeSOS.lat && activeSOS.lng) {
+        newMarkers.push({
+          id: `sos_${activeSOS.id}`,
+          lat: parseFloat(activeSOS.lat),
+          lng: parseFloat(activeSOS.lng),
+          title: `🚨 SOS: ${activeSOS.user}`,
+          info: `🚨 EMERGENCY SOS ALERT!\nUser: ${activeSOS.user}\nDetails: ${activeSOS.description || 'Distress signal'}\nCoordinates: ${activeSOS.lat}, ${activeSOS.lng}`,
+          isDestination: true,
+          forceFocus: Date.now()
+        });
+      }
+
       setLiveMarkers(newMarkers);
 
       // Demand: Locations where rides are requested but not yet matched
@@ -340,7 +352,7 @@ const AdminDashboard = () => {
     } catch (err) {
       console.error("Failed to fetch live data", err);
     }
-  }, []);
+  }, [activeSOS]);
 
   useEffect(() => {
     if (activeTab === 'live') {
