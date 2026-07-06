@@ -419,7 +419,7 @@ const Register = () => {
           </p>
         </div>
 
-        <form onSubmit={submit} className="space-y-6 relative min-h-[340px]">
+        <form onSubmit={submit} className="space-y-6">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -428,7 +428,7 @@ const Register = () => {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 50, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-6 absolute w-full"
+                className="space-y-6 w-full"
               >
                 {/* Role Selection */}
                 <div className="bg-slate-50 dark:bg-slate-800 p-1.5 rounded-[1.25rem] border border-slate-200 dark:border-slate-700 flex shadow-inner">
@@ -523,7 +523,7 @@ const Register = () => {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 50, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-6 absolute w-full"
+                className="space-y-6 w-full"
               >
                 <div className="relative flex items-center">
                   <div className="absolute left-4 flex items-center gap-2 pointer-events-none text-slate-500 font-black">
@@ -574,7 +574,7 @@ const Register = () => {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 50, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-6 absolute w-full"
+                className="space-y-6 w-full"
               >
                 <div className="relative">
                   <Home className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
