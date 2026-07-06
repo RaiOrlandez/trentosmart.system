@@ -874,14 +874,8 @@ class UserViewSet(viewsets.ModelViewSet):
             is_online=True
         ).exclude(last_lat__isnull=True)
 
-        # Fallback for demo: if no one is explicitly online, show those who updated recently
-        if not drivers.exists():
-            time_threshold = timezone.now() - timezone.timedelta(minutes=30)
-            drivers = User.objects.filter(
-                role='driver',
-                is_verified_driver=True,
-                last_location_update__gte=time_threshold
-            ).exclude(last_lat__isnull=True)
+        # No fallback — only show drivers who are explicitly online right now
+        # This prevents offline drivers from appearing as yellow markers on passenger maps
 
         data = []
         for d in drivers:

@@ -613,34 +613,36 @@ const PassengerHome = () => {
     };
   }, [activeRideId, status, sendLocation]);
 
-  // Handle Real-time Driver Markers (Global)
+  // Handle Real-time Driver Markers (Global — from system WebSocket)
   useEffect(() => {
-    if (driverLocation && status === 'idle') {
-      // If driver went offline, remove their marker
-      if (driverLocation.is_online === false) {
-        setMarkers(prev => prev.filter(m => m.id !== driverLocation.id));
-        return;
-      }
+    if (!driverLocation || status !== 'idle') return;
 
-      setMarkers(prev => {
-        const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
-        const newMarker = {
-          id: driverLocation.id,
-          lat: parseFloat(driverLocation.lat),
-          lng: parseFloat(driverLocation.lng),
-          title: 'Trike Driver',
-          info: 'Available',
-          isDriver: true
-        };
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = newMarker;
-          return updated;
-        }
-        return [...prev, newMarker];
-      });
+    // If driver went offline or status is not explicitly online, remove their marker
+    if (driverLocation.is_online === false || driverLocation.is_online !== true) {
+      setMarkers(prev => prev.filter(m => m.id !== driverLocation.id));
+      return;
     }
+
+    // Only add/update marker when driver is confirmed online
+    setMarkers(prev => {
+      const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
+      const newMarker = {
+        id: driverLocation.id,
+        lat: parseFloat(driverLocation.lat),
+        lng: parseFloat(driverLocation.lng),
+        title: 'Trike Driver',
+        info: 'Available',
+        isDriver: true
+      };
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = newMarker;
+        return updated;
+      }
+      return [...prev, newMarker];
+    });
   }, [driverLocation, status]);
+
 
   // Listen for Real-time System Broadcasts
   useEffect(() => {
