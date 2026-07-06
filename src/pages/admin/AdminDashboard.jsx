@@ -1815,10 +1815,14 @@ const FareSimulator = ({ configs }) => {
   const getVal = (key) => parseFloat(configs.find(c => c.key === key)?.value || 0);
   const baseFare = getVal('base_fare');
   const ratePerKm = getVal('rate_per_km');
+  const baseDistance = getVal('base_distance') || 2.0;
   const surgeMultiplier = getVal('surge_multiplier');
   const surgeThreshold = getVal('surge_threshold');
 
-  const normalFare = baseFare + (ratePerKm * Math.max(0, distance - 1));
+  const normalFare = distance <= baseDistance 
+    ? baseFare 
+    : baseFare + Math.ceil(distance - baseDistance) * ratePerKm;
+
   const surgeFare = normalFare * surgeMultiplier;
 
   const surgeSensLabel = surgeMultiplier >= 2 ? 'HIGH' : surgeMultiplier >= 1.5 ? 'MODERATE' : 'LOW';
@@ -1855,12 +1859,12 @@ const FareSimulator = ({ configs }) => {
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">Earnings Projection</p>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between text-sm">
-                <span className="opacity-60">Base Fare</span>
+                <span className="opacity-60">Base Fare ({baseDistance}km flat rate)</span>
                 <span className="font-bold">₱{baseFare.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="opacity-60">Distance ({distance}km × ₱{ratePerKm}/km)</span>
-                <span className="font-bold">₱{(ratePerKm * Math.max(0, distance - 1)).toFixed(2)}</span>
+                <span className="opacity-60">Extra Distance ({distance > baseDistance ? Math.ceil(distance - baseDistance) : 0}km × ₱{ratePerKm}/km)</span>
+                <span className="font-bold">₱{(distance > baseDistance ? Math.ceil(distance - baseDistance) * ratePerKm : 0).toFixed(2)}</span>
               </div>
               <div className="pt-4 mt-2 border-t border-white/10 flex justify-between items-end">
                 <div>
@@ -1912,6 +1916,7 @@ const FareControlTab = () => {
       if (configData.length === 0) {
         const defaults = [
           { key: 'base_fare', value: '30.00', description: 'Starting price for every ride in PHP' },
+          { key: 'base_distance', value: '2.0', description: 'Starting flat-rate distance in kilometers covered by the base fare' },
           { key: 'rate_per_km', value: '8.00', description: 'Additional charge per kilometer traveled' },
           { key: 'surge_multiplier', value: '1.5', description: 'Base multiplier during high demand periods' },
           { key: 'surge_threshold', value: '1.5', description: 'Ride-to-driver ratio that triggers surge' }
@@ -1961,7 +1966,7 @@ const FareControlTab = () => {
 
           <div className="space-y-6">
             {configs.map(config => {
-              const isMultiplier = config.key.includes('multiplier') || config.key.includes('threshold');
+              const isMultiplier = config.key.includes('multiplier') || config.key.includes('threshold') || config.key.includes('distance');
               return (
                 <div key={config.id} className="group p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all">
                   <div className="flex justify-between items-center mb-3">
@@ -1983,7 +1988,7 @@ const FareControlTab = () => {
                         className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-white/5 rounded-xl py-3 px-5 text-lg font-black text-secondary dark:text-white focus:border-primary outline-none transition-all"
                       />
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-                        {isMultiplier ? '×' : '₱'}
+                        {config.key.includes('distance') ? 'km' : isMultiplier ? '×' : '₱'}
                       </div>
                     </div>
                     <button
