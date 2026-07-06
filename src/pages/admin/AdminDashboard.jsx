@@ -1170,8 +1170,9 @@ const AdminDashboard = () => {
       {activeTab === 'live' && (
         <div className="flex-1 min-h-[600px] relative rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800 transition-colors animate-in fade-in">
           <Map markers={liveMarkers} heatPoints={showHeatmap ? demandPoints : []} />
-          <div className="absolute top-8 left-8 flex flex-col gap-4">
-            <div className="bg-black/80 backdrop-blur-md p-6 rounded-3xl text-white border border-white/10 max-w-xs shadow-2xl">
+          {/* Desktop Controls Overlay (Hidden on Mobile) */}
+          <div className="absolute top-8 left-8 hidden md:flex flex-col gap-4 z-10 max-w-xs pointer-events-none">
+            <div className="bg-black/80 backdrop-blur-md p-6 rounded-3xl text-white border border-white/10 shadow-2xl pointer-events-auto">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-3 h-3 status-online rounded-full"></div>
                 <h3 className="font-bold uppercase tracking-tight text-sm">Live Network Status</h3>
@@ -1195,9 +1196,10 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
+            
             <button
               onClick={() => setShowHeatmap(!showHeatmap)}
-              className="flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl border-2 bg-white text-secondary"
+              className="flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl border-2 bg-white text-secondary hover:bg-slate-50 pointer-events-auto active:scale-95"
             >
               <div className={`w-3 h-3 rounded-full ${showHeatmap ? 'bg-secondary animate-pulse' : 'bg-slate-300'}`}></div>
               {showHeatmap ? 'Disable Heatmap' : 'Analyze Demand Heat'}
@@ -1218,10 +1220,46 @@ const AdminDashboard = () => {
                 }, 500);
               }}
               disabled={isUpdatingMap}
-              className="flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl border-2 bg-slate-900 text-white hover:bg-black disabled:opacity-50"
+              className="flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-2xl border-2 bg-slate-900 text-white hover:bg-black disabled:opacity-50 pointer-events-auto active:scale-95"
             >
               <div className={`w-3 h-3 rounded-full ${isUpdatingMap ? 'bg-primary animate-spin' : 'bg-green-500'}`}></div>
               {isUpdatingMap ? 'Syncing Map...' : 'Force Map Refresh'}
+            </button>
+          </div>
+
+          {/* Mobile-Optimized Status Pill (Top Center) */}
+          <div className="absolute top-4 left-4 right-4 md:hidden z-10 flex flex-col gap-2 pointer-events-none">
+            <div className="bg-black/85 backdrop-blur-md px-4 py-2.5 rounded-full text-white border border-white/10 shadow-lg flex items-center justify-between pointer-events-auto">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span className="text-[10px] font-black uppercase tracking-wider">Live: {liveMarkers.filter(m => m.isDriver).length} Online</span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-primary">Demand: {stats.activeRides > 5 ? 'CRITICAL' : 'NORMAL'}</span>
+            </div>
+          </div>
+
+          {/* Mobile-Optimized Button Controls (Bottom Center Overlay) */}
+          <div className="absolute bottom-6 left-4 right-4 md:hidden z-10 flex gap-2 pointer-events-none justify-center">
+            <button
+              onClick={() => setShowHeatmap(!showHeatmap)}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white text-secondary border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all shadow-lg pointer-events-auto active:scale-95"
+            >
+              <div className={`w-2 h-2 rounded-full ${showHeatmap ? 'bg-secondary animate-pulse' : 'bg-slate-400'}`}></div>
+              Heatmap
+            </button>
+            <button
+              onClick={async () => {
+                setIsUpdatingMap(true);
+                await fetchLiveData();
+                setTimeout(() => {
+                  setIsUpdatingMap(false);
+                }, 500);
+              }}
+              disabled={isUpdatingMap}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider transition-all shadow-lg pointer-events-auto active:scale-95 disabled:opacity-50"
+            >
+              <div className={`w-2 h-2 rounded-full ${isUpdatingMap ? 'bg-primary animate-spin' : 'bg-green-500'}`}></div>
+              Refresh
             </button>
           </div>
 
@@ -1232,7 +1270,7 @@ const AdminDashboard = () => {
                 initial={{ x: 300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
-                className="absolute top-8 right-8 w-[400px] z-[100]"
+                className="absolute top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 md:w-[400px] z-[100]"
               >
                 <div className="bg-red-600 text-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(220,38,38,0.4)] overflow-hidden border-4 border-white/20">
                   <div className="p-8 pb-4">
