@@ -24,7 +24,6 @@ const Wallet = lazy(() => import('./pages/Wallet'));
 const RideHistory = lazy(() => import('./pages/RideHistory'));
 const ScheduledRides = lazy(() => import('./pages/ScheduledRides'));
 const Profile = lazy(() => import('./pages/Profile'));
-const MyReviews = lazy(() => import('./pages/passenger/MyReviews'));
 const SupportComplaints = lazy(() => import('./pages/passenger/SupportComplaints'));
 const DriverReviews = lazy(() => import('./pages/driver/DriverReviews'));
 const MaintenanceLogs = lazy(() => import('./pages/driver/MaintenanceLogs'));
@@ -57,7 +56,6 @@ function App() {
 
                 <Route path="/passenger" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
                 <Route path="/passenger/home" element={<ProtectedRoute role="passenger"><PassengerHome /></ProtectedRoute>} />
-                <Route path="/passenger/reviews" element={<ProtectedRoute role="passenger"><MyReviews /></ProtectedRoute>} />
                 <Route path="/passenger/support" element={<ProtectedRoute role="passenger"><SupportComplaints /></ProtectedRoute>} />
                 <Route path="/driver" element={<ProtectedRoute role="driver"><DriverHome /></ProtectedRoute>} />
                 <Route path="/driver/verify" element={<ProtectedRoute role="driver"><DriverVerification /></ProtectedRoute>} />

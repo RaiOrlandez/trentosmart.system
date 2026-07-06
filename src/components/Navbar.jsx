@@ -106,7 +106,6 @@ const Navbar = () => {
                           { to: '/scheduled', icon: <Calendar size={18} />, label: 'Scheduled', sub: 'Manage booked rides' },
                           { to: '/history', icon: <HistoryIcon size={18} />, label: 'History', sub: 'View past trips' },
                           { to: '/wallet', icon: <Wallet size={18} />, label: 'Wallet', sub: 'Balances & Top-ups' },
-                          { to: '/passenger/reviews', icon: <Star size={18} />, label: 'Reviews', sub: 'Your given ratings' },
                         ].map((item) => (
                           <Link
                             key={item.to}
@@ -287,7 +286,6 @@ const Navbar = () => {
                       { to: '/scheduled', label: '📅 Scheduled Rides' },
                       { to: '/history', label: '🕐 Ride History' },
                       { to: '/wallet', label: '💳 Smart Wallet' },
-                      { to: '/passenger/reviews', label: '⭐ My Reviews' },
                       { to: '/passenger/support', label: '🆘 Support Center' },
                       { to: '/profile', label: '👤 My Profile' },
                     ].map((item) => (
