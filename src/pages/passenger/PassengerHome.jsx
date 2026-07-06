@@ -1663,14 +1663,14 @@ const PassengerHome = () => {
                   )}
 
                   {/* Inline Mobile-Optimized Driver Controls */}
-                  <div className="grid grid-cols-4 gap-2 py-2">
+                  <div className="grid grid-cols-4 gap-2.5 py-3">
                     <button
                       type="button"
                       onClick={() => setShowChat(prev => !prev)}
-                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${showChat ? 'bg-secondary text-white border-secondary' : 'bg-white text-secondary border-slate-200 hover:bg-slate-50'}`}
+                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 ${showChat ? 'bg-secondary text-white border-secondary shadow-lg shadow-secondary/20' : 'bg-slate-50 text-slate-700 border-slate-200/60 hover:bg-slate-100'}`}
                     >
-                      <MessageSquare size={16} />
-                      <span className="text-[8px] font-black uppercase tracking-wider">Chat</span>
+                      <MessageSquare size={16} className={showChat ? 'text-primary' : 'text-slate-500'} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Chat</span>
                     </button>
                     <button
                       type="button"
@@ -1681,10 +1681,10 @@ const PassengerHome = () => {
                           setMarkers([...markers.map(m => m.title === 'Driver' ? { ...m, isTracking: !isTracking, forceFocus: !isTracking ? Date.now() : null } : m)]);
                         }
                       }}
-                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${isTracking ? 'bg-primary text-secondary border-primary' : 'bg-white text-secondary border-slate-200 hover:bg-slate-50'}`}
+                      className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 ${isTracking ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20' : 'bg-slate-50 text-slate-700 border-slate-200/60 hover:bg-slate-100'}`}
                     >
-                      <Navigation size={16} className={isTracking ? 'animate-pulse' : ''} />
-                      <span className="text-[8px] font-black uppercase tracking-wider">{isTracking ? 'Tracking' : 'Track'}</span>
+                      <Navigation size={16} className={isTracking ? 'animate-pulse text-secondary' : 'text-slate-500'} />
+                      <span className="text-[9px] font-black uppercase tracking-wider">{isTracking ? 'Tracking' : 'Track'}</span>
                     </button>
                     <button
                       type="button"
@@ -1694,23 +1694,23 @@ const PassengerHome = () => {
                           const token = res.data.share_token;
                           const url = `${window.location.origin}/track/${token}`;
                           await navigator.clipboard.writeText(url);
-                          alert("Tracking link copied to clipboard!");
+                          alert("🔒 Live tracking link copied to clipboard! You can now share it with family.");
                         } catch (e) {
                           alert("Could not generate link.");
                         }
                       }}
-                      className="p-3 bg-white hover:bg-slate-50 text-secondary border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all"
+                      className="p-3 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
                     >
-                      <Share2 size={16} />
-                      <span className="text-[8px] font-black uppercase tracking-wider">Share</span>
+                      <Share2 size={16} className="text-blue-500" />
+                      <span className="text-[9px] font-black uppercase tracking-wider text-blue-600">Share</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => alert("Initiating secure proxy call. Driver number is hidden for privacy.")}
-                      className="p-3 bg-white hover:bg-slate-50 text-secondary border border-slate-200 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all"
+                      className="p-3 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95"
                     >
-                      <Phone size={16} />
-                      <span className="text-[8px] font-black uppercase tracking-wider">Call</span>
+                      <Phone size={16} className="text-slate-500" />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Call</span>
                     </button>
                   </div>
 
@@ -1912,14 +1912,14 @@ const PassengerHome = () => {
                   const token = res.data.share_token;
                   const url = `${window.location.origin}/track/${token}`;
                   await navigator.clipboard.writeText(url);
-                  alert("Tracking link copied to clipboard! Share it with family.");
+                  alert("🔒 Live tracking link copied to clipboard! You can now share it with family.");
                 } catch (e) {
                   alert("Could not generate link.");
                 }
               }}
-              className="hidden md:flex bg-blue-600 text-white p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border border-white/10"
+              className="hidden md:flex bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border border-blue-500/25 active:scale-95"
             >
-              <Share2 size={20} />
+              <Share2 size={20} className="text-white" />
               <span className="text-sm font-bold">Share Ride</span>
             </button>
           )}
