@@ -126,6 +126,22 @@ const PassengerHome = () => {
   const [mapTapMode, setMapTapMode] = useState(false);
   const [lmSuggestions, setLmSuggestions] = useState([]); // live landmark search results
 
+  const cancelRide = useCallback(async () => {
+    if (activeRideId) {
+      try {
+        await api.patch(`/rides/${activeRideId}/`, { status: 'cancelled' });
+      } catch (err) {
+        console.error('Failed to cancel ride on server', err);
+      }
+    }
+    setStatus('idle');
+    setMarkers([]);
+    setRouteCoordinates(null);
+    setFare(0);
+    setActiveRideId(null);
+    setSelectedDriverId(null);
+  }, [activeRideId]);
+
   // Fetch real system configuration fare policies on load
   useEffect(() => {
     const fetchSystemConfig = async () => {
@@ -755,7 +771,13 @@ const PassengerHome = () => {
       timer = setInterval(() => {
         setRequestTimeRemaining(prev => {
           if (prev <= 1) {
-            setShowFallbackButton(true);
+            if (selectedDriverId) {
+              setShowFallbackButton(true);
+            } else {
+              // General request timeout: auto-cancel the ride
+              cancelRide();
+              alert("Booking Timeout: No drivers are currently available in your area. Please try booking again.");
+            }
             return 0;
           }
           return prev - 1;
@@ -763,7 +785,7 @@ const PassengerHome = () => {
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [status, requestTimeRemaining]);
+  }, [status, requestTimeRemaining, selectedDriverId, cancelRide]);
 
   // Handle Real-time Driver Markers & Dynamic Navigation Routing (Passenger Screen)
   useEffect(() => {
@@ -914,6 +936,9 @@ const PassengerHome = () => {
       if (selectedDriverId) {
         setRequestTimeRemaining(30); // 30s wait for preferred driver
         setShowFallbackButton(false);
+      } else {
+        setRequestTimeRemaining(180); // 3 minutes wait for general broadcast
+        setShowFallbackButton(false);
       }
 
       // REAL-TIME DISPATCH:
@@ -935,21 +960,7 @@ const PassengerHome = () => {
     }
   };
 
-  const cancelRide = async () => {
-    if (activeRideId) {
-      try {
-        await api.patch(`/rides/${activeRideId}/`, { status: 'cancelled' });
-      } catch (err) {
-        console.error('Failed to cancel ride on server', err);
-      }
-    }
-    setStatus('idle');
-    setMarkers([]);
-    setRouteCoordinates(null);
-    setFare(0);
-    setActiveRideId(null);
-    setSelectedDriverId(null);
-  };
+
 
   const triggerSOS = async () => {
     setShowSOS(true);
@@ -1519,8 +1530,13 @@ const PassengerHome = () => {
                       {selectedDriverId ? `Waiting for ${nearbyDriverList.find(d => d.id === selectedDriverId)?.username || 'Preferred Driver'}...` : 'Finding Nearest Driver...'}
                     </span>
                   </div>
-                  {selectedDriverId && requestTimeRemaining > 0 && (
-                    <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest">Driver has {requestTimeRemaining}s to respond</p>
+                  {requestTimeRemaining > 0 && (
+                    <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-widest">
+                      {selectedDriverId
+                        ? `Driver has ${requestTimeRemaining}s to respond`
+                        : `Finding drivers... request expires in ${Math.floor(requestTimeRemaining / 60)}m ${requestTimeRemaining % 60}s`
+                      }
+                    </p>
                   )}
                 </div>
 
@@ -1534,7 +1550,7 @@ const PassengerHome = () => {
                         await api.patch(`/rides/${activeRideId}/`, { targeted_driver_id: null });
                         setSelectedDriverId(null);
                         setShowFallbackButton(false);
-                        setRequestTimeRemaining(0);
+                        setRequestTimeRemaining(180); // 3 minutes for general broadcast
                         alert("Notifying all nearby drivers now!");
                       } catch (err) {
                         console.error("Fallback failed", err);
