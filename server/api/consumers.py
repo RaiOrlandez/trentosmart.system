@@ -120,6 +120,7 @@ class RideConsumer(AsyncWebsocketConsumer):
                     'accuracy': data.get('accuracy'),
                     'status': data.get('status'),
                     'sender': user.username,
+                    'sender_role': user.role,
                 }
             )
         else:
@@ -145,6 +146,7 @@ class RideConsumer(AsyncWebsocketConsumer):
             'accuracy': event.get('accuracy'),
             'status': event.get('status'),
             'sender': event.get('sender', ''),
+            'sender_role': event.get('sender_role', ''),
         }))
 
     async def chat_message(self, event):

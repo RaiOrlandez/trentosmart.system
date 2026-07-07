@@ -74,6 +74,12 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             try { data = JSON.parse(e.data); } catch { return; }
 
             if (data.type === 'location') {
+                // If this is our own location update echoed back from the server, ignore it
+                const isMyOwnEcho = isDriver ? (data.sender_role === 'driver') : (data.sender_role === 'passenger');
+                if (isMyOwnEcho) {
+                    return; // Ignore our own location echo
+                }
+
                 setLocation({
                     lat:      data.lat,
                     lng:      data.lng,
