@@ -834,7 +834,7 @@ const DriverHome = () => {
         error={gpsError}
         onRetry={retryGps}
       />
-      <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-8">
+      <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row lg:flex-wrap gap-8">
 
         {/* Verification Success Popup */}
         <AnimatePresence>
@@ -905,12 +905,12 @@ const DriverHome = () => {
         )}
 
         {/* Left Column: Stats and Controls */}
-        <div className="w-full lg:w-1/3 xl:w-1/4 space-y-6">
+        <div className="w-full lg:w-[380px] xl:w-[420px] flex flex-col gap-6 order-2 lg:order-1">
           {/* Trike Health Smart Badge */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className={`p-6 rounded-[2.5rem] border-2 shadow-xl overflow-hidden relative ${trikeHealth.status === 'critical' ? 'bg-red-50 border-red-100 text-red-900' :
+            className={`order-3 p-6 rounded-[2.5rem] border-2 shadow-xl overflow-hidden relative ${trikeHealth.status === 'critical' ? 'bg-red-50 border-red-100 text-red-900' :
               trikeHealth.status === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-900' :
                 'bg-white border-slate-100 text-secondary'
               }`}
@@ -965,7 +965,7 @@ const DriverHome = () => {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
-            className="p-6 rounded-[2.5rem] bg-secondary text-white shadow-2xl relative overflow-hidden"
+            className="order-4 p-6 rounded-[2.5rem] bg-secondary text-white shadow-2xl relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-16 -mt-16 blur-2xl" />
 
@@ -1007,7 +1007,7 @@ const DriverHome = () => {
           </motion.div>
 
           {Array.isArray(broadcasts) && broadcasts.length > 0 && (
-            <div className="space-y-4">
+            <div className="order-5 space-y-4">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2">Recent Advisories</h3>
               {broadcasts.slice(0, 2).map((b, idx) => (
                 <motion.div
@@ -1048,7 +1048,7 @@ const DriverHome = () => {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className={`glass-card p-6 rounded-[2rem] transition-all duration-500 ${isOnline ? 'border-primary shadow-primary/10' : 'border-slate-200'}`}
+            className={`order-1 glass-card p-6 rounded-[2rem] transition-all duration-500 ${isOnline ? 'border-primary shadow-primary/10' : 'border-slate-200'}`}
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
@@ -1117,7 +1117,7 @@ const DriverHome = () => {
           </motion.div>
 
           {/* Ride Requests Area */}
-          <div className="space-y-4">
+          <div className="order-2 space-y-4">
             <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest px-2 flex items-center justify-between">
               <span>Active Requests</span>
               {isOnline && <Bell size={14} className="text-primary-dark" />}
@@ -1489,7 +1489,7 @@ const DriverHome = () => {
         </div>
 
         {/* Right Column: Map and Navigation */}
-        <div className="flex-1 min-h-[600px] relative rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white">
+        <div className="flex-1 h-[45vh] lg:h-auto min-h-[350px] lg:min-h-[650px] relative rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white order-1 lg:order-2">
           <Map
             markers={markers}
             center={driverCenter}
