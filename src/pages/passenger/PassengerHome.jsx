@@ -430,7 +430,12 @@ const PassengerHome = () => {
     };
     syncStatus(true);
 
+    // Heartbeat: re-ping every 60s to keep last_location_update fresh.
+    // This lets the backend detect stale/disconnected passengers (phone died, tab closed).
+    const heartbeat = setInterval(() => syncStatus(true), 60000);
+
     return () => {
+      clearInterval(heartbeat);
       syncStatus(false);
     };
   }, [fetchSavedPlaces, fetchBroadcasts]);

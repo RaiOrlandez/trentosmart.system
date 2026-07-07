@@ -655,6 +655,15 @@ class UserViewSet(viewsets.ModelViewSet):
         # Using self.queryset directly can return a cached, stale result which
         # causes "No User matches the given query" errors on delete/update.
         if self.request.user.role == 'admin':
+            # Auto-cleanup stale online users
+            now = timezone.now()
+            # Drivers: offline after 2 minutes of no pings
+            driver_cutoff = now - timezone.timedelta(minutes=2)
+            User.objects.filter(role='driver', is_online=True, last_location_update__lt=driver_cutoff).update(is_online=False)
+            # Passengers: offline after 5 minutes of no heartbeats
+            passenger_cutoff = now - timezone.timedelta(minutes=5)
+            User.objects.filter(role='passenger', is_online=True, last_location_update__lt=passenger_cutoff).update(is_online=False)
+
             return User.objects.filter(is_active=True).order_by('-date_joined')
         # Users can only see themselves (though usually handled by ProfileView)
         return User.objects.filter(id=self.request.user.id, is_active=True).order_by('-date_joined')

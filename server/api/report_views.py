@@ -308,11 +308,17 @@ def get_admin_dashboard_stats(request):
     """
     now = timezone.now()
 
-    # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
-    stale_cutoff = now - timedelta(minutes=2)
+    # Auto-cleanup: mark drivers (2 mins) and passengers (5 mins) offline if no heartbeat ping
+    stale_driver_cutoff = now - timedelta(minutes=2)
     User.objects.filter(
         role='driver', is_online=True,
-        last_location_update__lt=stale_cutoff
+        last_location_update__lt=stale_driver_cutoff
+    ).update(is_online=False)
+
+    stale_passenger_cutoff = now - timedelta(minutes=5)
+    User.objects.filter(
+        role='passenger', is_online=True,
+        last_location_update__lt=stale_passenger_cutoff
     ).update(is_online=False)
 
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
