@@ -867,6 +867,13 @@ class UserViewSet(viewsets.ModelViewSet):
         lat = request.query_params.get('lat')
         lng = request.query_params.get('lng')
         
+        # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
+        stale_cutoff = timezone.now() - timezone.timedelta(minutes=2)
+        User.objects.filter(
+            role='driver', is_online=True,
+            last_location_update__lt=stale_cutoff
+        ).update(is_online=False)
+
         # Priority: explicit 'is_online' field
         drivers = User.objects.filter(
             role='driver',
@@ -1033,6 +1040,13 @@ class RideViewSet(viewsets.ModelViewSet):
                     )
                 print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
             else:
+                # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
+                stale_cutoff = timezone.now() - timezone.timedelta(minutes=2)
+                User.objects.filter(
+                    role='driver', is_online=True,
+                    last_location_update__lt=stale_cutoff
+                ).update(is_online=False)
+
                 # SMART DISPATCH: Only consider online, verified drivers
                 drivers = User.objects.filter(
                     role='driver',
@@ -2459,6 +2473,13 @@ class NearbyLocationsView(APIView):
         radius_km      = float(request.query_params.get('radius', 10))
         requester_lat  = request.query_params.get('lat')
         requester_lng  = request.query_params.get('lng')
+
+        # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
+        stale_cutoff = timezone.now() - timezone.timedelta(minutes=2)
+        User.objects.filter(
+            role='driver', is_online=True,
+            last_location_update__lt=stale_cutoff
+        ).update(is_online=False)
 
         # Only show users that updated their location in the last 30 minutes
         time_threshold = timezone.now() - timezone.timedelta(minutes=30)

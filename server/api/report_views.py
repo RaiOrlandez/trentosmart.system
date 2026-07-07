@@ -307,6 +307,14 @@ def get_admin_dashboard_stats(request):
     All heavy aggregation is done at DB level.
     """
     now = timezone.now()
+
+    # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
+    stale_cutoff = now - timedelta(minutes=2)
+    User.objects.filter(
+        role='driver', is_online=True,
+        last_location_update__lt=stale_cutoff
+    ).update(is_online=False)
+
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     last_24h = now - timedelta(hours=24)
     last_7d = now - timedelta(days=7)

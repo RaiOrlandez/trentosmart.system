@@ -307,9 +307,14 @@ const AdminDashboard = () => {
       const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
       const ridesData = Array.isArray(ridesRes.data) ? ridesRes.data : [];
 
-      // Supply: Online Drivers with coordinates
+      // Supply: Online Drivers with coordinates — only show active (online or on-trip) drivers
       const activeRides = ridesData.filter(r => r.status === 'accepted' || r.status === 'on_route');
-      const drivers = usersData.filter(u => u.role === 'driver' && u.last_lat && u.last_lng);
+      const onTripDriverIds = new Set(activeRides.map(r => r.driver?.id).filter(Boolean));
+      // Show driver on map only if they are online OR currently on an active trip
+      const drivers = usersData.filter(u =>
+        u.role === 'driver' && u.last_lat && u.last_lng &&
+        (u.is_online || onTripDriverIds.has(u.id))
+      );
 
       const newMarkers = drivers.map(d => {
         const currentRide = activeRides.find(r => r.driver?.id === d.id);

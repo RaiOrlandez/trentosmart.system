@@ -352,6 +352,14 @@ class SystemConsumer(AsyncWebsocketConsumer):
             'search_radius_km': float(ride.search_radius_km) if hasattr(ride, 'search_radius_km') and ride.search_radius_km else 3.0,
         }
 
+        # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
+        from django.utils import timezone
+        stale_cutoff = timezone.now() - timezone.timedelta(minutes=2)
+        User.objects.filter(
+            role='driver', is_online=True,
+            last_location_update__lt=stale_cutoff
+        ).update(is_online=False)
+
         # Fetch online, verified, active, not currently on a ride
         drivers = User.objects.filter(
             role='driver',
