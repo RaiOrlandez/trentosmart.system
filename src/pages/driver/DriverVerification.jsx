@@ -8,18 +8,26 @@ const DriverVerification = () => {
     // Text Inputs
     const [licenseNum, setLicenseNum] = useState('');
     const [permitNum, setPermitNum] = useState('');
+    const [licenseExpiryDate, setLicenseExpiryDate] = useState('');
+    const [bodyNumber, setBodyNumber] = useState('');
 
     // File Inputs
     const [licenseImg, setLicenseImg] = useState(null);
     const [permitImg, setPermitImg] = useState(null);
     const [nbiClearanceImg, setNbiClearanceImg] = useState(null);
     const [barangayResidencyImg, setBarangayResidencyImg] = useState(null);
+    const [selfieWithLicenseImg, setSelfieWithLicenseImg] = useState(null);
+    const [vehicleOrcrImg, setVehicleOrcrImg] = useState(null);
+    const [tricyclePhotoImg, setTricyclePhotoImg] = useState(null);
 
     // Existing URLs
     const [existingLicenseImg, setExistingLicenseImg] = useState(null);
     const [existingPermitImg, setExistingPermitImg] = useState(null);
     const [existingNbiClearanceImg, setExistingNbiClearanceImg] = useState(null);
     const [existingBarangayResidencyImg, setExistingBarangayResidencyImg] = useState(null);
+    const [existingSelfieWithLicenseImg, setExistingSelfieWithLicenseImg] = useState(null);
+    const [existingVehicleOrcrImg, setExistingVehicleOrcrImg] = useState(null);
+    const [existingTricyclePhotoImg, setExistingTricyclePhotoImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
     const [verificationStatus, setVerificationStatus] = useState(null);
@@ -27,7 +35,7 @@ const DriverVerification = () => {
     const [isEditing, setIsEditing] = useState(true);
 
     // UI State for Hub
-    const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances'
+    const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances', 'vehicle', 'liveness'
 
     useEffect(() => {
         fetchData();
@@ -39,10 +47,15 @@ const DriverVerification = () => {
             const data = res.data;
             setLicenseNum(data.license_number || '');
             setPermitNum(data.permit_number || '');
+            setLicenseExpiryDate(data.license_expiry_date || '');
+            setBodyNumber(data.body_number || '');
             setExistingLicenseImg(data.license_image_url || data.license_image);
             setExistingPermitImg(data.permit_image_url || data.permit_image);
             setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
             setExistingBarangayResidencyImg(data.barangay_residency_image_url || data.barangay_residency_image);
+            setExistingSelfieWithLicenseImg(data.selfie_with_license_url || data.selfie_with_license);
+            setExistingVehicleOrcrImg(data.vehicle_orcr_image_url || data.vehicle_orcr_image);
+            setExistingTricyclePhotoImg(data.tricycle_photo_url || data.tricycle_photo);
 
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
             setVerificationStatus(isApproved);
@@ -62,10 +75,15 @@ const DriverVerification = () => {
         const formData = new FormData();
         formData.append('license_number', licenseNum);
         formData.append('permit_number', permitNum);
+        formData.append('license_expiry_date', licenseExpiryDate);
+        formData.append('body_number', bodyNumber);
         if (licenseImg) formData.append('license_image', licenseImg);
         if (permitImg) formData.append('permit_image', permitImg);
         if (nbiClearanceImg) formData.append('nbi_clearance_image', nbiClearanceImg);
         if (barangayResidencyImg) formData.append('barangay_residency_image', barangayResidencyImg);
+        if (selfieWithLicenseImg) formData.append('selfie_with_license', selfieWithLicenseImg);
+        if (vehicleOrcrImg) formData.append('vehicle_orcr_image', vehicleOrcrImg);
+        if (tricyclePhotoImg) formData.append('tricycle_photo', tricyclePhotoImg);
 
         try {
             const response = await api.post('/driver/verify/', formData, {
@@ -83,13 +101,16 @@ const DriverVerification = () => {
 
     // Calculate progress
     const items = [
-        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) },
+        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && licenseExpiryDate },
         { ready: permitNum.length > 3 && (permitImg || existingPermitImg) },
         { ready: (nbiClearanceImg || existingNbiClearanceImg) },
-        { ready: (barangayResidencyImg || existingBarangayResidencyImg) }
+        { ready: (barangayResidencyImg || existingBarangayResidencyImg) },
+        { ready: (vehicleOrcrImg || existingVehicleOrcrImg) },
+        { ready: bodyNumber.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
+        { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
-    const progressPercent = (completedCount / 4) * 100;
+    const progressPercent = (completedCount / 7) * 100;
 
     if (status === 'loading') {
         return (
@@ -157,7 +178,7 @@ const DriverVerification = () => {
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-3xl font-black text-secondary dark:text-white">{completedCount}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">of 4</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">of 7</span>
                             </div>
                         </div>
 
@@ -171,7 +192,7 @@ const DriverVerification = () => {
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">Your documents have been verified by Trento LGU. Stay safe on the road.</p>
                                     <button onClick={() => setIsEditing(true)} className="mt-4 text-primary font-bold text-sm hover:underline">Update Documents?</button>
                                 </>
-                            ) : completedCount === 4 ? (
+                            ) : completedCount === 7 ? (
                                 <>
                                     <div className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3">
                                         <ShieldCheck size={14} /> Ready to Submit
@@ -185,7 +206,7 @@ const DriverVerification = () => {
                                         <AlertCircle size={14} /> Action Required
                                     </div>
                                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Almost there!</h2>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm">You need to complete {4 - completedCount} more task{4 - completedCount !== 1 ? 's' : ''} before you can submit your profile.</p>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">You need to complete {7 - completedCount} more task{7 - completedCount !== 1 ? 's' : ''} before you can submit your profile.</p>
                                 </>
                             )}
                         </div>
@@ -234,6 +255,13 @@ const DriverVerification = () => {
                                                     <input
                                                         type="text" value={licenseNum} onChange={(e) => setLicenseNum(e.target.value)} required disabled={!isEditing}
                                                         placeholder="e.g. D12-34-567890"
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">License Expiry Date</label>
+                                                    <input
+                                                        type="date" value={licenseExpiryDate} onChange={(e) => setLicenseExpiryDate(e.target.value)} required disabled={!isEditing}
                                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
                                                     />
                                                 </div>
@@ -329,6 +357,90 @@ const DriverVerification = () => {
                                 )}
                             </AnimatePresence>
                         </div>
+                        {/* Task 4: Vehicle Details & OR/CR */}
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
+                            <button
+                                type="button"
+                                onClick={() => setActiveSection(activeSection === 'vehicle' ? null : 'vehicle')}
+                                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${(items[4].ready && items[5].ready) ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {(items[4].ready && items[5].ready) ? <Check size={20} /> : <span className="font-black">4</span>}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Vehicle Registration & Photo</h3>
+                                        <p className="text-slate-500 text-xs">Official LTO OR/CR & Tricycle photo</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'vehicle' ? 'rotate-90' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {activeSection === 'vehicle' && (
+                                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                            <div className="space-y-4 mt-4">
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">LGU Body/Unit Number</label>
+                                                    <input
+                                                        type="text" value={bodyNumber} onChange={(e) => setBodyNumber(e.target.value)} required disabled={!isEditing}
+                                                        placeholder="e.g. 0542"
+                                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">LTO OR/CR Image</label>
+                                                        <DocumentUploadField id="upload-orcr" label="OR/CR" file={vehicleOrcrImg} existingUrl={existingVehicleOrcrImg} setFile={setVehicleOrcrImg} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Tricycle Photo</label>
+                                                        <DocumentUploadField id="upload-trike" label="Trike" file={tricyclePhotoImg} existingUrl={existingTricyclePhotoImg} setFile={setTricyclePhotoImg} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        {/* Task 5: Liveness Selfie */}
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
+                            <button
+                                type="button"
+                                onClick={() => setActiveSection(activeSection === 'liveness' ? null : 'liveness')}
+                                className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[6].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {items[6].ready ? <Check size={20} /> : <span className="font-black">5</span>}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Identity Verification</h3>
+                                        <p className="text-slate-500 text-xs">Selfie holding Driver's License</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'liveness' ? 'rotate-90' : ''}`} />
+                            </button>
+
+                            <AnimatePresence>
+                                {activeSection === 'liveness' && (
+                                    <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                            <div className="space-y-4 mt-4">
+                                                <p className="text-xs text-slate-400 ml-2 italic">Hold your license next to your face and take a clear photo showing both your face and the license text.</p>
+                                                <div>
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Selfie with License</label>
+                                                    <DocumentUploadField id="upload-selfie" label="Selfie" file={selfieWithLicenseImg} existingUrl={existingSelfieWithLicenseImg} setFile={setSelfieWithLicenseImg} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
 
                         {/* Error Message */}
                         {status === 'error' && (
@@ -343,7 +455,7 @@ const DriverVerification = () => {
                             <div className="pt-6">
                                 <button
                                     type="submit"
-                                    disabled={status === 'uploading' || completedCount < 4}
+                                    disabled={status === 'uploading' || completedCount < 7}
                                     className="w-full bg-secondary dark:bg-primary text-white dark:text-secondary font-black py-5 rounded-3xl hover:opacity-90 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
                                     {status === 'uploading' ? (

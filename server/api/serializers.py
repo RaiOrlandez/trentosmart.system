@@ -36,6 +36,9 @@ class UserSerializer(serializers.ModelSerializer):
     nbi_clearance_image_url = serializers.SerializerMethodField()
     barangay_residency_image_url = serializers.SerializerMethodField()
     government_id_image_url = serializers.SerializerMethodField()
+    selfie_with_license_url = serializers.SerializerMethodField()
+    vehicle_orcr_image_url = serializers.SerializerMethodField()
+    tricycle_photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -52,6 +55,9 @@ class UserSerializer(serializers.ModelSerializer):
             'nbi_clearance_image', 'nbi_clearance_image_url',
             'barangay_residency_image', 'barangay_residency_image_url',
             'government_id_image', 'government_id_image_url',
+            'selfie_with_license', 'selfie_with_license_url',
+            'vehicle_orcr_image', 'vehicle_orcr_image_url',
+            'tricycle_photo', 'tricycle_photo_url',
             'auto_accept_rides', 'receive_notifications', 'search_radius_km',
             'is_online'
         )
@@ -92,11 +98,25 @@ class UserSerializer(serializers.ModelSerializer):
     def get_government_id_image_url(self, obj):
         return self._build_url(obj, 'government_id_image')
 
+    def get_selfie_with_license_url(self, obj):
+        return self._build_url(obj, 'selfie_with_license')
+
+    def get_vehicle_orcr_image_url(self, obj):
+        return self._build_url(obj, 'vehicle_orcr_image')
+
+    def get_tricycle_photo_url(self, obj):
+        return self._build_url(obj, 'tricycle_photo')
+
 
 class DriverVerificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('license_number', 'license_image', 'permit_number', 'permit_image', 'nbi_clearance_image', 'barangay_residency_image')
+        fields = (
+            'license_number', 'license_image', 'license_expiry_date',
+            'permit_number', 'permit_image', 'body_number',
+            'nbi_clearance_image', 'barangay_residency_image',
+            'selfie_with_license', 'vehicle_orcr_image', 'tricycle_photo'
+        )
 
 
 class RegisterSerializer(serializers.ModelSerializer):

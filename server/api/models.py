@@ -62,6 +62,9 @@ class User(AbstractUser):
     license_expiry_date = models.DateField(null=True, blank=True)
     nbi_clearance_image = models.ImageField(upload_to='driver_docs/', null=True, blank=True)
     barangay_residency_image = models.ImageField(upload_to='driver_docs/', null=True, blank=True)
+    selfie_with_license = models.ImageField(upload_to='driver_docs/', null=True, blank=True)
+    vehicle_orcr_image = models.ImageField(upload_to='driver_docs/', null=True, blank=True)
+    tricycle_photo = models.ImageField(upload_to='driver_docs/', null=True, blank=True)
     
     # Strict Passenger Verification
     government_id_image = models.ImageField(upload_to='passenger_docs/', null=True, blank=True)

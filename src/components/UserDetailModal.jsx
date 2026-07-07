@@ -147,6 +147,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                             </div>
                                             <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-3xl space-y-4">
                                                 <DetailItem label="License Number" value={user.license_number} />
+                                                <DetailItem label="License Expiry" value={user.license_expiry_date} />
                                                 <DetailItem label="Permit Number" value={user.permit_number} />
                                                 <DetailItem label="Date of Birth" value={user.date_of_birth} />
                                                 <div className="flex justify-between items-center">
@@ -170,11 +171,14 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                             <FileText size={20} className="text-primary" />
                                             <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-sm">Submitted Documents</h4>
                                         </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                             <DocumentViewer label="Driver's License" imageUrl={user.license_image_url} />
                                             <DocumentViewer label="Permit" imageUrl={user.permit_image_url} />
                                             <DocumentViewer label="NBI Clearance" imageUrl={user.nbi_clearance_image_url} />
                                             <DocumentViewer label="Brgy. Residency" imageUrl={user.barangay_residency_image_url} />
+                                            <DocumentViewer label="Selfie w/ ID" imageUrl={user.selfie_with_license_url} />
+                                            <DocumentViewer label="Vehicle OR/CR" imageUrl={user.vehicle_orcr_image_url} />
+                                            <DocumentViewer label="Tricycle Photo" imageUrl={user.tricycle_photo_url} />
                                         </div>
                                     </div>
 
