@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import { ensureImageUrl } from '../utils/url';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
     ArrowUpRight,
     User,
@@ -495,85 +495,56 @@ const Profile = () => {
                                         <h4 className="text-[10px] font-black uppercase text-primary tracking-widest pl-3 flex items-center gap-2">
                                             <Car size={12} /> Vehicle Information
                                         </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">Vehicle Model</label>
-                                                <input
-                                                    type="text"
-                                                    name="vehicle_model"
-                                                    value={profile.vehicle_model || ''}
-                                                    onChange={handleChange}
-                                                    placeholder="e.g. Honda TMX 125"
-                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                                    disabled={!isEditing}
-                                                />
+
+                                        {(profile.is_verified_driver) ? (
+                                            // ──────────────────────────────────────────────────
+                                            // VERIFIED: show fields as read-only with lock badge
+                                            // ──────────────────────────────────────────────────
+                                            <>
+                                                <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl px-5 py-3">
+                                                    <Lock size={14} className="text-green-600 flex-shrink-0" />
+                                                    <p className="text-xs text-green-700 dark:text-green-400 font-bold flex-1">
+                                                        Vehicle details are <span className="font-black">locked by LGU verification</span>. To update, submit a new verification request.
+                                                    </p>
+                                                    <Link to="/driver/verify" className="text-[10px] font-black text-primary underline whitespace-nowrap">Go to Hub →</Link>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 opacity-70 pointer-events-none select-none">
+                                                    {[
+                                                        { label: 'Vehicle Model', value: profile.vehicle_model },
+                                                        { label: 'Plate Number', value: profile.vehicle_plate },
+                                                        { label: 'LGU Unit/Body #', value: profile.body_number },
+                                                        { label: 'Vehicle Color', value: profile.vehicle_color },
+                                                        { label: 'Sidecar Type', value: profile.sidecar_type },
+                                                    ].map(({ label, value }) => (
+                                                        <div key={label} className="space-y-1">
+                                                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3 flex items-center gap-1">
+                                                                <Lock size={9} />{label}
+                                                            </label>
+                                                            <p className="w-full bg-slate-100 dark:bg-slate-800 rounded-2xl py-3 px-4 font-bold text-slate-500 dark:text-slate-400 text-sm">
+                                                                {value || '—'}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            // ──────────────────────────────────────────────────
+                                            // UNVERIFIED: redirect notice – fields live in Hub
+                                            // ──────────────────────────────────────────────────
+                                            <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-5 py-4">
+                                                <ShieldAlert size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <p className="text-xs text-amber-800 dark:text-amber-300 font-black mb-1">Vehicle details are collected during verification</p>
+                                                    <p className="text-xs text-amber-700 dark:text-amber-400">Your Vehicle Model, Plate Number, Body #, Color, and Sidecar Type are submitted together with your official documents in the Driver Verification Hub for security.</p>
+                                                    <Link to="/driver/verify" className="inline-flex items-center gap-1 mt-3 text-xs font-black text-primary hover:underline">
+                                                        Go to Driver Verification Hub <ArrowUpRight size={12} />
+                                                    </Link>
+                                                </div>
                                             </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">Plate Number</label>
-                                                <input
-                                                    type="text"
-                                                    name="vehicle_plate"
-                                                    value={profile.vehicle_plate || ''}
-                                                    onChange={handleChange}
-                                                    placeholder="e.g. RT-1024"
-                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                                    disabled={!isEditing}
-                                                />
-                                            </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-primary tracking-widest pl-3 border-l-2 border-primary ml-1">LGU Unit/Body #</label>
-                                                <input
-                                                    type="text" name="body_number"
-                                                    value={profile.body_number || ''}
-                                                    onChange={handleChange}
-                                                    placeholder="e.g. UNIT-402"
-                                                    className={`w-full bg-primary/10 dark:bg-primary/5 border-2 rounded-2xl py-3 px-4 font-black text-secondary dark:text-primary outline-none transition-colors ${isEditing ? 'border-primary/20 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                                    disabled={!isEditing}
-                                                />
-                                            </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">License Expiry</label>
-                                                <input
-                                                    type="text" name="license_expiry_date"
-                                                    value={profile.license_expiry_date || ''}
-                                                    onChange={handleChange}
-                                                    placeholder="DD/MM/YYYY"
-                                                    maxLength="10"
-                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                                    disabled={!isEditing}
-                                                />
-                                            </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">Vehicle Color</label>
-                                                <input
-                                                    type="text"
-                                                    name="vehicle_color"
-                                                    value={profile.vehicle_color || ''}
-                                                    onChange={handleChange}
-                                                    placeholder="e.g. Royal Blue"
-                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
-                                                    disabled={!isEditing}
-                                                />
-                                            </div>
-                                            <div className="space-y-3">
-                                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-3">Sidecar Type</label>
-                                                <select
-                                                    name="sidecar_type"
-                                                    value={profile.sidecar_type || ''}
-                                                    onChange={handleChange}
-                                                    className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0 appearance-none'}`}
-                                                    disabled={!isEditing}
-                                                >
-                                                    <option value="">Select Type</option>
-                                                    <option value="Standard">Standard</option>
-                                                    <option value="Roofed">Roofed</option>
-                                                    <option value="Open">Open-Air</option>
-                                                    <option value="Extended">Extended</option>
-                                                </select>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 )}
+
 
                                 <div className="pt-4 flex justify-end">
                                     {isEditing && (

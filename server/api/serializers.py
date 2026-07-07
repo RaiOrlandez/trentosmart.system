@@ -115,7 +115,8 @@ class DriverVerificationSerializer(serializers.ModelSerializer):
             'license_number', 'license_image', 'license_expiry_date',
             'permit_number', 'permit_image', 'body_number',
             'nbi_clearance_image', 'barangay_residency_image',
-            'selfie_with_license', 'vehicle_orcr_image', 'tricycle_photo'
+            'selfie_with_license', 'vehicle_orcr_image', 'tricycle_photo',
+            'vehicle_model', 'vehicle_plate', 'vehicle_color', 'sidecar_type',
         )
 
 

@@ -10,6 +10,10 @@ const DriverVerification = () => {
     const [permitNum, setPermitNum] = useState('');
     const [licenseExpiryDate, setLicenseExpiryDate] = useState('');
     const [bodyNumber, setBodyNumber] = useState('');
+    const [vehicleModel, setVehicleModel] = useState('');
+    const [vehiclePlate, setVehiclePlate] = useState('');
+    const [vehicleColor, setVehicleColor] = useState('');
+    const [sidecarType, setSidecarType] = useState('');
 
     // File Inputs
     const [licenseImg, setLicenseImg] = useState(null);
@@ -49,6 +53,10 @@ const DriverVerification = () => {
             setPermitNum(data.permit_number || '');
             setLicenseExpiryDate(data.license_expiry_date || '');
             setBodyNumber(data.body_number || '');
+            setVehicleModel(data.vehicle_model || '');
+            setVehiclePlate(data.vehicle_plate || '');
+            setVehicleColor(data.vehicle_color || '');
+            setSidecarType(data.sidecar_type || '');
             setExistingLicenseImg(data.license_image_url || data.license_image);
             setExistingPermitImg(data.permit_image_url || data.permit_image);
             setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
@@ -77,6 +85,10 @@ const DriverVerification = () => {
         formData.append('permit_number', permitNum);
         formData.append('license_expiry_date', licenseExpiryDate);
         formData.append('body_number', bodyNumber);
+        formData.append('vehicle_model', vehicleModel);
+        formData.append('vehicle_plate', vehiclePlate);
+        formData.append('vehicle_color', vehicleColor);
+        formData.append('sidecar_type', sidecarType);
         if (licenseImg) formData.append('license_image', licenseImg);
         if (permitImg) formData.append('permit_image', permitImg);
         if (nbiClearanceImg) formData.append('nbi_clearance_image', nbiClearanceImg);
@@ -106,7 +118,7 @@ const DriverVerification = () => {
         { ready: (nbiClearanceImg || existingNbiClearanceImg) },
         { ready: (barangayResidencyImg || existingBarangayResidencyImg) },
         { ready: (vehicleOrcrImg || existingVehicleOrcrImg) },
-        { ready: bodyNumber.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
+        { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && vehiclePlate.length > 0 && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
@@ -381,13 +393,39 @@ const DriverVerification = () => {
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                                         <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
                                             <div className="space-y-4 mt-4">
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">LGU Body/Unit Number</label>
-                                                    <input
-                                                        type="text" value={bodyNumber} onChange={(e) => setBodyNumber(e.target.value)} required disabled={!isEditing}
-                                                        placeholder="e.g. 0542"
-                                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
-                                                    />
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 italic">These details will be locked once approved by LGU admin.</p>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">LGU Body/Unit Number</label>
+                                                        <input type="text" value={bodyNumber} onChange={(e) => setBodyNumber(e.target.value)} required disabled={!isEditing} placeholder="e.g. 0542"
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Vehicle Model</label>
+                                                        <input type="text" value={vehicleModel} onChange={(e) => setVehicleModel(e.target.value)} required disabled={!isEditing} placeholder="e.g. Honda TMX 125"
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Plate Number</label>
+                                                        <input type="text" value={vehiclePlate} onChange={(e) => setVehiclePlate(e.target.value)} required disabled={!isEditing} placeholder="e.g. RT-1024"
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Vehicle Color</label>
+                                                        <input type="text" value={vehicleColor} onChange={(e) => setVehicleColor(e.target.value)} required disabled={!isEditing} placeholder="e.g. Royal Blue"
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Sidecar Type</label>
+                                                        <select value={sidecarType} onChange={(e) => setSidecarType(e.target.value)} required disabled={!isEditing}
+                                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50">
+                                                            <option value="">Select Type</option>
+                                                            <option value="Standard">Standard</option>
+                                                            <option value="Roofed">Roofed</option>
+                                                            <option value="Open">Open-Air</option>
+                                                            <option value="Extended">Extended</option>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div>
