@@ -225,15 +225,18 @@ const Register = () => {
         return;
       }
 
-      // Check age specifically if role is driver
+      // Check age specifically (both drivers and passengers must be at least 18 years old)
       const dobDate = new Date(y, m - 1, d);
       const ageDiffMs = Date.now() - dobDate.getTime();
       const ageDate = new Date(ageDiffMs);
       const age = Math.abs(ageDate.getUTCFullYear() - 1970);
 
-      if (role === 'driver' && age < 18) {
+      if (age < 18) {
         setDobStatus('invalid');
-        setDobErrorMsg('Drivers must be at least 18 years old');
+        setDobErrorMsg(role === 'driver' 
+          ? 'Drivers must be at least 18 years old' 
+          : 'Passengers must be at least 18 years old to register'
+        );
         return;
       }
 
@@ -755,9 +758,9 @@ const Register = () => {
               <div className="space-y-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                 <p>Welcome to Trento Smart. By using our application, you agree to comply with and be bound by the following terms of service:</p>
                 
-                <div>
+                 <div>
                   <h4 className="font-black text-secondary dark:text-white mb-1">1. User Accounts</h4>
-                  <p>You must provide accurate, complete, and current registration information. You are responsible for keeping your account password secure.</p>
+                  <p>You must be at least 18 years old to register a passenger or driver account. You are responsible for providing accurate registration info and keeping your account secure.</p>
                 </div>
 
                 <div>
@@ -767,7 +770,7 @@ const Register = () => {
 
                 <div>
                   <h4 className="font-black text-secondary dark:text-white mb-1">3. Fares and Commission</h4>
-                  <p>Fares are calculated based on LGU rules (₱30 base fare and ₱8 per kilometer). Drivers agree to the automated 5% LGU commission deduction on all completed rides.</p>
+                  <p>Fares are calculated dynamically based on LGU-approved rates. Drivers agree to the automated commission deduction from their wallet balance for each completed ride.</p>
                 </div>
 
                 <div>
