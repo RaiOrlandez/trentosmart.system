@@ -137,6 +137,7 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
 
         if (!rideId) {
             setMessages([]);
+            setLocation(null); // ✅ Reset stale location data (prevents completed modal loop)
             setConnected(false);
             return;
         }
