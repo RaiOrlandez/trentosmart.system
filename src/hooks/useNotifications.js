@@ -5,26 +5,77 @@
  *   1. Requests and tracks browser Notification permission.
  *   2. Shows a native desktop pop-up (works even in background tabs).
  *   3. Plays in-app audio chimes with loop support.
- *
- * Audio files expected in /public:
- *   /alert.wav       – Ride request ping (driver)
- *   /chime.mp3       – Gentle info chime (admin: new signup, system)
- *   /siren.mp3       – Urgent looping siren (admin: SOS emergency)
+ *   4. Bypasses browser autoplay restrictions using a pre-unlocked audio engine.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const SOUNDS = {
   request : '/alert.wav',   // New ride request  (driver)
-  chime   : '/chime.mp3',   // Info notification (admin signup / system)
+  chime   : '/chime.mp3',   // Info notification (admin signup / system / passenger matches)
   siren   : '/siren.mp3',   // Emergency SOS     (admin, loops until stopped)
+};
+
+// Global audio instances to ensure they are created once and can be pre-unlocked
+let requestAudio = null;
+let chimeAudio = null;
+let sirenAudio = null;
+let isUnlocked = false;
+
+// Helper to initialize audio instances safely
+const initAudio = () => {
+  if (typeof window === 'undefined') return;
+  if (!requestAudio) {
+    requestAudio = new Audio(SOUNDS.request);
+    requestAudio.preload = 'auto';
+  }
+  if (!chimeAudio) {
+    chimeAudio = new Audio(SOUNDS.chime);
+    chimeAudio.preload = 'auto';
+  }
+  if (!sirenAudio) {
+    sirenAudio = new Audio(SOUNDS.siren);
+    sirenAudio.preload = 'auto';
+  }
+};
+
+// Click handler to unlock all audio elements
+const unlockAudio = () => {
+  if (isUnlocked) return;
+  initAudio();
+
+  const unlock = (audio) => {
+    if (!audio) return;
+    try {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  unlock(requestAudio);
+  unlock(chimeAudio);
+  unlock(sirenAudio);
+
+  isUnlocked = true;
+  console.log('[Notifications] Audio players successfully unlocked.');
+
+  // Clean up event listeners
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('click', unlockAudio);
+    window.removeEventListener('touchstart', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  }
 };
 
 const useNotifications = () => {
   const [permission, setPermission] = useState(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
   );
-  const sirenRef = useRef(null); // keep a ref so we can stop the siren manually
 
   // ── 1. Request browser permission ──────────────────────────────────────────
   const requestPermission = useCallback(async () => {
@@ -41,9 +92,24 @@ const useNotifications = () => {
     return Notification.permission;
   }, []);
 
-  // Auto-request on mount (silently — browser only shows the prompt if never asked)
+  // Auto-request on mount + setup audio unlock listeners
   useEffect(() => {
     requestPermission();
+    initAudio();
+
+    if (!isUnlocked && typeof window !== 'undefined') {
+      window.addEventListener('click', unlockAudio);
+      window.addEventListener('touchstart', unlockAudio);
+      window.addEventListener('keydown', unlockAudio);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+      }
+    };
   }, [requestPermission]);
 
   // ── 2. Show a desktop notification ────────────────────────────────────────
@@ -64,36 +130,40 @@ const useNotifications = () => {
     }
   }, []);
 
-  // ── 3. Play an audio chime ─────────────────────────────────────────────────
+  // ── 3. Play an audio chime (reuses the preloaded, unlocked instances) ─────
   const playSound = useCallback((type = 'request', loop = false) => {
-    const src = SOUNDS[type] || SOUNDS.request;
+    initAudio();
+    let audio = null;
+    if (type === 'request') audio = requestAudio;
+    else if (type === 'chime') audio = chimeAudio;
+    else if (type === 'siren') audio = sirenAudio;
+
+    if (!audio) return null;
+
     try {
-      const audio = new Audio(src);
       audio.loop = loop;
-      // Keep a reference to the siren so it can be stopped
-      if (type === 'siren') {
-        if (sirenRef.current) {
-          sirenRef.current.pause();
-          sirenRef.current.currentTime = 0;
-        }
-        sirenRef.current = audio;
+      // Pause and reset if already playing
+      audio.pause();
+      audio.currentTime = 0;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn(`[Notifications] Autoplay blocked or error playing sound type "${type}":`, err);
+        });
       }
-      audio.play().catch(() => {
-        // Autoplay blocked — silently ignore (first interaction will unblock future plays)
-      });
       return audio;
     } catch (err) {
-      console.warn('[Notifications] Audio playback error:', err);
+      console.warn(`[Notifications] Error playing sound type "${type}":`, err);
       return null;
     }
   }, []);
 
-  // ── 4. Stop the siren (called when admin resolves SOS) ────────────────────
+  // ── 4. Stop the siren ──────────────────────────────────────────────────────
   const stopSiren = useCallback(() => {
-    if (sirenRef.current) {
-      sirenRef.current.pause();
-      sirenRef.current.currentTime = 0;
-      sirenRef.current = null;
+    if (sirenAudio) {
+      sirenAudio.pause();
+      sirenAudio.currentTime = 0;
     }
   }, []);
 

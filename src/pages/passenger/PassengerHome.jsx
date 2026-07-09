@@ -32,6 +32,7 @@ import useRideTracking from '../../hooks/useRideTracking';
 import useSystemEvents from '../../hooks/useSystemEvents';
 import ChatWindow from '../../components/ChatWindow';
 import SavedPlaceModal from '../../components/SavedPlaceModal';
+import useNotifications from '../../hooks/useNotifications';
 import GCashPaymentModal from '../../components/GCashPaymentModal';
 import { Settings, X } from 'lucide-react';
 import useGeoLocation from '../../hooks/useGeoLocation';
@@ -588,6 +589,7 @@ const PassengerHome = () => {
   // Live Tracking
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
+  const { playSound, notify } = useNotifications();
 
   // Handle driver requesting payment via WebSocket
   useEffect(() => {
@@ -684,6 +686,8 @@ const PassengerHome = () => {
         if (matchedRide.driver) {
           setAssignedDriver(matchedRide.driver);
         }
+        playSound('chime');
+        notify('🚕 Driver Found!', 'A driver has accepted your ride request.');
       }
     }
 
@@ -717,6 +721,8 @@ const PassengerHome = () => {
         if (wsData.data && wsData.data.driver) {
           setAssignedDriver(wsData.data.driver);
         }
+        playSound('chime');
+        notify('🚕 Driver Found!', 'A driver has accepted your ride request.');
       }
       if (newStatus === 'driver_rejected') {
         setStatus('idle');
@@ -724,9 +730,15 @@ const PassengerHome = () => {
         setActiveRideId(null); // Clear active ride to allow re-requesting
         alert(wsData.message || 'The chosen driver is currently unavailable. Please pick another driver.');
       }
-      if (newStatus === 'on_route') setStatus('ongoing');
+      if (newStatus === 'on_route') {
+        setStatus('ongoing');
+        playSound('chime');
+        notify('🚀 Ride Started!', 'Your driver is now en route to the destination.');
+      }
       if (newStatus === 'completed') {
         setStatus('arrived');
+        playSound('chime');
+        notify('🏁 Ride Completed!', 'You have arrived at your destination.');
         // Auto-trigger payment modal based on method
         if (paymentMethod === 'gcash') {
           setShowGCashPayment(true);
@@ -736,7 +748,7 @@ const PassengerHome = () => {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsData, paymentMethod]);
+  }, [wsData, paymentMethod, playSound, notify]);
 
   // Polling Fallback for Ride Status (Safety Net)
   useEffect(() => {
