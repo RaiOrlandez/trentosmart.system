@@ -336,6 +336,20 @@ class RegisterView(APIView):
             except Exception as ws_err:
                 print(f"[WebSocket] Broadcast failed (non-critical): {ws_err}")
 
+            # Push Notification to all Admin users when a driver registers
+            if role == 'driver':
+                try:
+                    from .firebase_utils import send_push_notification
+                    admins = User.objects.filter(role='admin', is_active=True).exclude(fcm_device_token__isnull=True).exclude(fcm_device_token='')
+                    for admin_user in admins:
+                        send_push_notification(
+                            admin_user,
+                            "👤 New Driver Registration",
+                            f"{username} just registered as a driver and is awaiting verification."
+                        )
+                except Exception as push_err:
+                    print(f"[Push] Admin notification failed (non-critical): {push_err}")
+
         thread = threading.Thread(
             target=send_notifications,
             args=(user.username, user.email, user.role, user.date_joined, otp),
@@ -2106,6 +2120,19 @@ class IncidentViewSet(viewsets.ModelViewSet):
             details=f"Distress SOS initiated by {self.request.user.username} at location {incident.lat or 'N/A'}, {incident.lng or 'N/A'}. Incident Ref: #{incident.id}.",
             request=self.request
         )
+
+        # Push FCM notification to all admin users for SOS
+        try:
+            from .firebase_utils import send_push_notification
+            admins = User.objects.filter(role='admin', is_active=True).exclude(fcm_device_token__isnull=True).exclude(fcm_device_token='')
+            for admin_user in admins:
+                send_push_notification(
+                    admin_user,
+                    "🚨 EMERGENCY SOS ALERT!",
+                    f"{incident.user.username} triggered a distress signal. Open the dashboard immediately!"
+                )
+        except Exception as push_err:
+            print(f"[Push] SOS admin notification failed (non-critical): {push_err}")
 
 
 class ComplaintViewSet(viewsets.ModelViewSet):

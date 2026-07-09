@@ -50,6 +50,7 @@ import CreateUserModal from '../../components/CreateUserModal';
 import AdminActionPinModal from '../../components/AdminActionPinModal';
 import MaskedData from '../../components/MaskedData';
 import useSystemEvents from '../../hooks/useSystemEvents';
+import useNotifications from '../../hooks/useNotifications';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -69,6 +70,7 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [pinModalConfig, setPinModalConfig] = useState({ isOpen: false, actionName: '', onConfirm: null });
   const { driverLocation, newRide, newSignup, emergencyAlert, systemEvent } = useSystemEvents();
+  const { notifyNewSignup, notifyEmergencySOS, notifyRouteAnomaly, stopSiren } = useNotifications();
   const [activeSOS, setActiveSOS] = useState(null);
   const [showSOSBanner, setShowSOSBanner] = useState(false);
   const [resolvingSOS, setResolvingSOS] = useState(false);
@@ -227,9 +229,11 @@ const AdminDashboard = () => {
         msg: msg,
         urgent: false
       }, ...prev].slice(0, 50));
+      // 🔔 Audio chime + desktop popup
+      notifyNewSignup(newSignup.username, newSignup.role);
       fetchUsers();
     }
-  }, [newSignup, fetchUsers]);
+  }, [newSignup, fetchUsers, notifyNewSignup]);
 
   useEffect(() => {
     if (emergencyAlert) {
@@ -250,9 +254,11 @@ const AdminDashboard = () => {
       setActiveSOS(emergencyAlert);
       setShowSOSBanner(true);
       setActiveTab('live'); // Force switch to map to see location
+      // 🚨 Looping siren + urgent desktop popup (stays until admin dismisses)
+      notifyEmergencySOS(emergencyAlert.user, emergencyAlert.description);
       fetchStats();
     }
-  }, [emergencyAlert, fetchStats]);
+  }, [emergencyAlert, fetchStats, notifyEmergencySOS]);
 
   useEffect(() => {
     if (systemEvent) {
@@ -290,8 +296,12 @@ const AdminDashboard = () => {
       if (systemEvent.type.includes('ride')) fetchStats();
       if (systemEvent.type.includes('withdrawal')) fetchStats();
       if (systemEvent.type === 'driver_verified') fetchUsers();
+      // 🔔 Route anomaly → chime + popup
+      if (systemEvent.type === 'safety_alert' && systemEvent.message?.includes('off-route')) {
+        notifyRouteAnomaly(systemEvent.driver || 'Unknown Driver', systemEvent.ride_id || '?');
+      }
     }
-  }, [systemEvent, fetchStats, fetchUsers]);
+  }, [systemEvent, fetchStats, fetchUsers, notifyRouteAnomaly]);
 
   // Live Map Refresh Logic
   const [liveMarkers, setLiveMarkers] = useState([]);
@@ -519,7 +529,7 @@ const AdminDashboard = () => {
   };
 
   const handleResolveActiveSOS = async () => {
-    if (!activeSOS?.id) { setActiveSOS(null); setShowSOSBanner(false); return; }
+    if (!activeSOS?.id) { setActiveSOS(null); setShowSOSBanner(false); stopSiren(); return; }
     setResolvingSOS(true);
     try {
       await api.patch(`/incidents/${activeSOS.id}/`, { status: 'resolved', admin_notes: 'Resolved via Admin SOS Console.' });
@@ -530,6 +540,7 @@ const AdminDashboard = () => {
       setResolvingSOS(false);
       setActiveSOS(null);
       setShowSOSBanner(false);
+      stopSiren(); // ✅ Stop looping siren when SOS is resolved
       fetchStats();
     }
   };

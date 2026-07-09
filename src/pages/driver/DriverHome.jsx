@@ -36,6 +36,7 @@ import { Link } from 'react-router-dom';
 import { ensureImageUrl } from '../../utils/url';
 import useRideTracking from '../../hooks/useRideTracking';
 import useSystemEvents from '../../hooks/useSystemEvents';
+import useNotifications from '../../hooks/useNotifications';
 import ChatWindow from '../../components/ChatWindow';
 import DriverSettingsModal from '../../components/DriverSettingsModal';
 import HeatMapModal from '../../components/HeatMapModal';
@@ -235,6 +236,7 @@ const DriverHome = () => {
 
   // WebSocket Tracking
   const { sendLocation, sendMessage, messages, connected, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
+  const { notifyNewRideRequest } = useNotifications();
 
   // Handle passenger cancellation
   useEffect(() => {
@@ -577,10 +579,9 @@ const DriverHome = () => {
       // Automatically select the newest request for preview
       setSelectedRequest(newRide);
 
-      // Play alert sound
+      // Play alert sound + desktop notification
       try {
-        const audio = new Audio('/alert.wav');
-        audio.play().catch(() => { });
+        notifyNewRideRequest(newRide.pickup_address || newRide.pickup || 'nearby');
       } catch (e) { }
     }
   }, [newRide, isOnline, activeRide]);
