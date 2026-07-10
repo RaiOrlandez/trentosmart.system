@@ -1608,7 +1608,7 @@ const DriverHome = () => {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              className="absolute inset-0 z-[200] bg-red-600/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 text-white rounded-[3rem]"
+              className="absolute inset-0 z-[1100] bg-red-600/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 text-white rounded-[3rem]"
             >
               <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-ping mb-8">
                 <AlertTriangle size={64} />
@@ -1625,7 +1625,7 @@ const DriverHome = () => {
       {/* LGU Broadcast Modal */}
       <AnimatePresence>
         {showBroadcastModal && currentBroadcast && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center px-6">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => {
@@ -1694,7 +1694,7 @@ const DriverHome = () => {
       {/* LGU Commission Modal (New Feature) */}
       <AnimatePresence>
         {showCommissionModal && commissionData && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center px-6">
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-secondary/80 backdrop-blur-xl"
@@ -1762,7 +1762,7 @@ const DriverHome = () => {
       {/* Real-time GCash Payment Waiting Screen */}
       <AnimatePresence>
         {isWaitingForGCashPayment && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-lg text-white text-center">
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-lg text-white text-center">
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -1797,7 +1797,7 @@ const DriverHome = () => {
       {/* Professional Navigation App Choice Modal */}
       <AnimatePresence>
         {navModalData && (
-          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4">
+          <div className="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1876,7 +1876,7 @@ const DriverHome = () => {
 const GCashVerifyModal = ({ isOpen, onClose, amount, refNo }) => (
   <AnimatePresence>
     {isOpen && (
-      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           onClick={onClose}
@@ -2068,10 +2068,10 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
   };
 
   if (!isOpen) return null;
-
+  
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"

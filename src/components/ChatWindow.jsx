@@ -58,7 +58,7 @@ const Lightbox = ({ src, onClose }) => (
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4"
+        className="fixed inset-0 z-[2000] bg-black/90 backdrop-blur-sm flex flex-col items-center justify-center p-4"
         onClick={onClose}
     >
         <motion.img
@@ -269,7 +269,7 @@ const ChatWindow = ({
                 )}
             </AnimatePresence>
 
-            <div className="fixed bottom-8 right-8 z-[100] flex flex-col items-end">
+            <div className={`fixed ${isOpen ? 'inset-0 sm:inset-auto sm:bottom-8 sm:right-8' : 'bottom-4 right-4 sm:bottom-8 sm:right-8'} z-[1100] flex flex-col items-end`}>
                 <AnimatePresence>
                     {isOpen && (
                         <motion.div
@@ -278,7 +278,7 @@ const ChatWindow = ({
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.85, y: 24 }}
                             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                            className="bg-white dark:bg-slate-900 w-80 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-white/10 flex flex-col overflow-hidden mb-4"
+                            className="bg-white dark:bg-slate-900 w-full sm:w-80 sm:rounded-[2rem] rounded-none shadow-2xl border border-slate-100 dark:border-white/10 flex flex-col overflow-hidden sm:mb-4 max-sm:!h-full"
                             style={{ height: imagePreview ? '520px' : '460px' }}
                         >
                             {/* ── Header ───────────────────────────────────── */}
@@ -439,7 +439,7 @@ const ChatWindow = ({
                     onClick={handleToggle}
                     className={`w-14 h-14 rounded-2xl shadow-2xl flex items-center justify-center relative transition-colors ${
                         isOpen
-                            ? 'bg-white text-secondary border-2 border-secondary/20'
+                            ? 'bg-white text-secondary border-2 border-secondary/20 hidden sm:flex'
                             : 'bg-secondary text-primary'
                     }`}
                     aria-label={isOpen ? 'Close chat' : 'Open chat'}
