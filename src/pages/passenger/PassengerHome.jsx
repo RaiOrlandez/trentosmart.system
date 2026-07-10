@@ -1106,17 +1106,9 @@ const PassengerHome = () => {
     let currentLat = 8.03555; // Fallback to Trento Municipal Hall
     let currentLng = 126.06432;
 
-    // Try to get actual location before dispatching emergency
-    if ("geolocation" in navigator) {
-      try {
-        const position = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-        });
-        currentLat = position.coords.latitude;
-        currentLng = position.coords.longitude;
-      } catch (e) {
-        console.warn('Geolocation failed for SOS, using fallback coords.');
-      }
+    if (gpsLocation) {
+      currentLat = gpsLocation.lat;
+      currentLng = gpsLocation.lng;
     }
 
     try {
