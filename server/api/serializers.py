@@ -198,6 +198,10 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 
 class IncidentSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    user_phone = serializers.ReadOnlyField(source='user.phone_number')
+    user_role = serializers.ReadOnlyField(source='user.role')
+
     class Meta:
         model = Incident
         fields = '__all__'
@@ -226,6 +230,10 @@ class WithdrawalSerializer(serializers.ModelSerializer):
 
 
 class ComplaintSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+    user_phone = serializers.ReadOnlyField(source='user.phone_number')
+    user_role = serializers.ReadOnlyField(source='user.role')
+
     class Meta:
         model = Complaint
         fields = '__all__'

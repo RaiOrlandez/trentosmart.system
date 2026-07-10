@@ -185,12 +185,53 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  // Fetch pending SOS incidents on load/refresh (fallback in case WS is down or dashboard opened after signal)
+  const fetchPendingIncidents = useCallback(async () => {
+    try {
+      const res = await api.get('/incidents/');
+      const incidentsData = Array.isArray(res.data) ? res.data : [];
+      // Look for any pending/active incidents
+      const unresolved = incidentsData.filter(i => i.status === 'pending' || i.status === 'active');
+      if (unresolved.length > 0) {
+        // Automatically set the first/most recent unresolved incident as the active SOS alert
+        const latestSos = unresolved[0];
+        setActiveSOS({
+          id: latestSos.id,
+          user: latestSos.username || `User #${latestSos.user}`,
+          lat: latestSos.lat,
+          lng: latestSos.lng,
+          description: latestSos.description
+        });
+        setShowSOSBanner(true);
+        notifyEmergencySOS(latestSos.username || `User #${latestSos.user}`, latestSos.description);
+      } else {
+        setShowSOSBanner(false);
+        setActiveSOS(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch pending incidents', err);
+    }
+  }, [notifyEmergencySOS]);
+
   useEffect(() => {
     fetchStats();
+    fetchPendingIncidents();
     if (activeTab === 'drivers' || activeTab === 'passengers') {
       fetchUsers();
     }
-  }, [activeTab, fetchStats, fetchUsers]);
+  }, [activeTab, fetchStats, fetchUsers, fetchPendingIncidents]);
+
+  // Polling fallback to keep dashboard counts/incidents in sync
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchPendingIncidents();
+      if (activeTab === 'drivers' || activeTab === 'passengers') {
+        fetchUsers(true);
+      }
+    }, 30000); // 30 seconds interval
+    return () => clearInterval(interval);
+  }, [fetchStats, fetchPendingIncidents, fetchUsers, activeTab]);
 
   // Process Real-time Events
   useEffect(() => {
@@ -730,6 +771,11 @@ const AdminDashboard = () => {
               {tab === 'live' ? 'Live Map' : tab === 'economy' ? 'Finance Center' : tab === 'fares' ? 'Fare Control' : tab === 'safety' ? 'Safety Hub' : tab === 'broadcast' ? 'LGU Broadcast' : tab === 'audit' ? 'System Audit' : tab}
               {tab === 'drivers' && users.some(u => u.role === 'driver' && !u.is_verified_driver) && (
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-sm shadow-red-500/50"></span>
+              )}
+              {tab === 'safety' && stats.incidents > 0 && (
+                <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm shadow-red-500/50">
+                  {stats.incidents}
+                </span>
               )}
             </button>
           ))}
@@ -2132,7 +2178,7 @@ const SafetyHubTab = () => {
                       {item.title}
                     </div>
                   </td>
-                  <td className="py-6 font-bold text-secondary dark:text-white">{item.user?.username || 'System User'}</td>
+                  <td className="py-6 font-bold text-secondary dark:text-white">{item.username || item.user?.username || 'System User'}</td>
                   <td className="py-6">
                     <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${['resolved', 'closed'].includes(item.status) ? 'bg-green-100 text-green-700' :
                       ['investigating', 'active'].includes(item.status) ? 'bg-orange-100 text-orange-700' :
@@ -2223,7 +2269,10 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate }) => {
                     </div>
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reported By</p>
-                      <p className="text-sm font-bold text-secondary dark:text-white">{data.user?.username || 'System'}</p>
+                      <p className="text-sm font-bold text-secondary dark:text-white">{data.username || data.user?.username || 'System'}</p>
+                      {(data.user_phone || data.user?.phone_number) && (
+                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">📞 {data.user_phone || data.user?.phone_number}</p>
+                      )}
                     </div>
                   </div>
                   {data.ride && (
