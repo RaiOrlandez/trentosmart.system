@@ -77,6 +77,7 @@ const AdminDashboard = () => {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
   const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
+  const notifiedSosIds = React.useRef(new Set());        // track which SOS incidents already triggered siren
 
   // Avatar Viewer State
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
@@ -185,15 +186,15 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  // Fetch pending SOS incidents on load/refresh (fallback in case WS is down or dashboard opened after signal)
+  // Fetch pending SOS incidents on load/refresh (fallback for when WS is down or admin opened dashboard after signal)
   const fetchPendingIncidents = useCallback(async () => {
     try {
       const res = await api.get('/incidents/');
-      const incidentsData = Array.isArray(res.data) ? res.data : [];
+      // Handle both flat list and paginated response from DRF
+      const incidentsData = Array.isArray(res.data) ? res.data : (res.data?.results || []);
       // Look for any pending/active incidents
       const unresolved = incidentsData.filter(i => i.status === 'pending' || i.status === 'active');
       if (unresolved.length > 0) {
-        // Automatically set the first/most recent unresolved incident as the active SOS alert
         const latestSos = unresolved[0];
         setActiveSOS({
           id: latestSos.id,
@@ -203,7 +204,11 @@ const AdminDashboard = () => {
           description: latestSos.description
         });
         setShowSOSBanner(true);
-        notifyEmergencySOS(latestSos.username || `User #${latestSos.user}`, latestSos.description);
+        // Only play siren once per unique incident ID, not on every poll cycle
+        if (!notifiedSosIds.current.has(latestSos.id)) {
+          notifiedSosIds.current.add(latestSos.id);
+          notifyEmergencySOS(latestSos.username || `User #${latestSos.user}`, latestSos.description);
+        }
       } else {
         setShowSOSBanner(false);
         setActiveSOS(null);
@@ -221,7 +226,7 @@ const AdminDashboard = () => {
     }
   }, [activeTab, fetchStats, fetchUsers, fetchPendingIncidents]);
 
-  // Polling fallback to keep dashboard counts/incidents in sync
+  // Polling fallback — runs every 8s so admin is notified quickly even if WebSocket is down
   useEffect(() => {
     const interval = setInterval(() => {
       fetchStats();
@@ -229,7 +234,7 @@ const AdminDashboard = () => {
       if (activeTab === 'drivers' || activeTab === 'passengers') {
         fetchUsers(true);
       }
-    }, 30000); // 30 seconds interval
+    }, 8000); // 8 seconds — fast enough to catch missed SOS signals
     return () => clearInterval(interval);
   }, [fetchStats, fetchPendingIncidents, fetchUsers, activeTab]);
 
@@ -2100,8 +2105,10 @@ const SafetyHubTab = () => {
         api.get('/incidents/'),
         api.get('/complaints/')
       ]);
-      setIncidents(Array.isArray(incRes.data) ? incRes.data : []);
-      setComplaints(Array.isArray(compRes.data) ? compRes.data : []);
+      // Handle both flat array and paginated (results: [...]) DRF response
+      const toArr = (d) => Array.isArray(d) ? d : (d?.results || []);
+      setIncidents(toArr(incRes.data));
+      setComplaints(toArr(compRes.data));
     } catch (err) {
       console.error("Failed to fetch safety data", err);
     } finally {

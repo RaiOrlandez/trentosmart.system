@@ -64,11 +64,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'trike_server.wsgi.application'
 ASGI_APPLICATION = 'trike_server.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    },
-}
+_REDIS_URL = os.environ.get('REDIS_URL', '')
+if _REDIS_URL:
+    # Production (Railway): Use Redis channel layer so WebSocket broadcasts
+    # work correctly across multiple workers/processes.
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_REDIS_URL],
+            },
+        },
+    }
+else:
+    # Development: In-memory layer (single process only)
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 if os.environ.get('USE_SQLITE') == 'True':
     DATABASES = {

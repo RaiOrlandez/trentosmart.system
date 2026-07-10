@@ -11,6 +11,7 @@ psycopg2-binary>=2.9
 dj-database-url>=2.1
 # Real-time & Server
 channels>=4.0
+channels_redis>=4.1
 Twisted[tls,http2]>=22.10.0
 daphne>=4.0
 uvicorn[standard]>=0.23.0
