@@ -39,6 +39,19 @@ const useGeoLocation = (options = {}) => {
     const watchIdRef = useRef(null);
     const fallbackTimerRef = useRef(null);
     const hasGotLocationRef = useRef(false);
+    const lastValidLocationRef = useRef(null);
+    const lastValidTimeRef = useRef(0);
+
+    // Calculate distance in metres between two GPS coords (Haversine formula)
+    const calculateDistanceMetres = useCallback((lat1, lng1, lat2, lng2) => {
+        const R = 6371000;
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }, []);
 
     // --- Handle Location Error ---
     const handleLocationError = useCallback((reason = '') => {
@@ -59,6 +72,8 @@ const useGeoLocation = (options = {}) => {
         }
         clearTimeout(fallbackTimerRef.current);
         hasGotLocationRef.current = false;
+        lastValidLocationRef.current = null;
+        lastValidTimeRef.current = 0;
 
         setStatus('loading');
         setError(null);
@@ -85,12 +100,54 @@ const useGeoLocation = (options = {}) => {
                 acc = pos.accuracy;
                 head = pos.heading;
             }
-            setLocation({
-                lat: lat,
-                lng: lng,
+
+            const now = Date.now();
+
+            // 1. Reject GPS updates with extremely poor accuracy (>100 meters) if we already have a better lock
+            if (acc > 100 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
+                console.warn('GPS spike filtered: accuracy too poor (accuracy:', acc, 'm)');
+                return;
+            }
+
+            // 2. Reject speed spikes (impossible coordinate jumps e.g. >80 km/h)
+            if (lastValidLocationRef.current && lastValidTimeRef.current > 0) {
+                const timeDiffSec = (now - lastValidTimeRef.current) / 1000;
+                if (timeDiffSec > 0.5) {
+                    const distMetres = calculateDistanceMetres(
+                        lastValidLocationRef.current.lat,
+                        lastValidLocationRef.current.lng,
+                        lat,
+                        lng
+                    );
+                    const speedKmh = (distMetres / timeDiffSec) * 3.6;
+
+                    // Reject impossible tricycle jumps ( Trento city driving speeds are < 75 km/h )
+                    if (speedKmh > 75 && distMetres > 30) {
+                        console.warn('GPS jitter filtered: impossible jump (speed:', speedKmh.toFixed(1), 'km/h, distance:', distMetres.toFixed(1), 'm)');
+                        return;
+                    }
+                }
+            }
+
+            // 3. Smooth minor coordinate noise using a low-pass filter (weighted average) if accuracy is mediocre (>15m)
+            let finalLat = lat;
+            let finalLng = lng;
+            if (lastValidLocationRef.current && acc > 15) {
+                finalLat = lastValidLocationRef.current.lat * 0.6 + lat * 0.4;
+                finalLng = lastValidLocationRef.current.lng * 0.6 + lng * 0.4;
+            }
+
+            const smoothedLoc = {
+                lat: finalLat,
+                lng: finalLng,
                 accuracy: acc,
                 heading: head
-            });
+            };
+
+            lastValidLocationRef.current = smoothedLoc;
+            lastValidTimeRef.current = now;
+
+            setLocation(smoothedLoc);
             setStatus('live');
             setError(null);
         };

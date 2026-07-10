@@ -15,23 +15,35 @@ L.Icon.Default.mergeOptions({
 
 // ── Icon Builders ────────────────────────────────────────────────────────────
 
-const buildDriverIcon = (headingDeg = 0) => new L.Icon({
-    iconUrl: 'data:image/svg+xml;base64,' + btoa(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-      <defs>
-        <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.4"/>
-        </filter>
-      </defs>
-      <circle cx="22" cy="22" r="20" fill="#FFD700" stroke="#1e293b" stroke-width="2.5" filter="url(#s)"/>
-      <circle cx="22" cy="22" r="16" fill="#FFC300" stroke="none"/>
-      <polygon points="22,8 29,30 22,24 15,30" fill="#1e293b" transform="rotate(${headingDeg},22,22)"/>
-    </svg>
-  `),
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -24],
-});
+const driverIconCache = {};
+const buildDriverIcon = (headingDeg = 0) => {
+    // Round to nearest 5 degrees to keep cache size bounded (max 72 items)
+    const roundedHeading = Math.round((headingDeg % 360) / 5) * 5;
+    const cacheKey = `${roundedHeading}`;
+    if (driverIconCache[cacheKey]) {
+        return driverIconCache[cacheKey];
+    }
+
+    const icon = new L.Icon({
+        iconUrl: 'data:image/svg+xml;base64,' + btoa(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+          <defs>
+            <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="3" stdDeviation="3" flood-opacity="0.4"/>
+            </filter>
+          </defs>
+          <circle cx="22" cy="22" r="20" fill="#FFD700" stroke="#1e293b" stroke-width="2.5" filter="url(#s)"/>
+          <circle cx="22" cy="22" r="16" fill="#FFC300" stroke="none"/>
+          <polygon points="22,8 29,30 22,24 15,30" fill="#1e293b" transform="rotate(${roundedHeading},22,22)"/>
+        </svg>
+      `),
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        popupAnchor: [0, -24],
+    });
+    driverIconCache[cacheKey] = icon;
+    return icon;
+};
 
 const pickupIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
@@ -211,7 +223,6 @@ function MapClickHandler({ onMapClick, enabled }) {
 // ── Smooth Marker ─────────────────────────────────────────────────────────────
 const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, children }) => {
     const markerRef     = useRef(null);
-    const popupRef      = useRef(null);
     const requestRef    = useRef();
     const startTimeRef  = useRef(null);
     const startPosRef   = useRef(position);
@@ -229,31 +240,13 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, childr
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoOpenPopup]);
 
+    // Position interpolation effect (smoothly glides the marker on position change)
     useEffect(() => {
         if (!markerRef.current) return;
         const currentLatLng = markerRef.current.getLatLng();
         startPosRef.current = { lat: currentLatLng.lat, lng: currentLatLng.lng };
         targetPosRef.current = { lat: position[0], lng: position[1] };
         startTimeRef.current = null;
-
-        if (isDriver) {
-            let angle = heading ?? null;
-            if (angle === null) {
-                const dy = targetPosRef.current.lat - startPosRef.current.lat;
-                const dx = targetPosRef.current.lng - startPosRef.current.lng;
-                if (Math.abs(dx) > 0.000005 || Math.abs(dy) > 0.000005) {
-                    angle = Math.atan2(dx, dy) * (180 / Math.PI);
-                }
-            }
-            if (angle !== null) {
-                const el = markerRef.current.getElement();
-                if (el) {
-                    el.style.transition = 'transform 0.5s ease-out';
-                    el.style.transformOrigin = 'center center';
-                    el.style.transform = `rotate(${angle}deg)`;
-                }
-            }
-        }
 
         const animate = (timestamp) => {
             if (!startTimeRef.current) startTimeRef.current = timestamp;
@@ -273,7 +266,31 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, childr
         cancelAnimationFrame(requestRef.current);
         requestRef.current = requestAnimationFrame(animate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [position[0], position[1], isDriver, heading]);
+    }, [position[0], position[1]]);
+
+    // Heading rotation effect (smoothly rotates the marker element dynamically)
+    useEffect(() => {
+        if (!markerRef.current || !isDriver) return;
+
+        let angle = heading ?? null;
+        if (angle === null) {
+            const dy = targetPosRef.current.lat - startPosRef.current.lat;
+            const dx = targetPosRef.current.lng - startPosRef.current.lng;
+            if (Math.abs(dx) > 0.000005 || Math.abs(dy) > 0.000005) {
+                angle = Math.atan2(dx, dy) * (180 / Math.PI);
+            }
+        }
+
+        if (angle !== null) {
+            const el = markerRef.current.getElement();
+            if (el) {
+                el.style.transition = 'transform 0.5s ease-out';
+                el.style.transformOrigin = 'center center';
+                el.style.transform = `rotate(${angle}deg)`;
+            }
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDriver, heading, position[0], position[1]]);
 
     useEffect(() => () => cancelAnimationFrame(requestRef.current), []);
 

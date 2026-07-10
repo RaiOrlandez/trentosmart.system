@@ -846,6 +846,7 @@ const PassengerHome = () => {
         return [
           ...otherMarkers,
           {
+            id: 'driver',
             lat: driverLat,
             lng: driverLng,
             title: 'Driver',

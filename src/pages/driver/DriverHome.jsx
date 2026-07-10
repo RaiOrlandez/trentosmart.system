@@ -481,6 +481,7 @@ const DriverHome = () => {
 
     if (gpsLocation) {
       const livePos = {
+        id: 'driver',
         lat: gpsLocation.lat,
         lng: gpsLocation.lng,
         heading: gpsLocation.heading ?? null,   // ✅ Real GPS compass bearing
