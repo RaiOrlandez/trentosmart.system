@@ -113,6 +113,7 @@ const PassengerHome = () => {
   const pickupCoordsRef = useRef(null); // { lat, lng } — geocoded pickup point
   const destCoordsRef = useRef(null); // { lat, lng } — geocoded destination point
   const lastRouteFetchedCoordsRef = useRef({ lat: 0, lng: 0 }); // Rate limit dynamic OSRM calls
+  const hasAutoFocusedOnMatchRef = useRef(false); // One-time auto-focus when driver location first arrives after matching
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   const { driverLocation, systemEvent } = useSystemEvents();
@@ -902,28 +903,27 @@ const PassengerHome = () => {
   // Handle status transitions for Grab-style camera fitBounds & secondary routes
   useEffect(() => {
     if (status === 'matched') {
-      // Preserve pickup -> dest route as secondary dashed route
+      // Preserve pickup -> dest route as secondary dashed route (shown as dashed preview line)
       if (routeCoordinates && !secondaryRouteCoordinates) {
         setSecondaryRouteCoordinates(routeCoordinates);
       }
-      
-      // Focus camera on Driver + Pickup
-      if (wsData?.lat && pickupCoordsRef.current) {
-        setFitBoundsPoints([
-          [parseFloat(wsData.lat), parseFloat(wsData.lng)],
-          [pickupCoordsRef.current.lat, pickupCoordsRef.current.lng]
-        ]);
-        setFitBoundsKey(prev => prev + 1);
-      } else if (pickupCoordsRef.current) {
-        setFitBoundsPoints([
-          [userCenter.lat, userCenter.lng],
-          [pickupCoordsRef.current.lat, pickupCoordsRef.current.lng]
-        ]);
-        setFitBoundsKey(prev => prev + 1);
-      }
+
+      // Reset the one-time driver auto-focus flag so it fires again for this new match
+      hasAutoFocusedOnMatchRef.current = false;
+
+      // Immediately center on Passenger GPS + Pickup pin (before driver location arrives)
+      const pickupLat = pickupCoordsRef.current?.lat || userCenter.lat;
+      const pickupLng = pickupCoordsRef.current?.lng || userCenter.lng;
+      setFitBoundsPoints([
+        [userCenter.lat, userCenter.lng],
+        [pickupLat, pickupLng],
+      ]);
+      setFitBoundsKey(prev => prev + 1);
     } else if (status === 'ongoing') {
       setSecondaryRouteCoordinates(null);
-      
+      // Reset auto-focus flag so ongoing state can also trigger a one-time fit
+      hasAutoFocusedOnMatchRef.current = false;
+
       // Focus camera on Driver + Destination
       if (wsData?.lat && destCoordsRef.current) {
         setFitBoundsPoints([
@@ -935,8 +935,32 @@ const PassengerHome = () => {
     } else if (status === 'idle') {
       setSecondaryRouteCoordinates(null);
       setDriverEta(null);
+      hasAutoFocusedOnMatchRef.current = false;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // One-time auto-focus: when first driver location arrives after ride is matched,
+  // re-fit bounds to show driver + pickup together — this is the "Grab-style" snap-to-view.
+  useEffect(() => {
+    if (
+      status === 'matched' &&
+      wsData?.lat && wsData?.lng &&
+      !hasAutoFocusedOnMatchRef.current
+    ) {
+      hasAutoFocusedOnMatchRef.current = true;
+      const driverLat = parseFloat(wsData.lat);
+      const driverLng = parseFloat(wsData.lng);
+      const pickupLat = pickupCoordsRef.current?.lat || userCenter.lat;
+      const pickupLng = pickupCoordsRef.current?.lng || userCenter.lng;
+      setFitBoundsPoints([
+        [driverLat, driverLng],
+        [pickupLat, pickupLng],
+      ]);
+      setFitBoundsKey(prev => prev + 1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsData, status]);
 
   const requestRide = async (e) => {
     e.preventDefault();
