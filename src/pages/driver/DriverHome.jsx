@@ -623,26 +623,32 @@ const DriverHome = () => {
     const newMarkers = [driverPos];
 
     if (activeRide) {
-      // Use live passenger position if available, otherwise fallback to static pickup
-      if (passengerLivePos && passengerLivePos.lat) {
-        newMarkers.push({
-          lat: parseFloat(passengerLivePos.lat),
-          lng: parseFloat(passengerLivePos.lng),
-          title: 'Passenger (Live)',
-          info: 'Current location of passenger',
-          isPickup: true
-        });
-      } else {
-        newMarkers.push({
-          lat: activeRide.pickup_lat || 8.050,
-          lng: activeRide.pickup_lng || 126.062,
-          title: 'Pickup',
-          info: activeRide.pickup_address || activeRide.pickup,
-          isPickup: true
-        });
+      const isOnRoute = activeRide.status === 'on_route';
+
+      // Only show passenger marker when driver is heading TO pickup (accepted).
+      // Once ride is on_route, passenger is already in the vehicle — hide the
+      // passenger pin to eliminate the artificial distance gap on the map.
+      if (!isOnRoute) {
+        if (passengerLivePos && passengerLivePos.lat) {
+          newMarkers.push({
+            lat: parseFloat(passengerLivePos.lat),
+            lng: parseFloat(passengerLivePos.lng),
+            title: 'Passenger (Live)',
+            info: 'Current location of passenger',
+            isPickup: true
+          });
+        } else {
+          newMarkers.push({
+            lat: activeRide.pickup_lat || 8.050,
+            lng: activeRide.pickup_lng || 126.062,
+            title: 'Pickup',
+            info: activeRide.pickup_address || activeRide.pickup,
+            isPickup: true
+          });
+        }
       }
 
-      // Destination pin — use resolved name so driver sees real place name in popup
+      // Destination pin — always shown; use resolved name so driver sees real place name in popup
       const destDisplayName = resolvedDestName || activeRide.dest_address || activeRide.dest || 'Destination';
       newMarkers.push({
         lat: activeRide.dest_lat || 8.056,

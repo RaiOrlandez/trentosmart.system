@@ -188,6 +188,12 @@ const PassengerHome = () => {
     setMarkers(prev => {
       const others = prev.filter(m => m.id !== 'you_are_here');
       const isFirst = !prev.find(m => m.id === 'you_are_here');
+      
+      // Hide you_are_here marker when ride is ongoing
+      if (status === 'ongoing') {
+        return others;
+      }
+
       return [
         {
           id: 'you_are_here',
@@ -201,7 +207,14 @@ const PassengerHome = () => {
         ...others,
       ];
     });
-  }, [gpsLocation]);
+  }, [gpsLocation, status]);
+
+  // Clean up markers when status transitions to ongoing
+  useEffect(() => {
+    if (status === 'ongoing') {
+      setMarkers(prev => prev.filter(m => m.id !== 'pickup' && m.id !== 'you_are_here'));
+    }
+  }, [status]);
 
 
   // LGU Rules: Base 30 + 8 per km
