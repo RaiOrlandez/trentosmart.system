@@ -3,6 +3,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, CircleMarker, Circle, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { ensureImageUrl } from '../utils/url';
+import { TRENTO_LANDMARKS } from '../data/trentoLandmarks';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Leaflet
@@ -44,6 +45,43 @@ const buildDriverIcon = (headingDeg = 0) => {
     driverIconCache[cacheKey] = icon;
     return icon;
 };
+
+// ── POI Icon Builders & Style Colors ──────────────────────────────────────────
+const categoryColors = {
+    Government: '#3b82f6', // blue
+    Health: '#ef4444',     // red
+    Education: '#a855f7',  // purple
+    Commerce: '#f97316',   // orange
+    Transport: '#06b6d4',  // cyan
+    Food: '#eab308',       // yellow
+    Bank: '#10b981',       // green
+    Church: '#ec4899',     // pink
+    Barangay: '#64748b',   // slate
+};
+
+const buildPoiIcon = (category, emoji) => new L.DivIcon({
+    html: `
+        <div style="
+            width: 28px;
+            height: 28px;
+            background: white;
+            border: 2px solid ${categoryColors[category] || '#3b82f6'};
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            transition: all 0.2s;
+        " class="poi-icon-inner hover:scale-110">
+            ${emoji || '📍'}
+        </div>
+    `,
+    className: 'custom-poi-icon',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
+});
 
 const pickupIcon = new L.Icon({
     iconUrl: 'data:image/svg+xml;base64,' + btoa(`
@@ -301,6 +339,16 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, childr
     );
 };
 
+// ── Map Zoom Listener ────────────────────────────────────────────────────────
+function ZoomListener({ onChange }) {
+    useMapEvents({
+        zoomend(e) {
+            onChange(e.target.getZoom());
+        }
+    });
+    return null;
+}
+
 // ── Main Map Component ────────────────────────────────────────────────────────
 const LeafletMap = ({
     center = { lat: 8.03555, lng: 126.06432 },
@@ -313,9 +361,12 @@ const LeafletMap = ({
     mapClickEnabled = false,
     fitBoundsPoints = null,           // Array of [lat,lng] to auto-fit map bounds
     fitBoundsKey = 0,                 // Increment to trigger a new fit
+    onSelectPickup = null,            // Callback to set pickup from POI
+    onSelectDestination = null,       // Callback to set destination from POI
 }) => {
     const { isDarkMode } = useContext(ThemeContext);
     const [history, setHistory] = useState([]);
+    const [currentZoom, setCurrentZoom] = useState(zoom);
 
     useEffect(() => {
         const driver = markers.find(m => m.isDriver);
@@ -332,7 +383,7 @@ const LeafletMap = ({
 
     const tileLayer = isDarkMode
         ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
     const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
@@ -352,6 +403,7 @@ const LeafletMap = ({
                 zoomControl={false}
             >
                 <TileLayer attribution={attribution} url={tileLayer} />
+                <ZoomListener onChange={setCurrentZoom} />
 
                 {/* Trajectory History — driver's past path */}
                 {history.length > 1 && (
@@ -448,6 +500,67 @@ const LeafletMap = ({
                         pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.05, weight: 1, dashArray: '4, 4' }}
                     />
                 )}
+
+                {/* ── INTERACTIVE POI LANDMARKS ── */}
+                {currentZoom >= 14 && TRENTO_LANDMARKS.map((lm) => {
+                    // Check if this landmark is already represented by an active pickup/destination pin
+                    // to avoid overlapping duplicate markers
+                    const isOccupied = markers.some(m => 
+                        (m.isPickup || m.isDestination) && 
+                        Math.abs(m.lat - lm.lat) < 0.00005 && 
+                        Math.abs(m.lng - lm.lng) < 0.00005
+                    );
+                    if (isOccupied) return null;
+
+                    const icon = buildPoiIcon(lm.category, lm.icon);
+
+                    return (
+                        <Marker 
+                            key={lm.id} 
+                            position={[lm.lat, lm.lng]} 
+                            icon={icon}
+                        >
+                            <Popup className="custom-popup">
+                                <div className="text-sm font-bold p-2 min-w-[200px]">
+                                    <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1 flex items-center gap-1">
+                                        <span>{lm.icon}</span>
+                                        <span>{lm.category}</span>
+                                    </div>
+                                    <div className="text-secondary font-black text-sm leading-snug">
+                                        {lm.name}
+                                    </div>
+                                    <div className="text-slate-400 text-[9px] font-bold mt-0.5">
+                                        Trento ADS Landmark
+                                    </div>
+                                    {(onSelectPickup || onSelectDestination) && (
+                                        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                                            {onSelectPickup && (
+                                                <button
+                                                    onClick={() => {
+                                                        onSelectPickup(lm.name, lm.lat, lm.lng);
+                                                    }}
+                                                    className="flex-1 bg-green-50 hover:bg-green-100 text-green-600 font-black py-1.5 px-2 rounded-lg text-[9px] transition-all border border-green-200/50 uppercase tracking-wider"
+                                                >
+                                                    Set Pickup
+                                                </button>
+                                            )}
+                                            {onSelectDestination && (
+                                                <button
+                                                    onClick={() => {
+                                                        onSelectDestination(lm.name, lm.lat, lm.lng);
+                                                    }}
+                                                    className="flex-1 bg-red-50 hover:bg-red-100 text-red-500 font-black py-1.5 px-2 rounded-lg text-[9px] transition-all border border-red-200/50 uppercase tracking-wider"
+                                                >
+                                                    Set Dest
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </Popup>
+                        </Marker>
+                    );
+                })}
 
                 {/* Markers */}
                 {markers.map((marker, index) => {

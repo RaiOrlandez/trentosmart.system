@@ -54,7 +54,9 @@ const Map = ({
   onMapClick = null,
   mapClickEnabled = false,
   fitBoundsPoints = null,
-  fitBoundsKey = 0
+  fitBoundsKey = 0,
+  onSelectPickup = null,
+  onSelectDestination = null,
 }) => {
   const ref = useRef(null);
   const mapRef = useRef(null);
@@ -190,6 +192,8 @@ const Map = ({
         mapClickEnabled={mapClickEnabled}
         fitBoundsPoints={fitBoundsPoints}
         fitBoundsKey={fitBoundsKey}
+        onSelectPickup={onSelectPickup}
+        onSelectDestination={onSelectDestination}
       />
     );
   }

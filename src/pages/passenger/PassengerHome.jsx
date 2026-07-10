@@ -144,6 +144,28 @@ const PassengerHome = () => {
     setSelectedDriverId(null);
   }, [activeRideId]);
 
+  // Quick-book from map POI: set pickup from a landmark tap
+  const handleSelectPickup = useCallback((name, lat, lng) => {
+    setPickup(name);
+    pickupCoordsRef.current = { lat, lng };
+    // Drop a pickup pin immediately
+    setMarkers(prev => [
+      ...prev.filter(m => !m.isPickup),
+      { id: 'pickup', lat, lng, title: 'Pickup', info: name, isPickup: true, forceFocus: Date.now() },
+    ]);
+  }, []);
+
+  // Quick-book from map POI: set destination from a landmark tap
+  const handleSelectDestination = useCallback((name, lat, lng) => {
+    setDest(name);
+    destCoordsRef.current = { lat, lng };
+    // Drop a destination pin immediately
+    setMarkers(prev => [
+      ...prev.filter(m => !m.isDestination),
+      { id: 'dest', lat, lng, title: '📍 ' + name, info: name, isDestination: true, forceFocus: Date.now() },
+    ]);
+  }, []);
+
   // Fetch real system configuration fare policies on load
   useEffect(() => {
     const fetchSystemConfig = async () => {
@@ -1899,6 +1921,8 @@ const PassengerHome = () => {
             ));
           }}
           mapClickEnabled={mapTapMode}
+          onSelectPickup={status === 'idle' ? handleSelectPickup : null}
+          onSelectDestination={status === 'idle' ? handleSelectDestination : null}
         />
 
         {/* GPS status badge */}
