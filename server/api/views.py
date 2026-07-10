@@ -850,7 +850,8 @@ class UserViewSet(viewsets.ModelViewSet):
                 'username': user.username,
                 'lat': float(lat),
                 'lng': float(lng),
-                'status': 'Available' # Simplified for global view
+                'status': 'Available' if user.is_online else 'Offline',
+                'is_online': user.is_online,  # Fix: always send real online status
             }
         )
         

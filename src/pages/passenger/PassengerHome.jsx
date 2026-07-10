@@ -638,7 +638,14 @@ const PassengerHome = () => {
 
   // Handle Real-time Driver Markers (Global — from system WebSocket)
   useEffect(() => {
-    if (!driverLocation || status !== 'idle') return;
+    if (!driverLocation) return;
+
+    // Bug Fix 2: When passenger is in an active ride state, remove all idle
+    // driver markers from the map — they're irrelevant and confusing.
+    if (status !== 'idle') {
+      setMarkers(prev => prev.filter(m => !m.isDriver || m.title === 'Driver'));
+      return;
+    }
 
     // If driver went offline or status is not explicitly online, remove their marker
     if (driverLocation.is_online === false || driverLocation.is_online !== true) {
@@ -646,13 +653,21 @@ const PassengerHome = () => {
       return;
     }
 
-    // Only add/update marker when driver is confirmed online
+    // Bug Fix 3: Validate coordinates before placing marker to prevent NaN/ghost markers
+    const markerLat = parseFloat(driverLocation.lat);
+    const markerLng = parseFloat(driverLocation.lng);
+    if (isNaN(markerLat) || isNaN(markerLng)) {
+      console.warn('Driver location update has invalid coordinates, skipping marker:', driverLocation);
+      return;
+    }
+
+    // Only add/update marker when driver is confirmed online with valid coordinates
     setMarkers(prev => {
       const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
       const newMarker = {
         id: driverLocation.id,
-        lat: parseFloat(driverLocation.lat),
-        lng: parseFloat(driverLocation.lng),
+        lat: markerLat,
+        lng: markerLng,
         title: 'Trike Driver',
         info: 'Available',
         isDriver: true
@@ -665,6 +680,7 @@ const PassengerHome = () => {
       return [...prev, newMarker];
     });
   }, [driverLocation, status]);
+
 
 
   // Listen for Real-time System Broadcasts
