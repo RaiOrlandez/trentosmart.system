@@ -45,7 +45,7 @@ import useGeoLocation from '../../hooks/useGeoLocation';
 import useLocationSync from '../../hooks/useLocationSync';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 
-const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
+const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
 
 /**
  * Reverse geocode (lat, lng) → human-readable place name using Nominatim.
@@ -639,8 +639,8 @@ const DriverHome = () => {
           });
         } else {
           newMarkers.push({
-            lat: activeRide.pickup_lat || 8.050,
-            lng: activeRide.pickup_lng || 126.062,
+            lat: activeRide.pickup_lat || 8.03555,
+            lng: activeRide.pickup_lng || 126.06432,
             title: 'Pickup',
             info: activeRide.pickup_address || activeRide.pickup,
             isPickup: true
@@ -659,8 +659,8 @@ const DriverHome = () => {
       });
     } else if (selectedRequest) {
       newMarkers.push({
-        lat: selectedRequest.pickup_lat || 8.050,
-        lng: selectedRequest.pickup_lng || 126.062,
+        lat: selectedRequest.pickup_lat || 8.03555,
+        lng: selectedRequest.pickup_lng || 126.06432,
         title: 'New Request',
         info: `Pickup at ${selectedRequest.pickup_address || selectedRequest.pickup}`,
         isPickup: true
@@ -793,8 +793,8 @@ const DriverHome = () => {
   const triggerSOS = async () => {
     setShowSOS(true);
 
-    let currentLat = 8.050; // Fallback
-    let currentLng = 126.062;
+    let currentLat = 8.03555; // Fallback
+    let currentLng = 126.06432;
 
     if (gpsLocation) {
       currentLat = gpsLocation.lat;

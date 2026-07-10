@@ -108,7 +108,7 @@ const PublicTracking = () => {
         <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row relative">
             {/* Map Area */}
             <div className="flex-1 h-[50vh] md:h-screen relative z-0">
-                <LeafletMap markers={markers} zoom={15} center={markers[0] || { lat: 8.050, lng: 126.062 }} />
+                <LeafletMap markers={markers} zoom={15} center={markers[0] || { lat: 8.03555, lng: 126.06432 }} />
 
                 {/* Live Badge Overlay */}
                 <div className="absolute top-6 right-6 z-10">

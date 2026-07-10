@@ -66,7 +66,7 @@ async function reverseGeocode(lat, lng) {
 }
 
 // Default map centre (Trento ADS)
-const TRENTO_CENTER = { lat: 8.0505, lng: 126.0624 };
+const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
 
 const PassengerHome = () => {
   const navigate = useNavigate();
@@ -1011,8 +1011,8 @@ const PassengerHome = () => {
   const triggerSOS = async () => {
     setShowSOS(true);
 
-    let currentLat = 8.050; // Fallback to Trento Municipal Hall
-    let currentLng = 126.062;
+    let currentLat = 8.03555; // Fallback to Trento Municipal Hall
+    let currentLng = 126.06432;
 
     // Try to get actual location before dispatching emergency
     if ("geolocation" in navigator) {

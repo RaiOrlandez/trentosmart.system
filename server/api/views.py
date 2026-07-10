@@ -875,8 +875,8 @@ class UserViewSet(viewsets.ModelViewSet):
                     'type': 'driver_location_update', # Use existing type to trigger marker updates
                     'driver_id': user.id,
                     'username': user.username,
-                    'lat': float(user.last_lat) if user.last_lat else 8.050,
-                    'lng': float(user.last_lng) if user.last_lng else 126.062,
+                    'lat': float(user.last_lat) if user.last_lat else 8.03555,
+                    'lng': float(user.last_lng) if user.last_lng else 126.06432,
                     'status': 'Available' if is_online else 'Offline',
                     'is_online': is_online
                 }

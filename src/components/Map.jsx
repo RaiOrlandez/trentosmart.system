@@ -45,7 +45,7 @@ const TRENTO_BOUNDS = {
 };
 
 const Map = ({
-  center = { lat: 8.050, lng: 126.062 },
+  center = { lat: 8.03555, lng: 126.06432 },
   zoom = 15,
   markers = [],
   heatPoints = [],
