@@ -866,20 +866,21 @@ class UserViewSet(viewsets.ModelViewSet):
             user.last_location_update = timezone.now()
         user.save()
 
-        # Broadcast status change to system
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            'global_system',
-            {
-                'type': 'driver_location_update', # Use existing type to trigger marker updates
-                'driver_id': user.id,
-                'username': user.username,
-                'lat': float(user.last_lat) if user.last_lat else 8.050,
-                'lng': float(user.last_lng) if user.last_lng else 126.062,
-                'status': 'Available' if is_online else 'Offline',
-                'is_online': is_online
-            }
-        )
+        # Broadcast status change to system only if user is a driver
+        if user.role == 'driver':
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'global_system',
+                {
+                    'type': 'driver_location_update', # Use existing type to trigger marker updates
+                    'driver_id': user.id,
+                    'username': user.username,
+                    'lat': float(user.last_lat) if user.last_lat else 8.050,
+                    'lng': float(user.last_lng) if user.last_lng else 126.062,
+                    'status': 'Available' if is_online else 'Offline',
+                    'is_online': is_online
+                }
+            )
         
         return Response({'status': 'success', 'is_online': is_online})
 
