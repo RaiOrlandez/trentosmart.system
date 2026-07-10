@@ -791,6 +791,49 @@ const DriverHome = () => {
     setNavModalData({ lat: parsedLat, lng: parsedLng, label });
   };
 
+  // Press and Hold SOS States & Refs
+  const [sosHoldProgress, setSosHoldProgress] = useState(0);
+  const [isHoldingSos, setIsHoldingSos] = useState(false);
+  const sosTimerRef = useRef(null);
+
+  const startSosHold = (e) => {
+    if (e.cancelable) e.preventDefault();
+
+    setIsHoldingSos(true);
+    setSosHoldProgress(0);
+    const startTime = Date.now();
+
+    sosTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min((elapsed / 1500) * 100, 100); // 1.5s hold duration
+      setSosHoldProgress(pct);
+
+      if (pct >= 100) {
+        clearInterval(sosTimerRef.current);
+        triggerSOS();
+        setSosHoldProgress(0);
+        setIsHoldingSos(false);
+      }
+    }, 40);
+  };
+
+  const cancelSosHold = () => {
+    setIsHoldingSos(false);
+    if (sosTimerRef.current) {
+      clearInterval(sosTimerRef.current);
+    }
+    setSosHoldProgress(0);
+  };
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (sosTimerRef.current) {
+        clearInterval(sosTimerRef.current);
+      }
+    };
+  }, []);
+
   const triggerSOS = async () => {
     setShowSOS(true);
 
@@ -1479,15 +1522,48 @@ const DriverHome = () => {
             </AnimatePresence>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={triggerSOS}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-3xl shadow-xl flex items-center justify-center gap-3 transition-colors mt-6"
-          >
-            <AlertTriangle size={24} />
-            SOS EMERGENCY
-          </motion.button>
+          {/* Safety Center Widget Block */}
+          <div className="glass-card p-5 rounded-[2rem] border-2 border-slate-100 dark:border-white/5 relative overflow-hidden shadow-xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl mt-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-500/10 dark:bg-red-500/20 text-red-500 rounded-2xl flex items-center justify-center shadow-inner">
+                <Shield size={24} className="animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-secondary dark:text-white font-black text-sm uppercase tracking-wider">Emergency Services</h4>
+                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block"></span>
+                  Active LGU Dispatch Protection
+                </p>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onMouseDown={startSosHold}
+              onMouseUp={cancelSosHold}
+              onMouseLeave={cancelSosHold}
+              onTouchStart={startSosHold}
+              onTouchEnd={cancelSosHold}
+              className="w-full relative overflow-hidden bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all transform active:scale-95 duration-200 select-none uppercase tracking-wider text-xs md:text-sm border-2 border-red-500/50"
+              style={{ touchAction: 'none' }}
+            >
+              {/* Hold progress bar background overlay */}
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-red-800 transition-all duration-75"
+                style={{ width: `${sosHoldProgress}%`, opacity: 0.8 }}
+              />
+              
+              {/* Alert content */}
+              <div className="relative z-10 flex items-center gap-2">
+                <AlertTriangle size={18} className="animate-bounce" />
+                <span>
+                  {isHoldingSos 
+                    ? `Holding... ${Math.round(sosHoldProgress)}%` 
+                    : 'Press & Hold to Trigger SOS'}
+                </span>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Right Column: Map and Navigation */}
