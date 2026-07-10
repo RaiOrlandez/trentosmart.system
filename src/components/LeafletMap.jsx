@@ -259,7 +259,10 @@ function MapClickHandler({ onMapClick, enabled }) {
 }
 
 // ── Smooth Marker ─────────────────────────────────────────────────────────────
-const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, children }) => {
+// snapToPosition: when true, skips the 900ms glide animation and snaps directly
+// to the new coordinates. Use this for the passenger's own "You are here" pin
+// so it always reflects the exact real-time GPS reading without any lag.
+const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapToPosition, children }) => {
     const markerRef     = useRef(null);
     const requestRef    = useRef();
     const startTimeRef  = useRef(null);
@@ -281,6 +284,16 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, childr
     // Position interpolation effect (smoothly glides the marker on position change)
     useEffect(() => {
         if (!markerRef.current) return;
+
+        // ✅ snapToPosition: skip animation — snap the pin directly to GPS coords
+        if (snapToPosition) {
+            cancelAnimationFrame(requestRef.current);
+            markerRef.current.setLatLng([position[0], position[1]]);
+            startPosRef.current = { lat: position[0], lng: position[1] };
+            targetPosRef.current = { lat: position[0], lng: position[1] };
+            return;
+        }
+
         const currentLatLng = markerRef.current.getLatLng();
         startPosRef.current = { lat: currentLatLng.lat, lng: currentLatLng.lng };
         targetPosRef.current = { lat: position[0], lng: position[1] };
@@ -304,7 +317,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, childr
         cancelAnimationFrame(requestRef.current);
         requestRef.current = requestAnimationFrame(animate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [position[0], position[1]]);
+    }, [position[0], position[1], snapToPosition]);
 
     // Heading rotation effect (smoothly rotates the marker element dynamically)
     useEffect(() => {
@@ -565,6 +578,9 @@ const LeafletMap = ({
                 {/* Markers */}
                 {markers.map((marker, index) => {
                     let icon;
+                    // Identify the passenger's own location pin
+                    const isYouAreHere = marker.id === 'you_are_here';
+
                     if (marker.isDriver)           icon = buildDriverIcon(marker.heading ?? 0);
                     else if (marker.isPickup)      icon = pickupIcon;
                     else if (marker.isDestination) icon = destIcon;
@@ -578,6 +594,7 @@ const LeafletMap = ({
                             isDriver={marker.isDriver}
                             heading={marker.heading}
                             autoOpenPopup={!!marker.autoOpenPopup}
+                            snapToPosition={isYouAreHere}
                         >
                             <Popup className="custom-popup">
                                 <div className="text-sm font-bold p-2 min-w-[160px]">

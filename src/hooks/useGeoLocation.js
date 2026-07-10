@@ -129,17 +129,15 @@ const useGeoLocation = (options = {}) => {
                 }
             }
 
-            // 3. Smooth minor coordinate noise using a low-pass filter (weighted average) if accuracy is mediocre (>15m)
-            let finalLat = lat;
-            let finalLng = lng;
-            if (lastValidLocationRef.current && acc > 15) {
-                finalLat = lastValidLocationRef.current.lat * 0.6 + lat * 0.4;
-                finalLng = lastValidLocationRef.current.lng * 0.6 + lng * 0.4;
-            }
-
+            // 3. Accept the raw GPS reading — no position smoothing.
+            // The "you are here" marker uses snapToPosition in LeafletMap, so it
+            // always reflects the exact GPS fix instantly. Smoothing here causes
+            // the displayed position to lag 30–50 m behind the real location,
+            // especially when accuracy is 15–50 m (common indoors/suburban).
+            // Speed-spike rejection above already handles the major GPS glitches.
             const smoothedLoc = {
-                lat: finalLat,
-                lng: finalLng,
+                lat,
+                lng,
                 accuracy: acc,
                 heading: head
             };
