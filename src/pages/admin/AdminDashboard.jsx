@@ -876,7 +876,7 @@ const AdminDashboard = () => {
             </div>
             <div className="h-[300px] w-full">
               {isMounted && (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ResponsiveContainer width="100%" height={300} minWidth={0}>
                   <AreaChart data={rideData}>
                     <defs>
                       <linearGradient id="colorRides" x1="0" y1="0" x2="0" y2="1">
@@ -901,7 +901,7 @@ const AdminDashboard = () => {
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Gross vs LGU Commission</p>
             <div className="h-[280px] w-full">
               {isMounted && (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
                   <BarChart data={dailyData} barSize={10}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11, fontWeight: 'bold' }} />
@@ -927,7 +927,7 @@ const AdminDashboard = () => {
             <p className="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Fund Distribution</p>
             <div className="h-[280px] w-full">
               {isMounted && (
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <ResponsiveContainer width="100%" height={280} minWidth={0}>
                   <PieChart>
                     <Pie
                       data={revenueData}
@@ -1886,7 +1886,7 @@ const FinanceTab = ({ stats }) => {
           </div>
           <div className="h-[350px]">
             {isMounted && (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <ResponsiveContainer width="100%" height={350} minWidth={0}>
                 <AreaChart data={financeData}>
                   <defs>
                     <linearGradient id="financeSales" x1="0" y1="0" x2="0" y2="1">
