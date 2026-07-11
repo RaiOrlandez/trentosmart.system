@@ -170,7 +170,7 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchUsers = useCallback(async (forceRefresh = false) => {
-    if (!forceRefresh && isFetchingUsers.current) return; // debounce: skip if already running (unless forced)
+    if (isFetchingUsers.current) return; // prevent concurrent fetches (forceRefresh doesn't bypass — just triggers outside debounce)
     isFetchingUsers.current = true;
     setLoadingUsers(true);
     try {
@@ -556,9 +556,12 @@ const AdminDashboard = () => {
       onConfirm: async (pin) => {
         try {
           await api.post(`/users/${userId}/suspend_driver/`, { pin });
+          // Optimistically update immediately
           setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
+          // Close modal first, then alert, then refresh
+          setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
           alert('Driver suspended.');
-          await fetchUsers(true);
+          fetchUsers(true);
         } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
       }
     });
@@ -576,14 +579,16 @@ const AdminDashboard = () => {
           // Optimistically update local state
           setUsers(prev => prev.filter(u => u.id !== id));
           fetchStats(); // Update counters
+          // Close modal BEFORE alert to prevent UI freeze
+          setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
           alert('User deleted.');
-          // Force refresh from server to ensure sync
-          await fetchUsers(true);
+          // Refresh from server to ensure sync (don't await — modal is already closed)
+          fetchUsers(true);
         } catch (err) {
           const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
           alert(`Failed to delete user record. Reason: ${serverMsg}`);
           // Refresh to restore correct state if deletion failed
-          await fetchUsers(true);
+          fetchUsers(true);
         }
       }
     });
@@ -1014,7 +1019,16 @@ const AdminDashboard = () => {
 
             {/* ── Mobile Card View (visible on xs, hidden md+) ── */}
             <div className="block md:hidden space-y-3">
-              {users
+              {loadingUsers ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm font-bold">Loading drivers...</p>
+                </div>
+              ) : users.filter(u => u.role === 'driver').length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                  <p className="text-sm font-bold">No drivers found.</p>
+                </div>
+              ) : users
                 .filter(u => u.role === 'driver')
                 .filter(u =>
                   (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1076,7 +1090,20 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {users
+                  {loadingUsers ? (
+                    <tr><td colSpan={5} className="py-16 text-center">
+                      <div className="flex flex-col items-center gap-3 text-slate-400">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm font-bold">Loading drivers...</p>
+                      </div>
+                    </td></tr>
+                  ) : users.filter(u => u.role === 'driver').filter(u =>
+                    (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+                  ).length === 0 ? (
+                    <tr><td colSpan={5} className="py-16 text-center text-slate-400 text-sm font-bold">No drivers found.</td></tr>
+                  ) : null}
+                  {!loadingUsers && users
                     .filter(u => u.role === 'driver')
                     .filter(u =>
                       (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1240,7 +1267,17 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {users
+            {loadingUsers ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+                <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm font-bold">Loading passengers...</p>
+              </div>
+            ) : users.filter(u => u.role === 'passenger').length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                <p className="text-sm font-bold">No passengers found.</p>
+              </div>
+            ) : null}
+            {!loadingUsers && users
               .filter(u => u.role === 'passenger')
               .filter(u =>
                 (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
