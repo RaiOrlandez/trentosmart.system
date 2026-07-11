@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldCheck, Lock, CheckCircle2 } from 'lucide-react';
 import api from '../api/axios';
 
-const SecurityPINModal = ({ isOpen, onClose }) => {
+const SecurityPINModal = ({ isOpen, onClose, onSuccess = null }) => {
     const [step, setStep] = useState('loading'); // loading, setup, verify_old, set_new, success
     const [hasPin, setHasPin] = useState(false);
     const [pin, setPin] = useState('');
@@ -42,6 +42,7 @@ const SecurityPINModal = ({ isOpen, onClose }) => {
             await api.post('/security/pin/', { pin });
             setStep('success');
             setHasPin(true);
+            if (onSuccess) onSuccess();
         } catch (err) {
             setError(err.response?.data?.detail || "Failed to set PIN.");
         } finally {
@@ -63,6 +64,7 @@ const SecurityPINModal = ({ isOpen, onClose }) => {
         try {
             await api.put('/security/pin/', { old_pin: oldPin, new_pin: pin });
             setStep('success');
+            if (onSuccess) onSuccess();
         } catch (err) {
             setError(err.response?.data?.detail || "Failed to update PIN. Check old PIN.");
         } finally {

@@ -51,6 +51,7 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [showAvatarModal, setShowAvatarModal] = useState(false);
+    const [hasPin, setHasPin] = useState(false);
 
     // Change Password state
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -90,6 +91,14 @@ const Profile = () => {
             }
 
             setProfile(data);
+
+            // Fetch PIN status
+            try {
+                const pinRes = await api.get('/security/pin/');
+                setHasPin(pinRes.data.has_pin);
+            } catch (err) {
+                console.error('Failed to load PIN status', err);
+            }
         } catch (err) {
             console.error('Failed to load profile', err);
         } finally {
@@ -602,7 +611,18 @@ const Profile = () => {
                                 onClick={() => setShowPinModal(true)}
                                 className="w-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-secondary dark:text-white font-black py-4 rounded-2xl border-2 border-slate-100 dark:border-white/5 transition-all flex items-center justify-between px-6 group"
                             >
-                                <span className="uppercase tracking-widest text-sm">Manage Transaction PIN</span>
+                                <div className="flex items-center gap-3">
+                                    <span className="uppercase tracking-widest text-sm">Manage Transaction PIN</span>
+                                    {hasPin ? (
+                                        <span className="px-2.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[9px] font-black uppercase rounded-full">
+                                            Active
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[9px] font-black uppercase rounded-full">
+                                            Not Set
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="w-8 h-8 bg-white dark:bg-white/10 rounded-full flex items-center justify-center text-slate-400 group-hover:text-secondary dark:group-hover:text-white transition-colors">
                                     <ArrowUpRight size={16} />
                                 </div>
@@ -631,7 +651,7 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
-            <SecurityPINModal isOpen={showPinModal} onClose={() => setShowPinModal(false)} />
+            <SecurityPINModal isOpen={showPinModal} onClose={() => setShowPinModal(false)} onSuccess={() => setHasPin(true)} />
 
             {/* ── Change Password Modal ── */}
             <AnimatePresence>
