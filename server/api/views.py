@@ -1703,10 +1703,11 @@ class DriverVerificationView(APIView):
                 except Exception as save_err:
                     print(f"Error saving verification data: {save_err}")
                     import traceback
-                    traceback.print_exc()
+                    tb_str = traceback.format_exc()
+                    print(tb_str)
                     return Response({
                         'detail': f'Failed to save documents: {str(save_err)}',
-                        'errors': {'save_error': str(save_err)}
+                        'errors': {'save_error': str(save_err), 'traceback': tb_str}
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             print(f"Validation Errors: {serializer.errors}")
@@ -1718,10 +1719,11 @@ class DriverVerificationView(APIView):
         except Exception as e:
             print(f"Unexpected error in DriverVerificationView: {e}")
             import traceback
-            traceback.print_exc()
+            tb_str = traceback.format_exc()
+            print(tb_str)
             return Response({
                 'detail': f'Server error: {str(e)}',
-                'errors': {'server_error': str(e)}
+                'errors': {'server_error': str(e), 'traceback': tb_str}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

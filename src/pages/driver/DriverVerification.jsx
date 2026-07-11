@@ -75,29 +75,105 @@ const DriverVerification = () => {
         }
     };
 
+    const compressImage = (file, maxWidth = 1024, maxHeight = 1024, quality = 0.7) => {
+        return new Promise((resolve) => {
+            if (!file || !file.type.startsWith('image/')) {
+                resolve(file);
+                return;
+            }
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    canvas.toBlob(
+                        (blob) => {
+                            if (blob) {
+                                const compressedFile = new File([blob], file.name, {
+                                    type: 'image/jpeg',
+                                    lastModified: Date.now(),
+                                });
+                                resolve(compressedFile);
+                            } else {
+                                resolve(file);
+                            }
+                        },
+                        'image/jpeg',
+                        quality
+                    );
+                };
+                img.onerror = () => resolve(file);
+            };
+            reader.onerror = () => resolve(file);
+        });
+    };
+
     const handleUpload = async (e) => {
         e.preventDefault();
         setStatus('uploading');
         setMsg('');
 
-        const formData = new FormData();
-        formData.append('license_number', licenseNum);
-        formData.append('permit_number', permitNum);
-        formData.append('license_expiry_date', licenseExpiryDate);
-        formData.append('body_number', bodyNumber);
-        formData.append('vehicle_model', vehicleModel);
-        formData.append('vehicle_plate', vehiclePlate);
-        formData.append('vehicle_color', vehicleColor);
-        formData.append('sidecar_type', sidecarType);
-        if (licenseImg) formData.append('license_image', licenseImg);
-        if (permitImg) formData.append('permit_image', permitImg);
-        if (nbiClearanceImg) formData.append('nbi_clearance_image', nbiClearanceImg);
-        if (barangayResidencyImg) formData.append('barangay_residency_image', barangayResidencyImg);
-        if (selfieWithLicenseImg) formData.append('selfie_with_license', selfieWithLicenseImg);
-        if (vehicleOrcrImg) formData.append('vehicle_orcr_image', vehicleOrcrImg);
-        if (tricyclePhotoImg) formData.append('tricycle_photo', tricyclePhotoImg);
-
         try {
+            // Compress all images in parallel
+            const [
+                compressedLicenseImg,
+                compressedPermitImg,
+                compressedNbiClearanceImg,
+                compressedBarangayResidencyImg,
+                compressedSelfieWithLicenseImg,
+                compressedVehicleOrcrImg,
+                compressedTricyclePhotoImg
+            ] = await Promise.all([
+                licenseImg ? compressImage(licenseImg) : Promise.resolve(null),
+                permitImg ? compressImage(permitImg) : Promise.resolve(null),
+                nbiClearanceImg ? compressImage(nbiClearanceImg) : Promise.resolve(null),
+                barangayResidencyImg ? compressImage(barangayResidencyImg) : Promise.resolve(null),
+                selfieWithLicenseImg ? compressImage(selfieWithLicenseImg) : Promise.resolve(null),
+                vehicleOrcrImg ? compressImage(vehicleOrcrImg) : Promise.resolve(null),
+                tricyclePhotoImg ? compressImage(tricyclePhotoImg) : Promise.resolve(null)
+            ]);
+
+            const formData = new FormData();
+            formData.append('license_number', licenseNum);
+            formData.append('permit_number', permitNum);
+            formData.append('license_expiry_date', licenseExpiryDate);
+            formData.append('body_number', bodyNumber);
+            formData.append('vehicle_model', vehicleModel);
+            formData.append('vehicle_plate', vehiclePlate);
+            formData.append('vehicle_color', vehicleColor);
+            formData.append('sidecar_type', sidecarType);
+
+            if (compressedLicenseImg) formData.append('license_image', compressedLicenseImg);
+            if (compressedPermitImg) formData.append('permit_image', compressedPermitImg);
+            if (compressedNbiClearanceImg) formData.append('nbi_clearance_image', compressedNbiClearanceImg);
+            if (compressedBarangayResidencyImg) formData.append('barangay_residency_image', compressedBarangayResidencyImg);
+            if (compressedSelfieWithLicenseImg) formData.append('selfie_with_license', compressedSelfieWithLicenseImg);
+            if (compressedVehicleOrcrImg) formData.append('vehicle_orcr_image', compressedVehicleOrcrImg);
+            if (compressedTricyclePhotoImg) formData.append('tricycle_photo', compressedTricyclePhotoImg);
+
             const response = await api.post('/driver/verify/', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
@@ -107,7 +183,18 @@ const DriverVerification = () => {
             setTimeout(() => fetchData(), 1500);
         } catch (err) {
             setStatus('error');
-            setMsg(err.response?.data?.detail || 'Failed to submit documents. Please check required fields.');
+            console.error('Upload error details:', err);
+            // If the server returns details, display it, otherwise standard fallback
+            const errDetail = err.response?.data?.detail;
+            const errErrors = err.response?.data?.errors;
+            let fullErrMsg = errDetail || 'Failed to submit documents. Please check required fields.';
+            if (errErrors) {
+                const firstKey = Object.keys(errErrors)[0];
+                if (firstKey) {
+                    fullErrMsg += ` (${firstKey}: ${errErrors[firstKey]})`;
+                }
+            }
+            setMsg(fullErrMsg);
         }
     };
 
