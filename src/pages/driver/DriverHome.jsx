@@ -841,8 +841,10 @@ const DriverHome = () => {
     let currentLng = 126.06432;
 
     if (gpsLocation) {
-      currentLat = gpsLocation.lat;
-      currentLng = gpsLocation.lng;
+      // Round to 6 decimal places — model DecimalField(max_digits=9, decimal_places=6)
+      // Browser GPS can return 10-15 decimal places which causes 400 Bad Request
+      currentLat = parseFloat(gpsLocation.lat.toFixed(6));
+      currentLng = parseFloat(gpsLocation.lng.toFixed(6));
     }
 
     try {
