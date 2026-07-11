@@ -109,6 +109,7 @@ const PassengerHome = () => {
 
   const [showPlaceModal, setShowPlaceModal] = useState(false);
   const [editingPlace, setEditingPlace] = useState(null);
+  const [selectedPlaceAction, setSelectedPlaceAction] = useState(null);
   const [nearbyDriverList, setNearbyDriverList] = useState([]); // New: Detailed driver list
   const [selectedDriverId, setSelectedDriverId] = useState(null); // New: Choosen driver ID
   const [routeCoordinates, setRouteCoordinates] = useState(null); // Real driving path
@@ -1529,12 +1530,12 @@ const PassengerHome = () => {
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Quick Places</p>
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none px-1">
                   {Array.isArray(savedPlaces) && savedPlaces.map((place) => (
-                    <div key={place.id} className="relative group/place shrink-0">
+                    <div key={place.id} className="shrink-0">
                       <motion.button
                         type="button"
                         whileHover={{ y: -2 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setDest(place.address)}
+                        onClick={() => setSelectedPlaceAction(place)}
                         className="flex flex-col items-center gap-2 group/btn"
                       >
                         <div className="w-14 h-14 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 shadow-sm flex items-center justify-center text-slate-400 group-hover/btn:bg-primary group-hover/btn:text-secondary group-hover/btn:border-primary transition-all">
@@ -1542,20 +1543,6 @@ const PassengerHome = () => {
                         </div>
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate w-14 text-center">{place.name}</span>
                       </motion.button>
-                      <div className="absolute -top-1 -right-1 flex flex-col gap-1 opacity-0 group-hover/place:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingPlace(place); setShowPlaceModal(true); }}
-                          className="p-1.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 rounded-full shadow-lg text-slate-400 hover:text-primary transition-colors"
-                        >
-                          <Settings size={10} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeletePlace(place.id); }}
-                          className="p-1.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 rounded-full shadow-lg text-slate-400 hover:text-red-500 transition-colors"
-                        >
-                          <X size={10} />
-                        </button>
-                      </div>
                     </div>
                   ))}
                   <motion.button
@@ -2430,6 +2417,89 @@ const PassengerHome = () => {
           onToggle={() => setShowChat(prev => !prev)}
         />
       )}
+
+      {/* Saved Place Quick Actions Modal */}
+      <AnimatePresence>
+        {selectedPlaceAction && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-2xl relative border border-slate-100 dark:border-white/5"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/20 text-secondary dark:text-primary flex items-center justify-center">
+                    {getCategoryIcon(selectedPlaceAction.category)}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-black text-secondary dark:text-white uppercase tracking-wider">{selectedPlaceAction.name}</h3>
+                    <p className="text-[10px] text-slate-400 font-bold mt-0.5 line-clamp-1">{selectedPlaceAction.address}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedPlaceAction(null)}
+                  className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-secondary transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2.5">
+                <button
+                  onClick={() => {
+                    setDest(selectedPlaceAction.address);
+                    setSelectedPlaceAction(null);
+                  }}
+                  className="w-full py-4 px-5 rounded-2xl bg-secondary text-white font-black text-xs uppercase tracking-widest hover:scale-[1.01] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-slate-200 dark:shadow-none"
+                >
+                  <MapPin size={14} className="text-primary" />
+                  <span>Set as Destination</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPickup(selectedPlaceAction.address);
+                    setSelectedPlaceAction(null);
+                  }}
+                  className="w-full py-4 px-5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-secondary dark:text-white font-black text-xs uppercase tracking-widest hover:scale-[1.01] transition-transform flex items-center justify-center gap-2"
+                >
+                  <Navigation size={14} />
+                  <span>Set as Pickup Location</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setEditingPlace(selectedPlaceAction);
+                      setShowPlaceModal(true);
+                      setSelectedPlaceAction(null);
+                    }}
+                    className="py-3 px-4 rounded-xl border-2 border-slate-100 dark:border-white/5 hover:border-primary/50 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Settings size={12} />
+                    <span>Edit Place</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleDeletePlace(selectedPlaceAction.id);
+                      setSelectedPlaceAction(null);
+                    }}
+                    className="py-3 px-4 rounded-xl border-2 border-red-50 dark:border-red-950/20 hover:border-red-200 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 font-black text-[10px] uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <X size={12} />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <SavedPlaceModal
         isOpen={showPlaceModal}
