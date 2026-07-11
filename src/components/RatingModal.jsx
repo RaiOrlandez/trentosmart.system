@@ -279,13 +279,15 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                 )}
               </motion.button>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="w-full text-slate-400 hover:text-slate-600 font-black text-sm py-2 text-center transition-colors block active:scale-95"
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-4 rounded-[1.5rem] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                Skip Feedback
-              </button>
+                <span>Skip & Exit</span>
+              </motion.button>
             </div>
           </div>
         </motion.div>
