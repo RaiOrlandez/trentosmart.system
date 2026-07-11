@@ -576,7 +576,7 @@ const PassengerHome = () => {
             setAssignedDriver(ride.driver);
             // Play chime ONCE when polling detects a newly accepted ride
             if (!notifiedMatchedRideIds.current.has(ride.id)) {
-              notifiedMatchedRideIds.current.add(ride.id);
+              addNotifiedMatchedRide(ride.id);
               playSound('chime');
               notify('Driver Found!', 'A driver has accepted your ride request.');
             }
@@ -675,8 +675,20 @@ const PassengerHome = () => {
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
   const { playSound, notify } = useNotifications();
-  // Track which ride IDs already triggered the "driver found" chime (deduplicates across WS + polling + system event)
-  const notifiedMatchedRideIds = React.useRef(new Set());
+  // Track which ride IDs already triggered the "driver found" chime.
+  // Seeded from sessionStorage so the dedup survives a page refresh.
+  const notifiedMatchedRideIds = React.useRef((() => {
+    try {
+      const stored = sessionStorage.getItem('notified_matched_rides_p');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  })());
+  const addNotifiedMatchedRide = (id) => {
+    notifiedMatchedRideIds.current.add(id);
+    try {
+      sessionStorage.setItem('notified_matched_rides_p', JSON.stringify([...notifiedMatchedRideIds.current]));
+    } catch { }
+  };
 
   // Handle driver requesting payment via WebSocket
   useEffect(() => {
@@ -791,7 +803,7 @@ const PassengerHome = () => {
         }
         // Play chime only if not already played by WebSocket path
         if (!notifiedMatchedRideIds.current.has(matchedRide.id)) {
-          notifiedMatchedRideIds.current.add(matchedRide.id);
+          addNotifiedMatchedRide(matchedRide.id);
           playSound('chime');
           notify('Driver Found!', 'A driver has accepted your ride request.');
         }
@@ -830,7 +842,7 @@ const PassengerHome = () => {
         }
         // Play chime only once per ride (guard against system event also firing)
         if (activeRideId && !notifiedMatchedRideIds.current.has(activeRideId)) {
-          notifiedMatchedRideIds.current.add(activeRideId);
+          addNotifiedMatchedRide(activeRideId);
           playSound('chime');
           notify('Driver Found!', 'A driver has accepted your ride request.');
         }
