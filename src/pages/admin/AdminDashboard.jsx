@@ -78,6 +78,7 @@ const AdminDashboard = () => {
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
   const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
   const notifiedSosIds = React.useRef(new Set());        // track which SOS incidents already triggered siren
+  const isFirstSosFetch = React.useRef(true);            // true on initial load — skip siren for pre-existing old incidents
 
   // Avatar Viewer State
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
@@ -195,7 +196,7 @@ const AdminDashboard = () => {
       // Look for any pending/active incidents
       const unresolved = incidentsData.filter(i => i.status === 'pending' || i.status === 'active');
       if (unresolved.length > 0) {
-        // Explicitly sort unresolved incidents by created_at descending (newest first) to ensure correctness
+        // Explicitly sort unresolved incidents by created_at descending (newest first)
         const sortedUnresolved = [...unresolved].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         const latestSos = sortedUnresolved[0];
         setActiveSOS({
@@ -206,7 +207,20 @@ const AdminDashboard = () => {
           description: latestSos.description
         });
         setShowSOSBanner(true);
-        
+
+        if (isFirstSosFetch.current) {
+          // On first load: silently mark all existing incidents as "already notified"
+          // so we only alarm for brand-new ones (< 2 minutes old)
+          sortedUnresolved.forEach(i => {
+            const ageMs = Date.now() - new Date(i.created_at).getTime();
+            if (ageMs > 2 * 60 * 1000) {
+              // Older than 2 minutes — pre-mark so siren doesn't fire for stale incidents
+              notifiedSosIds.current.add(i.id);
+            }
+          });
+          isFirstSosFetch.current = false;
+        }
+
         // Find if there is ANY unresolved incident that has not triggered the siren yet
         const unnotified = sortedUnresolved.find(i => !notifiedSosIds.current.has(i.id));
         if (unnotified) {
@@ -216,6 +230,7 @@ const AdminDashboard = () => {
       } else {
         setShowSOSBanner(false);
         setActiveSOS(null);
+        isFirstSosFetch.current = false;
       }
     } catch (err) {
       console.error('Failed to fetch pending incidents', err);

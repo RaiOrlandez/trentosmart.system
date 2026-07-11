@@ -22,47 +22,59 @@ let chimeAudio = null;
 let sirenAudio = null;
 let isUnlocked = false;
 
+// Per-sound last-played timestamps for cooldown (prevent double-fire within 2s)
+const lastPlayedAt = { request: 0, chime: 0, siren: 0 };
+const SOUND_COOLDOWN_MS = 2000;
+
 // Helper to initialize audio instances safely
 const initAudio = () => {
   if (typeof window === 'undefined') return;
   if (!requestAudio) {
     requestAudio = new Audio(SOUNDS.request);
     requestAudio.preload = 'auto';
+    requestAudio.volume = 1;
   }
   if (!chimeAudio) {
     chimeAudio = new Audio(SOUNDS.chime);
     chimeAudio.preload = 'auto';
+    chimeAudio.volume = 1;
   }
   if (!sirenAudio) {
     sirenAudio = new Audio(SOUNDS.siren);
     sirenAudio.preload = 'auto';
+    sirenAudio.volume = 1;
   }
 };
 
-// Click handler to unlock all audio elements
+// Click handler to unlock all audio elements (silent unlock — no audible click/glitch)
 const unlockAudio = () => {
   if (isUnlocked) return;
   initAudio();
 
-  const unlock = (audio) => {
+  const silentUnlock = (audio) => {
     if (!audio) return;
     try {
+      const originalVolume = audio.volume;
+      audio.volume = 0; // Mute during unlock to avoid audible click
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
           audio.pause();
           audio.currentTime = 0;
-        }).catch(() => {});
+          audio.volume = originalVolume; // Restore volume
+        }).catch(() => {
+          audio.volume = originalVolume;
+        });
       }
     } catch (e) {}
   };
 
-  unlock(requestAudio);
-  unlock(chimeAudio);
-  unlock(sirenAudio);
+  silentUnlock(requestAudio);
+  silentUnlock(chimeAudio);
+  silentUnlock(sirenAudio);
 
   isUnlocked = true;
-  console.log('[Notifications] Audio players successfully unlocked.');
+  console.log('[Notifications] Audio players successfully unlocked (silent mode).');
 
   // Clean up event listeners
   if (typeof window !== 'undefined') {
@@ -140,11 +152,21 @@ const useNotifications = () => {
 
     if (!audio) return null;
 
+    // Cooldown guard: skip if this sound type played too recently (siren is exempt — it loops)
+    const now = Date.now();
+    if (type !== 'siren' && lastPlayedAt[type] && (now - lastPlayedAt[type]) < SOUND_COOLDOWN_MS) {
+      console.log(`[Notifications] Cooldown active for sound type "${type}" — skipping.`);
+      return null;
+    }
+    if (type !== 'siren') lastPlayedAt[type] = now;
+
     try {
       audio.loop = loop;
-      // Pause and reset if already playing
-      audio.pause();
-      audio.currentTime = 0;
+      // Pause and reset if already playing (for non-looping sounds)
+      if (!loop) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {

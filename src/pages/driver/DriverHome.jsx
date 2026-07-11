@@ -237,6 +237,7 @@ const DriverHome = () => {
   // WebSocket Tracking
   const { sendLocation, sendMessage, messages, connected, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
   const { notifyNewRideRequest } = useNotifications();
+  const notifiedRideIds = React.useRef(new Set()); // deduplicate ride request alerts
 
   // Handle passenger cancellation
   useEffect(() => {
@@ -580,10 +581,13 @@ const DriverHome = () => {
       // Automatically select the newest request for preview
       setSelectedRequest(newRide);
 
-      // Play alert sound + desktop notification
-      try {
-        notifyNewRideRequest(newRide.pickup_address || newRide.pickup || 'nearby');
-      } catch (e) { }
+      // Play alert sound + desktop notification — once per unique ride ID
+      if (!notifiedRideIds.current.has(newRide.id)) {
+        notifiedRideIds.current.add(newRide.id);
+        try {
+          notifyNewRideRequest(newRide.pickup_address || newRide.pickup || 'nearby');
+        } catch (e) { }
+      }
     }
   }, [newRide, isOnline, activeRide]);
 
