@@ -860,11 +860,11 @@ const DriverHome = () => {
       {/* Top Navigation Bar */}
       <div className="absolute top-0 left-0 w-full p-4 sm:p-6 z-[100] pointer-events-none">
         <div className="max-w-[1400px] mx-auto flex justify-between items-start">
-          <Link to="/profile" className="bg-white/95 backdrop-blur-md px-6 py-3 rounded-[2rem] shadow-xl flex items-center space-x-4 border border-slate-100 hover:scale-105 transition-transform cursor-pointer pointer-events-auto">
-            <div className="w-10 h-10 bg-primary/20 text-primary-dark rounded-xl flex items-center justify-center font-black">
+          <Link to="/profile" className="bg-white/95 backdrop-blur-md p-2 sm:px-6 sm:py-3 rounded-[2rem] shadow-xl flex items-center space-x-0 sm:space-x-4 border border-slate-100 hover:scale-105 transition-transform cursor-pointer pointer-events-auto">
+            <div className="w-10 h-10 bg-primary/20 text-primary-dark rounded-xl flex items-center justify-center font-black shrink-0">
               {user?.username?.[0] || 'D'}
             </div>
-            <div>
+            <div className="hidden sm:block">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service Area</p>
               <p className="text-sm font-bold text-secondary">Trento, Agusan del Sur</p>
             </div>
