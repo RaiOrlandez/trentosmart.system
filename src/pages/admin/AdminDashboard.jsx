@@ -1019,7 +1019,7 @@ const AdminDashboard = () => {
 
             {/* ── Mobile Card View (visible on xs, hidden md+) ── */}
             <div className="block md:hidden space-y-3">
-              {loadingUsers ? (
+              {loadingUsers && users.filter(u => u.role === 'driver').length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                   <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                   <p className="text-sm font-bold">Loading drivers...</p>
@@ -1028,7 +1028,8 @@ const AdminDashboard = () => {
                 <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
                   <p className="text-sm font-bold">No drivers found.</p>
                 </div>
-              ) : users
+              ) : null}
+              {users
                 .filter(u => u.role === 'driver')
                 .filter(u =>
                   (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1090,7 +1091,7 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {loadingUsers ? (
+                  {loadingUsers && users.filter(u => u.role === 'driver').length === 0 ? (
                     <tr><td colSpan={5} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400">
                         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -1103,7 +1104,7 @@ const AdminDashboard = () => {
                   ).length === 0 ? (
                     <tr><td colSpan={5} className="py-16 text-center text-slate-400 text-sm font-bold">No drivers found.</td></tr>
                   ) : null}
-                  {!loadingUsers && users
+                  {users
                     .filter(u => u.role === 'driver')
                     .filter(u =>
                       (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1267,7 +1268,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {loadingUsers ? (
+            {loadingUsers && users.filter(u => u.role === 'passenger').length === 0 ? (
               <div className="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
                 <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm font-bold">Loading passengers...</p>
@@ -1277,7 +1278,7 @@ const AdminDashboard = () => {
                 <p className="text-sm font-bold">No passengers found.</p>
               </div>
             ) : null}
-            {!loadingUsers && users
+            {users
               .filter(u => u.role === 'passenger')
               .filter(u =>
                 (u.username || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
