@@ -80,11 +80,7 @@ const Profile = () => {
             const res = await api.get('/user/profile/');
             let data = res.data;
 
-            // Convert YYYY-MM-DD to DD/MM/YYYY for display
-            if (data.date_of_birth && data.date_of_birth.includes('-')) {
-                const parts = data.date_of_birth.split('-');
-                data.date_of_birth = `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
+            // license_expiry_date still uses DD/MM/YYYY for display
             if (data.license_expiry_date && data.license_expiry_date.includes('-')) {
                 const parts = data.license_expiry_date.split('-');
                 data.license_expiry_date = `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -109,8 +105,8 @@ const Profile = () => {
     const handleChange = (e) => {
         const { name, value } = e.target;
 
-        // Handle date formatting for DD/MM/YYYY
-        if (name === 'date_of_birth' || name === 'license_expiry_date') {
+        // Handle date formatting only for license_expiry_date (DD/MM/YYYY)
+        if (name === 'license_expiry_date') {
             let val = value.replace(/\D/g, '');
             if (val.length > 8) val = val.slice(0, 8);
 
@@ -177,6 +173,10 @@ const Profile = () => {
                         if (value instanceof File) {
                             formData.append(key, value);
                         }
+                    } else if (key === 'license_expiry_date' && value && value.includes('/')) {
+                        // Convert DD/MM/YYYY back to YYYY-MM-DD for backend
+                        const parts = value.split('/');
+                        if (parts.length === 3) formData.append(key, `${parts[2]}-${parts[1]}-${parts[0]}`);
                     } else {
                         formData.append(key, value);
                     }
@@ -414,13 +414,13 @@ const Profile = () => {
                                             <Calendar size={12} /> Date of Birth
                                         </label>
                                         <input
-                                            type="text"
+                                            type="date"
                                             name="date_of_birth"
                                             value={profile.date_of_birth || ''}
                                             onChange={handleChange}
-                                            placeholder="DD/MM/YYYY"
-                                            maxLength="10"
-                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary' : 'border-transparent bg-transparent pl-0'}`}
+                                            max={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 18); return d.toISOString().split('T')[0]; })()}
+                                            min="1920-01-01"
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border-2 rounded-2xl py-3 px-4 font-bold text-secondary dark:text-white outline-none transition-colors appearance-none ${isEditing ? 'border-slate-100 dark:border-slate-700 focus:border-primary cursor-pointer' : 'border-transparent bg-transparent pl-0 cursor-default'}`}
                                             disabled={!isEditing}
                                         />
                                     </div>

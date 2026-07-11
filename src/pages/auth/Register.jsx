@@ -18,6 +18,7 @@ const Register = () => {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('');
   const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [role, setRole] = useState(initialRole);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
@@ -75,6 +76,13 @@ const Register = () => {
   const [passwordErrorMsg, setPasswordErrorMsg] = useState('');
   const [dobStatus, setDobStatus] = useState('idle'); // idle, valid, invalid
   const [dobErrorMsg, setDobErrorMsg] = useState('');
+
+  // Compute max allowable date (must be at least 18 years old)
+  const maxDobDate = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().split('T')[0];
+  })();
 
   const canGoNextStep1 = username && usernameStatus === 'available' && email && emailStatus === 'available' && password && passwordStrength >= 3 && password === confirmPassword;
   const canGoNextStep2 = phoneNumber && dobStatus === 'valid' && gender;
@@ -203,49 +211,31 @@ const Register = () => {
     return () => clearTimeout(timer);
   }, [username]);
 
-  // Auto-format dd/mm/yyyy and validate
+  // Validate native date picker value (YYYY-MM-DD)
   useEffect(() => {
-    if (!dateOfBirth || dateOfBirth.length < 10) {
+    if (!dateOfBirth) {
       setDobStatus('idle');
       setDobErrorMsg('');
       return;
     }
-
-    const parts = dateOfBirth.split('/');
-    if (parts.length === 3) {
-      const d = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10);
-      const y = parseInt(parts[2], 10);
-
-      const currentYear = new Date().getFullYear();
-
-      if (d === 0 || d > 31 || m === 0 || m > 12 || y < 1920 || y > currentYear) {
-        setDobStatus('invalid');
-        setDobErrorMsg('Invalid date format');
-        return;
-      }
-
-      // Check age specifically (both drivers and passengers must be at least 18 years old)
-      const dobDate = new Date(y, m - 1, d);
-      const ageDiffMs = Date.now() - dobDate.getTime();
-      const ageDate = new Date(ageDiffMs);
-      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-
-      if (age < 18) {
-        setDobStatus('invalid');
-        setDobErrorMsg(role === 'driver' 
-          ? 'Drivers must be at least 18 years old' 
-          : 'Passengers must be at least 18 years old to register'
-        );
-        return;
-      }
-
-      setDobStatus('valid');
-      setDobErrorMsg('');
-    } else {
+    const dobDate = new Date(dateOfBirth);
+    if (isNaN(dobDate.getTime())) {
       setDobStatus('invalid');
-      setDobErrorMsg('Invalid format');
+      setDobErrorMsg('Invalid date');
+      return;
     }
+    const ageDiffMs = Date.now() - dobDate.getTime();
+    const age = Math.abs(new Date(ageDiffMs).getUTCFullYear() - 1970);
+    if (age < 18) {
+      setDobStatus('invalid');
+      setDobErrorMsg(role === 'driver'
+        ? 'Drivers must be at least 18 years old'
+        : 'Passengers must be at least 18 years old to register'
+      );
+      return;
+    }
+    setDobStatus('valid');
+    setDobErrorMsg('');
   }, [dateOfBirth, role]);
 
   // Password Strength Checker
@@ -289,15 +279,7 @@ const Register = () => {
   }, [password]);
 
   const handleDateChange = (e) => {
-    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    if (value.length > 8) value = value.slice(0, 8); // Max 8 digits
-
-    let formatted = '';
-    if (value.length > 0) formatted += value.slice(0, 2);
-    if (value.length > 2) formatted += '/' + value.slice(2, 4);
-    if (value.length > 4) formatted += '/' + value.slice(4, 8);
-
-    setDateOfBirth(formatted);
+    setDateOfBirth(e.target.value); // native date picker returns YYYY-MM-DD
   };
 
   const submit = async (e) => {
@@ -330,15 +312,6 @@ const Register = () => {
       return;
     }
 
-    // Convert DD/MM/YYYY to YYYY-MM-DD for backend
-    let finalDob = dateOfBirth;
-    if (dateOfBirth && dateOfBirth.includes('/')) {
-      const parts = dateOfBirth.split('/');
-      if (parts.length === 3) {
-        finalDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
-      }
-    }
-
     setLoading(true);
 
     try {
@@ -349,9 +322,10 @@ const Register = () => {
         role,
         phone_number: phoneNumber,
         address: address,
-        date_of_birth: finalDob,
+        date_of_birth: dateOfBirth, // already YYYY-MM-DD from native picker
         gender: gender,
-        emergency_contact_name: emergencyContactName
+        emergency_contact_name: emergencyContactName,
+        emergency_contact_phone: emergencyContactPhone
       });
       setMessage('Registration successful! Please check your email for the verification code.');
       setTimeout(() => navigate(`/verify-email?email=${email}`), 1500);
@@ -540,18 +514,33 @@ const Register = () => {
                   />
                 </div>
 
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="text" value={dateOfBirth} onChange={handleDateChange} required
-                    placeholder="Date of Birth (DD / MM / YYYY)" maxLength="10"
-                    className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 pl-12 pr-12 outline-none transition-all font-bold text-slate-900 dark:text-white ${dobStatus === 'invalid' ? 'border-red-400 bg-red-50/10' : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'}`}
-                  />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                    {dobStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
-                    {dobStatus === 'invalid' && <XCircle className="w-4 h-4 text-red-500" />}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 flex items-center gap-2">
+                    <Calendar size={12} /> Date of Birth
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={handleDateChange}
+                      max={maxDobDate}
+                      min="1920-01-01"
+                      required
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl py-4 px-4 pr-12 outline-none transition-all font-bold text-slate-900 dark:text-white appearance-none cursor-pointer ${
+                        dobStatus === 'invalid'
+                          ? 'border-red-400 bg-red-50/10'
+                          : dobStatus === 'valid'
+                          ? 'border-green-400'
+                          : 'border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary/50'
+                      }`}
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                      {dobStatus === 'valid' && <Check className="w-4 h-4 text-green-500" />}
+                      {dobStatus === 'invalid' && <XCircle className="w-4 h-4 text-red-500" />}
+                    </div>
                   </div>
-                  {dobStatus === 'invalid' && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 absolute -bottom-5">{dobErrorMsg}</p>}
+                  {dobStatus === 'invalid' && <p className="text-[10px] text-red-500 font-bold ml-2">{dobErrorMsg}</p>}
+                  {dobStatus === 'valid' && <p className="text-[10px] text-green-600 font-bold ml-2">Age verified ✓</p>}
                 </div>
 
                 <div>
@@ -588,13 +577,29 @@ const Register = () => {
                   />
                 </div>
 
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="text" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} required
-                    placeholder="Emergency Contact Name"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
-                  />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Emergency Contact</label>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input
+                        type="text" value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} required
+                        placeholder="Contact Name"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="relative flex items-center">
+                      <div className="absolute left-4 flex items-center gap-1 pointer-events-none text-slate-500 font-black">
+                        🇵🇭 <span className="text-slate-300 ml-1">|</span> <span className="text-secondary dark:text-slate-300 ml-1">+63</span>
+                      </div>
+                      <input
+                        type="tel" value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} required
+                        placeholder="912 345 6789"
+                        maxLength="10"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 pl-28 pr-4 outline-none focus:ring-2 focus:ring-primary/50 transition-all font-bold text-slate-900 dark:text-white tracking-wider"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {role === 'driver' && (
