@@ -64,34 +64,34 @@ const SavedPlaceModal = ({ isOpen, onClose, onRefresh, place = null }) => {
                         initial={{ scale: 0.9, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[3rem] p-10 relative z-10 shadow-2xl overflow-hidden"
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] sm:rounded-[3rem] p-6 sm:p-10 relative z-10 shadow-2xl overflow-y-auto max-h-[90vh] scrollbar-none"
                     >
-                        <div className="absolute top-0 right-0 p-8">
+                        <div className="absolute top-0 right-0 p-4 sm:p-8">
                             <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors">
                                 <X size={20} className="text-slate-400" />
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-secondary">
+                        <div className="flex items-center gap-4 mb-6 sm:mb-8">
+                            <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-secondary shrink-0">
                                 <MapPin size={24} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black text-secondary dark:text-white uppercase tracking-tight">
+                                <h2 className="text-xl sm:text-2xl font-black text-secondary dark:text-white uppercase tracking-tight">
                                     {place ? 'Edit Place' : 'Save New Place'}
                                 </h2>
-                                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">For quicker ride requests</p>
+                                <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest">For quicker ride requests</p>
                             </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Place Name</label>
                                 <input
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="e.g. My Favorite Cafe"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl p-4 font-bold outline-none focus:border-primary transition-all dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl p-4 font-bold outline-none focus:border-primary transition-all dark:text-white text-sm"
                                     required
                                 />
                             </div>
@@ -102,23 +102,23 @@ const SavedPlaceModal = ({ isOpen, onClose, onRefresh, place = null }) => {
                                     value={address}
                                     onChange={(e) => setAddress(e.target.value)}
                                     placeholder="Enter specific address in Trento"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl p-4 font-bold outline-none focus:border-primary transition-all dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-2xl p-4 font-bold outline-none focus:border-primary transition-all dark:text-white text-sm"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block ml-1">Category</label>
-                                <div className="flex justify-between gap-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block ml-1">Category</label>
+                                <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                                     {categories.map((cat) => (
                                         <button
                                             key={cat.id}
                                             type="button"
                                             onClick={() => setCategory(cat.id)}
-                                            className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${category === cat.id ? 'bg-primary border-primary text-secondary' : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-400 hover:border-slate-200'}`}
+                                            className={`flex flex-col items-center gap-1.5 py-2 px-1 rounded-xl border-2 transition-all ${category === cat.id ? 'bg-primary border-primary text-secondary' : 'bg-slate-50 dark:bg-white/5 border-transparent text-slate-400 hover:border-slate-200'}`}
                                         >
-                                            <cat.icon size={18} />
-                                            <span className="text-[8px] font-extrabold uppercase">{cat.label}</span>
+                                            <cat.icon size={16} />
+                                            <span className="text-[8px] font-extrabold uppercase tracking-tight truncate w-full text-center">{cat.label}</span>
                                         </button>
                                     ))}
                                 </div>
