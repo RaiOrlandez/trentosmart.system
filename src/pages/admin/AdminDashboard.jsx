@@ -171,7 +171,7 @@ const AdminDashboard = () => {
   const isFetchingUsers = useRef(false);
   const pendingRefresh = useRef(false);
 
-  const fetchUsers = useCallback(async (forceRefresh = false) => {
+  const fetchUsers = useCallback(async (forceRefresh = false, showSpinner = false) => {
     if (isFetchingUsers.current) {
       // A fetch is in-flight. If this is a forceRefresh, queue it so the
       // list gets re-fetched after the current one completes.
@@ -179,6 +179,9 @@ const AdminDashboard = () => {
       return;
     }
     isFetchingUsers.current = true;
+    if (showSpinner) {
+      setLoadingUsers(true);
+    }
     try {
       const res = await api.get('/users/');
       const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
@@ -192,7 +195,7 @@ const AdminDashboard = () => {
       // If a force-refresh was queued while we were fetching, honour it now.
       if (pendingRefresh.current) {
         pendingRefresh.current = false;
-        setTimeout(() => fetchUsers(true), 50); // slight delay to avoid React batching issues
+        setTimeout(() => fetchUsers(true, false), 50); // slight delay to avoid React batching issues
       }
     }
   }, []);
@@ -251,7 +254,7 @@ const AdminDashboard = () => {
     fetchStats();
     fetchPendingIncidents();
     if (activeTab === 'drivers' || activeTab === 'passengers') {
-      fetchUsers();
+      fetchUsers(false, true);
     }
   }, [activeTab, fetchStats, fetchUsers, fetchPendingIncidents]);
 
@@ -261,11 +264,16 @@ const AdminDashboard = () => {
       fetchStats();
       fetchPendingIncidents();
       if (activeTab === 'drivers' || activeTab === 'passengers') {
-        fetchUsers(true);
+        fetchUsers(true, false);
       }
     }, 8000); // 8 seconds — fast enough to catch missed SOS signals
     return () => clearInterval(interval);
   }, [fetchStats, fetchPendingIncidents, fetchUsers, activeTab]);
+
+  // Clear search term when switching tabs to prevent state leak
+  useEffect(() => {
+    setSearchTerm('');
+  }, [activeTab]);
 
   // Process Real-time Events
   useEffect(() => {
@@ -306,7 +314,7 @@ const AdminDashboard = () => {
       }, ...prev].slice(0, 50));
       // 🔔 Audio chime + desktop popup
       notifyNewSignup(newSignup.username, newSignup.role);
-      fetchUsers();
+      fetchUsers(true, false);
     }
   }, [newSignup, fetchUsers, notifyNewSignup]);
 
@@ -374,7 +382,7 @@ const AdminDashboard = () => {
       if (systemEvent.type.includes('config')) fetchStats();
       if (systemEvent.type.includes('ride')) fetchStats();
       if (systemEvent.type.includes('withdrawal')) fetchStats();
-      if (systemEvent.type === 'driver_verified') fetchUsers();
+      if (systemEvent.type === 'driver_verified') fetchUsers(true, false);
       // 🔔 Route anomaly → chime + popup
       if (systemEvent.type === 'safety_alert' && systemEvent.message?.includes('off-route')) {
         notifyRouteAnomaly(systemEvent.driver || 'Unknown Driver', systemEvent.ride_id || '?');
@@ -514,9 +522,10 @@ const AdminDashboard = () => {
 
       // Optimistically update local state immediately
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true, verification_status: 'approved' } : u));
+      setSearchTerm('');
       alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
       // Refresh from server — queue mechanism ensures this runs even if polling is mid-flight
-      fetchUsers(true);
+      fetchUsers(true, false);
     } catch (err) {
       console.error('Driver approval error:', err);
       console.error('Error response:', err.response?.data);
@@ -552,8 +561,9 @@ const AdminDashboard = () => {
           setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
           // Close modal BEFORE alert to prevent UI freeze
           setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
+          setSearchTerm('');
           alert('Driver rejected.');
-          fetchUsers(true);
+          fetchUsers(true, false);
         } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
       }
     });
@@ -571,8 +581,9 @@ const AdminDashboard = () => {
           setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'suspended' } : u));
           // Close modal first, then alert, then refresh
           setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
+          setSearchTerm('');
           alert('Driver suspended.');
-          fetchUsers(true);
+          fetchUsers(true, false);
         } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
       }
     });
@@ -592,14 +603,15 @@ const AdminDashboard = () => {
           fetchStats(); // Update counters
           // Close modal BEFORE alert to prevent UI freeze
           setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
+          setSearchTerm('');
           alert('User deleted.');
           // Refresh from server to ensure sync (don't await — modal is already closed)
-          fetchUsers(true);
+          fetchUsers(true, false);
         } catch (err) {
           const serverMsg = err.response?.data?.detail || err.response?.data?.error || err.message;
           alert(`Failed to delete user record. Reason: ${serverMsg}`);
           // Refresh to restore correct state if deletion failed
-          fetchUsers(true);
+          fetchUsers(true, false);
         }
       }
     });
@@ -996,7 +1008,7 @@ const AdminDashboard = () => {
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={fetchUsers}
+                    onClick={() => fetchUsers(true, true)}
                     disabled={loadingUsers}
                     className="p-2 bg-white dark:bg-slate-800 text-slate-400 rounded-xl hover:text-primary transition-all shadow-md"
                     title="Refresh Data"
@@ -1247,7 +1259,7 @@ const AdminDashboard = () => {
               </h2>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={fetchUsers}
+                  onClick={() => fetchUsers(true, true)}
                   disabled={loadingUsers}
                   className="p-2 bg-white dark:bg-slate-800 text-slate-400 rounded-xl hover:text-secondary transition-all shadow-md"
                   title="Refresh Data"
@@ -1556,14 +1568,14 @@ const AdminDashboard = () => {
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         user={selectedUser}
-        onRefresh={fetchUsers}
+        onRefresh={() => fetchUsers(true, true)}
         onApprove={approveDriver}
       />
 
       <CreateUserModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onRefresh={fetchUsers}
+        onRefresh={() => fetchUsers(true, true)}
       />
 
       {/* ── Full Screen Avatar Viewer ── */}
