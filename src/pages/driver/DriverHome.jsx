@@ -94,6 +94,15 @@ const DriverHome = () => {
   const [broadcasts, setBroadcasts] = useState([]);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [currentBroadcast, setCurrentBroadcast] = useState(null);
+  const [dismissedBroadcasts, setDismissedBroadcasts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dismissed_broadcasts_d');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showAllBroadcastsModal, setShowAllBroadcastsModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showHeatMapModal, setShowHeatMapModal] = useState(false);
   const [showGCashVerify, setShowGCashVerify] = useState(false);
@@ -159,6 +168,15 @@ const DriverHome = () => {
       console.error('Failed to fetch broadcasts', err);
     }
   }, []);
+
+  const handleDismissBroadcast = (id) => {
+    setDismissedBroadcasts(prev => {
+      const updated = [...prev, id];
+      localStorage.setItem('dismissed_broadcasts_d', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -1059,43 +1077,66 @@ const DriverHome = () => {
             </p>
           </motion.div>
 
-          {Array.isArray(broadcasts) && broadcasts.length > 0 && (
-            <div className="order-5 space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2">Recent Advisories</h3>
-              {broadcasts.slice(0, 2).map((b, idx) => (
-                <motion.div
-                  key={b.id}
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: idx * 0.1 }}
-                  onClick={() => {
-                    setCurrentBroadcast(b);
-                    setShowBroadcastModal(true);
-                  }}
-                  className={`p-4 rounded-3xl border-2 flex items-start gap-4 shadow-lg cursor-pointer hover:scale-[1.02] transition-all ${b.is_critical ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}
-                >
-                  <div className={`p-3 rounded-2xl shrink-0 ${b.is_critical ? 'bg-red-500 text-white shadow-lg shadow-red-200 animate-pulse' : 'bg-primary text-secondary'}`}>
-                    <Megaphone size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${b.is_critical ? 'text-red-600' : 'text-primary-dark'}`}>
-                        {b.is_critical ? 'Priority Alert' : 'Advisory'}
-                      </span>
-                      <span className="text-[8px] text-slate-400 font-bold">{new Date(b.created_at).toLocaleDateString()}</span>
+          {(() => {
+            const visibleBroadcasts = broadcasts.filter(b => !dismissedBroadcasts.includes(b.id));
+            if (visibleBroadcasts.length === 0) return null;
+            return (
+              <div className="order-5 space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 px-2 flex items-center gap-2">
+                  <Bell size={12} className="text-primary" /> Recent Advisories
+                </h3>
+                {visibleBroadcasts.slice(0, 2).map((b, idx) => (
+                  <motion.div
+                    key={b.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className={`p-4 rounded-3xl border-2 flex items-start gap-4 shadow-lg cursor-pointer hover:scale-[1.02] transition-all relative group ${b.is_critical ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100 dark:bg-slate-900 dark:border-white/5'}`}
+                  >
+                    <div 
+                      onClick={() => {
+                        setCurrentBroadcast(b);
+                        setShowBroadcastModal(true);
+                      }}
+                      className="flex flex-1 items-start gap-4 min-w-0"
+                    >
+                      <div className={`p-3 rounded-2xl shrink-0 ${b.is_critical ? 'bg-red-500 text-white shadow-lg shadow-red-200 animate-pulse' : 'bg-primary text-secondary'}`}>
+                        <Megaphone size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${b.is_critical ? 'text-red-600' : 'text-primary-dark'}`}>
+                            {b.is_critical ? 'Priority Alert' : 'Advisory'}
+                          </span>
+                          <span className="text-[8px] text-slate-400 font-bold">{new Date(b.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <h4 className="text-xs font-black text-secondary dark:text-white truncate">{b.title}</h4>
+                        <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{b.message}</p>
+                      </div>
                     </div>
-                    <h4 className="text-xs font-black text-secondary truncate">{b.title}</h4>
-                    <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{b.message}</p>
-                  </div>
-                </motion.div>
-              ))}
-              {broadcasts.length > 2 && (
-                <button className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors">
-                  View All Announcements ({broadcasts.length})
-                </button>
-              )}
-            </div>
-          )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDismissBroadcast(b.id);
+                      }}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all shadow-sm"
+                      title="Dismiss Advisory"
+                    >
+                      <X size={12} />
+                    </button>
+                  </motion.div>
+                ))}
+                {visibleBroadcasts.length > 2 && (
+                  <button 
+                    onClick={() => setShowAllBroadcastsModal(true)}
+                    className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors text-center"
+                  >
+                    View All Announcements ({visibleBroadcasts.length})
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Status Switcher */}
           <motion.div
@@ -1751,6 +1792,107 @@ const DriverHome = () => {
                   I Understand
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* All LGU Announcements List Modal */}
+      <AnimatePresence>
+        {showAllBroadcastsModal && (
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden relative border border-slate-100 dark:border-white/5"
+            >
+              <div className="bg-gradient-to-r from-secondary to-primary-dark p-6 text-white flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
+                    <Bell size={20} className="text-primary animate-pulse" /> All LGU Bulletins
+                  </h2>
+                  <p className="text-[10px] font-bold opacity-80 mt-1">History of official announcements and traffic advisories</p>
+                </div>
+                <button
+                  onClick={() => setShowAllBroadcastsModal(false)}
+                  className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+                {broadcasts.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <Megaphone size={36} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-bold">No announcements yet.</p>
+                  </div>
+                ) : (
+                  broadcasts.map((b) => {
+                    const isDismissed = dismissedBroadcasts.includes(b.id);
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => {
+                          setCurrentBroadcast(b);
+                          setShowBroadcastModal(true);
+                        }}
+                        className={`p-4 rounded-2xl border-2 flex items-start gap-4 cursor-pointer hover:scale-[1.01] transition-all relative group ${b.is_critical ? 'bg-red-50 border-red-100' : 'bg-slate-50 dark:bg-slate-900/55 border-slate-100 dark:border-white/5'}`}
+                      >
+                        <div className={`p-2.5 rounded-xl shrink-0 ${b.is_critical ? 'bg-red-500 text-white' : 'bg-primary text-secondary'}`}>
+                          <Megaphone size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${b.is_critical ? 'text-red-600' : 'text-primary-dark'}`}>
+                              {b.is_critical ? 'Priority Alert' : 'Advisory'}
+                            </span>
+                            <span className="text-[8px] text-slate-400 font-bold">{new Date(b.created_at).toLocaleDateString()}</span>
+                            {isDismissed && (
+                              <span className="text-[8px] bg-slate-200 dark:bg-slate-800 text-slate-500 font-black px-1.5 py-0.25 rounded-md uppercase tracking-widest">Hidden</span>
+                            )}
+                          </div>
+                          <h4 className={`text-xs font-black truncate ${isDismissed ? 'text-slate-400 line-through' : 'text-secondary dark:text-white'}`}>{b.title}</h4>
+                          <p className={`text-[10px] line-clamp-2 mt-0.5 ${isDismissed ? 'text-slate-400' : 'text-slate-500'}`}>{b.message}</p>
+                        </div>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isDismissed) {
+                              setDismissedBroadcasts(prev => {
+                                const updated = prev.filter(id => id !== b.id);
+                                localStorage.setItem('dismissed_broadcasts_d', JSON.stringify(updated));
+                                return updated;
+                              });
+                            } else {
+                              handleDismissBroadcast(b.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-400 hover:text-primary transition-all border border-slate-200/50 dark:border-white/5 shadow-sm text-[9px] font-bold uppercase tracking-wider whitespace-nowrap z-10"
+                        >
+                          {isDismissed ? 'Show' : 'Hide'}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {dismissedBroadcasts.length > 0 && (
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-white/5 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setDismissedBroadcasts([]);
+                      localStorage.removeItem('dismissed_broadcasts_d');
+                    }}
+                    className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
+                  >
+                    Restore All Hidden Bulletins
+                  </button>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
