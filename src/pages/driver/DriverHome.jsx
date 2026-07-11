@@ -17,7 +17,6 @@ import {
   Star,
   Wrench,
   AlertTriangle,
-  Activity,
   Trophy,
   Target,
   Phone,
@@ -122,8 +121,6 @@ const DriverHome = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const { newRide, systemEvent } = useSystemEvents();
   const [showVerificationSuccess, setShowVerificationSuccess] = useState(false);
-  const [maintenanceLogs, setMaintenanceLogs] = useState([]);
-  const [trikeHealth, setTrikeHealth] = useState({ status: 'good', message: 'All systems operational' });
   const [dailyGoal, setDailyGoal] = useState(1500); // Default ₱1500 goal
 
   // Resolved destination place name (reverse-geocoded from coordinates)
@@ -135,30 +132,6 @@ const DriverHome = () => {
   const [fitBoundsKey, setFitBoundsKey] = useState(0);
   const [driverEta, setDriverEta] = useState(null);
 
-  const fetchMaintenanceLogs = useCallback(async () => {
-    try {
-      const res = await api.get('/maintenance-logs/');
-      const logs = Array.isArray(res.data) ? res.data : [];
-      setMaintenanceLogs(logs);
-
-      if (logs.length > 0) {
-        const latest = logs[0];
-        const nextService = new Date(latest.next_service_date);
-        const now = new Date();
-        const diffDays = Math.ceil((nextService - now) / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 0) {
-          setTrikeHealth({ status: 'critical', message: 'Service Overdue!' });
-        } else if (diffDays < 7) {
-          setTrikeHealth({ status: 'warning', message: `Service in ${diffDays} days` });
-        } else {
-          setTrikeHealth({ status: 'good', message: 'Healthy' });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch maintenance logs', err);
-    }
-  }, []);
 
   const fetchBroadcasts = useCallback(async () => {
     try {
@@ -190,11 +163,10 @@ const DriverHome = () => {
 
   useEffect(() => {
     fetchBroadcasts();
-    fetchMaintenanceLogs();
     if (user && user.role === 'driver') {
       fetchAnalytics();
     }
-  }, [fetchBroadcasts, fetchMaintenanceLogs, fetchAnalytics, user?.id, user?.role]);
+  }, [fetchBroadcasts, fetchAnalytics, user?.id, user?.role]);
 
   useEffect(() => {
     // Only override localStorage value once on first mount if the server says a different state.
@@ -977,60 +949,6 @@ const DriverHome = () => {
 
         {/* Left Column: Stats and Controls */}
         <div className="w-full lg:w-[380px] xl:w-[420px] flex flex-col gap-6 order-2 lg:order-1">
-          {/* Trike Health Smart Badge */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className={`order-3 p-6 rounded-[2.5rem] border-2 shadow-xl overflow-hidden relative ${trikeHealth.status === 'critical' ? 'bg-red-50 border-red-100 text-red-900' :
-              trikeHealth.status === 'warning' ? 'bg-amber-50 border-amber-100 text-amber-900' :
-                'bg-white border-slate-100 text-secondary'
-              }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-2xl ${trikeHealth.status === 'critical' ? 'bg-red-500 text-white shadow-lg shadow-red-200' :
-                trikeHealth.status === 'warning' ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' :
-                  'bg-primary text-secondary'
-                }`}>
-                <Wrench size={20} />
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Trike Health</span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <Activity size={12} className={trikeHealth.status === 'good' ? 'text-green-500' : ''} />
-                  <span className="text-xs font-black uppercase tracking-tight">
-                    {trikeHealth.status.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-sm font-black leading-tight">{trikeHealth.message}</p>
-              <p className="text-[10px] font-bold opacity-60">
-                Last Checkup: {maintenanceLogs.length > 0 ? new Date(maintenanceLogs[0].service_date).toLocaleDateString() : 'Never'}
-              </p>
-            </div>
-
-            {/* Micro-Progress Bar */}
-            <div className="mt-4 h-1.5 bg-black/5 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: trikeHealth.status === 'good' ? '90%' : trikeHealth.status === 'warning' ? '40%' : '10%' }}
-                className={`h-full ${trikeHealth.status === 'critical' ? 'bg-red-500' :
-                  trikeHealth.status === 'warning' ? 'bg-amber-500' :
-                    'bg-green-500'
-                  }`}
-              />
-            </div>
-
-            {trikeHealth.status !== 'good' && (
-              <Link to="/driver/maintenance" className="mt-4 flex items-center justify-center gap-2 bg-white/50 backdrop-blur-sm border border-black/5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all">
-                <AlertTriangle size={12} />
-                Fix Issue
-              </Link>
-            )}
-          </motion.div>
-
           {/* Daily Goal Tracker */}
           <motion.div
             initial={{ y: 20, opacity: 0 }}
@@ -1203,9 +1121,7 @@ const DriverHome = () => {
                   <p className="text-[10px] text-slate-500 font-bold uppercase">Maintenance</p>
                   <Wrench size={12} className="text-slate-300 group-hover:text-primary transition-colors" />
                 </div>
-                <p className="text-sm font-black text-secondary mt-1 truncate">
-                  {trikeHealth.status === 'good' ? 'Healthy' : 'Check Logs'}
-                </p>
+                <p className="text-sm font-black text-secondary mt-1 truncate">View Logs</p>
               </Link>
             </div>
           </motion.div>
