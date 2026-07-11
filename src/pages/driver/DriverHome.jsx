@@ -846,13 +846,15 @@ const DriverHome = () => {
     }
 
     try {
-      await api.post('/incidents/', {
+      const res = await api.post('/incidents/', {
         lat: currentLat,
         lng: currentLng,
         description: 'Driver SOS Triggered from Mobile App'
       });
+      console.log('[SOS] ✅ Emergency signal sent successfully. Incident ID:', res.data?.id, '| Status:', res.status);
     } catch (err) {
-      console.error('Failed to send SOS alert', err);
+      console.error('[SOS] ❌ Failed to send SOS alert:', err?.response?.status, err?.response?.data || err.message);
+      alert(`⚠️ SOS signal failed to send (${err?.response?.status || 'Network Error'}). Please retry or call emergency services directly.`);
     }
     setTimeout(() => setShowSOS(false), 5000);
   };

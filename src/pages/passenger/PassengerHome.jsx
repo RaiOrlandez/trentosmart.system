@@ -1112,7 +1112,7 @@ const PassengerHome = () => {
     }
 
     try {
-      await api.post('/incidents/', {
+      const res = await api.post('/incidents/', {
         lat: currentLat,
         lng: currentLng,
         ride: activeRideId || null,
@@ -1120,8 +1120,11 @@ const PassengerHome = () => {
           ? `Passenger SOS Triggered during Ride #${activeRideId}`
           : 'Passenger SOS Triggered from Mobile App Dashboard'
       });
+      console.log('[SOS] ✅ Emergency signal sent successfully. Incident ID:', res.data?.id, '| Status:', res.status);
     } catch (err) {
-      console.error('Failed to send SOS alert', err);
+      console.error('[SOS] ❌ Failed to send SOS alert:', err?.response?.status, err?.response?.data || err.message);
+      // Show visible error so admin knows the signal didn't reach the server
+      alert(`⚠️ SOS signal failed to send (${err?.response?.status || 'Network Error'}). Please retry or call emergency services directly.`);
     }
     setTimeout(() => setShowSOS(false), 5000);
   };

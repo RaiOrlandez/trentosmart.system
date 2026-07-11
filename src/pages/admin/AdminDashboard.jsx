@@ -2103,11 +2103,7 @@ const SafetyHubTab = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [incRes, compRes] = await Promise.all([
         api.get('/incidents/'),
@@ -2122,7 +2118,14 @@ const SafetyHubTab = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch on mount, then poll every 10 seconds for live updates
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   const handleUpdateCase = async (type, id, data) => {
     try {
