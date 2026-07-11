@@ -528,7 +528,31 @@ const PassengerHome = () => {
           if (ride.payment_method) setPaymentMethod(ride.payment_method);
 
           if (ride.status === 'requested') {
-            setStatus('requesting');
+            const requestedTime = new Date(ride.requested_at).getTime();
+            const elapsedSeconds = Math.floor((Date.now() - requestedTime) / 1000);
+            const totalWaitTime = ride.targeted_driver_id ? 30 : 180;
+            const remaining = totalWaitTime - elapsedSeconds;
+
+            if (remaining > 0) {
+              setStatus('requesting');
+              setRequestTimeRemaining(remaining);
+            } else {
+              // Stale request has expired: cancel on server and reset to idle dashboard
+              console.log('Stale ride request detected on mount. Auto-cancelling.');
+              try {
+                await api.patch(`/rides/${ride.id}/`, { status: 'cancelled' });
+              } catch (err) {
+                console.error('Failed to cancel stale ride on server', err);
+              }
+              setStatus('idle');
+              setPickup('');
+              setDest('');
+              setFare(0);
+              setActiveRideId(null);
+              setSelectedDriverId(null);
+              setMarkers([]);
+              setRouteCoordinates(null);
+            }
           } else if (ride.status === 'accepted') {
             setStatus('matched');
             setAssignedDriver(ride.driver);
