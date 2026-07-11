@@ -17,34 +17,25 @@ const SOUNDS = {
 };
 
 // Global audio instances to ensure they are created once and can be pre-unlocked
-let requestAudio = null;
-let chimeAudio = null;
-let sirenAudio = null;
+const getAudioInstance = (src) => {
+  if (typeof window === 'undefined') return null;
+  const audio = new Audio(src);
+  audio.preload = 'auto';
+  audio.volume = 1;
+  return audio;
+};
+
+let requestAudio = getAudioInstance(SOUNDS.request);
+let chimeAudio = getAudioInstance(SOUNDS.chime);
+let sirenAudio = getAudioInstance(SOUNDS.siren);
 let isUnlocked = false;
 
 // Per-sound last-played timestamps for cooldown (prevent double-fire within 500ms)
 const lastPlayedAt = { request: 0, chime: 0, siren: 0 };
 const SOUND_COOLDOWN_MS = 500;
 
-// Helper to initialize audio instances safely
-const initAudio = () => {
-  if (typeof window === 'undefined') return;
-  if (!requestAudio) {
-    requestAudio = new Audio(SOUNDS.request);
-    requestAudio.preload = 'auto';
-    requestAudio.volume = 1;
-  }
-  if (!chimeAudio) {
-    chimeAudio = new Audio(SOUNDS.chime);
-    chimeAudio.preload = 'auto';
-    chimeAudio.volume = 1;
-  }
-  if (!sirenAudio) {
-    sirenAudio = new Audio(SOUNDS.siren);
-    sirenAudio.preload = 'auto';
-    sirenAudio.volume = 1;
-  }
-};
+// Helper to initialize audio instances safely (no-op since now globally instantiated)
+const initAudio = () => {};
 
 // Click handler to unlock all audio elements (silent unlock — no audible click/glitch)
 const unlockAudio = () => {
