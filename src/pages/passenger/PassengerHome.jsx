@@ -690,6 +690,34 @@ const PassengerHome = () => {
     } catch { }
   };
 
+  // Track which ride IDs already triggered the "ride started" chime.
+  const notifiedOngoingRideIds = React.useRef((() => {
+    try {
+      const stored = sessionStorage.getItem('notified_ongoing_rides_p');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  })());
+  const addNotifiedOngoingRide = (id) => {
+    notifiedOngoingRideIds.current.add(id);
+    try {
+      sessionStorage.setItem('notified_ongoing_rides_p', JSON.stringify([...notifiedOngoingRideIds.current]));
+    } catch { }
+  };
+
+  // Track which ride IDs already triggered the "ride completed" chime.
+  const notifiedCompletedRideIds = React.useRef((() => {
+    try {
+      const stored = sessionStorage.getItem('notified_completed_rides_p');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  })());
+  const addNotifiedCompletedRide = (id) => {
+    notifiedCompletedRideIds.current.add(id);
+    try {
+      sessionStorage.setItem('notified_completed_rides_p', JSON.stringify([...notifiedCompletedRideIds.current]));
+    } catch { }
+  };
+
   // Handle driver requesting payment via WebSocket
   useEffect(() => {
     if (messages && messages.length > 0) {
@@ -855,13 +883,19 @@ const PassengerHome = () => {
       }
       if (newStatus === 'on_route') {
         setStatus('ongoing');
-        playSound('chime');
-        notify('🚀 Ride Started!', 'Your driver is now en route to the destination.');
+        if (activeRideId && !notifiedOngoingRideIds.current.has(activeRideId)) {
+          addNotifiedOngoingRide(activeRideId);
+          playSound('chime');
+          notify('🚀 Ride Started!', 'Your driver is now en route to the destination.');
+        }
       }
       if (newStatus === 'completed') {
         setStatus('arrived');
-        playSound('chime');
-        notify('🏁 Ride Completed!', 'You have arrived at your destination.');
+        if (activeRideId && !notifiedCompletedRideIds.current.has(activeRideId)) {
+          addNotifiedCompletedRide(activeRideId);
+          playSound('chime');
+          notify('🏁 Ride Completed!', 'You have arrived at your destination.');
+        }
         // Auto-trigger payment modal based on method
         if (paymentMethod === 'gcash') {
           setShowGCashPayment(true);
