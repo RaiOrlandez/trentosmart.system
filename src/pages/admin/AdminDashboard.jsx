@@ -437,15 +437,20 @@ const AdminDashboard = () => {
       // Update Live Map Markers if on live tab
       if (activeTab === 'live') {
         setLiveMarkers(prev => {
+          // If the driver logged out (went offline), remove them from the map immediately
+          if (!driverLocation.is_online) {
+            return prev.filter(m => m.id !== driverLocation.id);
+          }
+
           const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
           const newMarker = {
             id: driverLocation.id,
             lat: parseFloat(driverLocation.lat),
             lng: parseFloat(driverLocation.lng),
             title: driverLocation.username,
-            info: `Driver: ${driverLocation.username}\nStatus: ${driverLocation.is_online ? 'Available ✅' : 'Offline 🌑'}`,
+            info: `Driver: ${driverLocation.username}\nStatus: Available ✅`,
             isDriver: true,
-            isOnline: driverLocation.is_online
+            isOnline: true
           };
 
           if (existingIdx >= 0) {

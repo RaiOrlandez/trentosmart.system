@@ -195,7 +195,7 @@ function MapController({ markers, center }) {
 
     return (
         userInteracted ? (
-            <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 1000 }}>
+            <div className="absolute md:bottom-6 md:right-6 bottom-20 right-4 z-[1000]" style={{ pointerEvents: 'auto' }}>
                 <button
                     onClick={() => {
                         setUserInteracted(false);
@@ -209,15 +209,17 @@ function MapController({ markers, center }) {
                     style={{
                         background: '#FFD700',
                         color: '#0f172a',
-                        fontWeight: 'bold',
-                        fontSize: '11px',
-                        padding: '8px 16px',
+                        fontWeight: 'black',
+                        fontSize: '10px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        padding: '10px 18px',
                         borderRadius: '999px',
                         border: '2px solid white',
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
                         cursor: 'pointer'
                     }}
-                    className="hover:scale-105 transition-transform"
+                    className="hover:scale-105 active:scale-95 transition-transform"
                 >
                     🎯 Recenter Map
                 </button>
