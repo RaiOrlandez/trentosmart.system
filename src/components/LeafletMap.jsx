@@ -159,10 +159,9 @@ function MapController({ markers, center }) {
         const lngDiff = Math.abs(center.lng - lastCenterRef.current.lng);
 
         if (latDiff > DEAD_ZONE_DEG || lngDiff > DEAD_ZONE_DEG) {
-            map.flyTo([center.lat, center.lng], map.getZoom(), {
+            map.panTo([center.lat, center.lng], {
                 animate: true,
-                duration: 0.8,
-                easeLinearity: 0.5,
+                duration: 0.6,
             });
             lastCenterRef.current = { lat: center.lat, lng: center.lng };
         }
@@ -303,7 +302,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
 
         const animate = (timestamp) => {
             if (!startTimeRef.current) startTimeRef.current = timestamp;
-            const progress = (timestamp - startTimeRef.current) / 250; // 250ms transition
+            const progress = (timestamp - startTimeRef.current) / 1500; // 1500ms — spans a full GPS update interval for smooth glide
             const t = easeOutCubic(Math.min(progress, 1));
 
             const lat = startPosRef.current.lat + (targetPosRef.current.lat - startPosRef.current.lat) * t;
@@ -483,12 +482,12 @@ const LeafletMap = ({
                     />
                 )}
 
-                {/* GPS Accuracy Confidence Circle */}
-                {driver && driver.accuracy && driver.accuracy > 0 && driver.accuracy < 500 && (
+                {/* GPS Accuracy Confidence Ring — only show when fix is good (≤80m) and not too large */}
+                {driver && driver.accuracy && driver.accuracy > 0 && driver.accuracy <= 80 && (
                     <Circle
                         center={[driver.lat, driver.lng]}
                         radius={driver.accuracy}
-                        pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.05, weight: 1, dashArray: '4, 4' }}
+                        pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.07, weight: 1.5, opacity: 0.4 }}
                     />
                 )}
 
