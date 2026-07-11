@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import Map from '../../components/Map';
 import { ensureImageUrl } from '../../utils/url';
@@ -76,7 +76,6 @@ const AdminDashboard = () => {
   const [resolvingSOS, setResolvingSOS] = useState(false);
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
-  const isFetchingUsers = React.useRef(false);           // prevent overlapping fetches
   const notifiedSosIds = React.useRef(new Set());        // track which SOS incidents already triggered siren
   const isFirstSosFetch = React.useRef(true);            // true on initial load — skip siren for pre-existing old incidents
 
@@ -169,21 +168,32 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  const isFetchingUsers = useRef(false);
+  const pendingRefresh = useRef(false);
+
   const fetchUsers = useCallback(async (forceRefresh = false) => {
-    if (isFetchingUsers.current) return; // prevent concurrent fetches (forceRefresh doesn't bypass — just triggers outside debounce)
+    if (isFetchingUsers.current) {
+      // A fetch is in-flight. If this is a forceRefresh, queue it so the
+      // list gets re-fetched after the current one completes.
+      if (forceRefresh) pendingRefresh.current = true;
+      return;
+    }
     isFetchingUsers.current = true;
-    setLoadingUsers(true);
     try {
       const res = await api.get('/users/');
       const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-      // Ensure newest are on top
       const sorted = [...data].sort((a, b) => new Date(b.date_joined) - new Date(a.date_joined));
       setUsers(sorted);
     } catch (err) {
       console.error("Failed to fetch users", err);
     } finally {
-      setLoadingUsers(false);
       isFetchingUsers.current = false;
+      setLoadingUsers(false);
+      // If a force-refresh was queued while we were fetching, honour it now.
+      if (pendingRefresh.current) {
+        pendingRefresh.current = false;
+        setTimeout(() => fetchUsers(true), 50); // slight delay to avoid React batching issues
+      }
     }
   }, []);
 
@@ -505,9 +515,8 @@ const AdminDashboard = () => {
       // Optimistically update local state immediately
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: true, verification_status: 'approved' } : u));
       alert(`Driver Verified Successfully! ${response.data.detail || ''}`);
-
-      // Force refresh to ensure DB-confirmed state overrides optimistic update
-      await fetchUsers(true);
+      // Refresh from server — queue mechanism ensures this runs even if polling is mid-flight
+      fetchUsers(true);
     } catch (err) {
       console.error('Driver approval error:', err);
       console.error('Error response:', err.response?.data);
@@ -541,8 +550,10 @@ const AdminDashboard = () => {
         try {
           await api.post(`/users/${userId}/reject_driver/`, { pin });
           setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified_driver: false, verification_status: 'rejected' } : u));
+          // Close modal BEFORE alert to prevent UI freeze
+          setPinModalConfig({ isOpen: false, actionName: '', onConfirm: null });
           alert('Driver rejected.');
-          await fetchUsers(true);
+          fetchUsers(true);
         } catch (err) { alert(err.response?.data?.detail || 'Action failed'); }
       }
     });
