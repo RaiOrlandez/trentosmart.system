@@ -532,6 +532,12 @@ const PassengerHome = () => {
           } else if (ride.status === 'accepted') {
             setStatus('matched');
             setAssignedDriver(ride.driver);
+            // Play chime ONCE when polling detects a newly accepted ride
+            if (!notifiedMatchedRideIds.current.has(ride.id)) {
+              notifiedMatchedRideIds.current.add(ride.id);
+              playSound('chime');
+              notify('Driver Found!', 'A driver has accepted your ride request.');
+            }
           } else if (ride.status === 'on_route') {
             setStatus('ongoing');
             setAssignedDriver(ride.driver);
@@ -627,6 +633,8 @@ const PassengerHome = () => {
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
   const { playSound, notify } = useNotifications();
+  // Track which ride IDs already triggered the "driver found" chime (deduplicates across WS + polling + system event)
+  const notifiedMatchedRideIds = React.useRef(new Set());
 
   // Handle driver requesting payment via WebSocket
   useEffect(() => {
@@ -739,8 +747,12 @@ const PassengerHome = () => {
         if (matchedRide.driver) {
           setAssignedDriver(matchedRide.driver);
         }
-        playSound('chime');
-        notify('🚕 Driver Found!', 'A driver has accepted your ride request.');
+        // Play chime only if not already played by WebSocket path
+        if (!notifiedMatchedRideIds.current.has(matchedRide.id)) {
+          notifiedMatchedRideIds.current.add(matchedRide.id);
+          playSound('chime');
+          notify('Driver Found!', 'A driver has accepted your ride request.');
+        }
       }
     }
 
@@ -774,8 +786,12 @@ const PassengerHome = () => {
         if (wsData.data && wsData.data.driver) {
           setAssignedDriver(wsData.data.driver);
         }
-        playSound('chime');
-        notify('🚕 Driver Found!', 'A driver has accepted your ride request.');
+        // Play chime only once per ride (guard against system event also firing)
+        if (activeRideId && !notifiedMatchedRideIds.current.has(activeRideId)) {
+          notifiedMatchedRideIds.current.add(activeRideId);
+          playSound('chime');
+          notify('Driver Found!', 'A driver has accepted your ride request.');
+        }
       }
       if (newStatus === 'driver_rejected') {
         setStatus('idle');

@@ -22,9 +22,9 @@ let chimeAudio = null;
 let sirenAudio = null;
 let isUnlocked = false;
 
-// Per-sound last-played timestamps for cooldown (prevent double-fire within 2s)
+// Per-sound last-played timestamps for cooldown (prevent double-fire within 500ms)
 const lastPlayedAt = { request: 0, chime: 0, siren: 0 };
-const SOUND_COOLDOWN_MS = 2000;
+const SOUND_COOLDOWN_MS = 500;
 
 // Helper to initialize audio instances safely
 const initAudio = () => {
