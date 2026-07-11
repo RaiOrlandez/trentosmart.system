@@ -303,7 +303,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
 
         const animate = (timestamp) => {
             if (!startTimeRef.current) startTimeRef.current = timestamp;
-            const progress = (timestamp - startTimeRef.current) / 900;
+            const progress = (timestamp - startTimeRef.current) / 250; // 250ms transition
             const t = easeOutCubic(Math.min(progress, 1));
 
             const lat = startPosRef.current.lat + (targetPosRef.current.lat - startPosRef.current.lat) * t;
@@ -320,30 +320,6 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
         requestRef.current = requestAnimationFrame(animate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [position[0], position[1], snapToPosition]);
-
-    // Heading rotation effect (smoothly rotates the marker element dynamically)
-    useEffect(() => {
-        if (!markerRef.current || !isDriver) return;
-
-        let angle = heading ?? null;
-        if (angle === null) {
-            const dy = targetPosRef.current.lat - startPosRef.current.lat;
-            const dx = targetPosRef.current.lng - startPosRef.current.lng;
-            if (Math.abs(dx) > 0.000005 || Math.abs(dy) > 0.000005) {
-                angle = Math.atan2(dx, dy) * (180 / Math.PI);
-            }
-        }
-
-        if (angle !== null) {
-            const el = markerRef.current.getElement();
-            if (el) {
-                el.style.transition = 'transform 0.5s ease-out';
-                el.style.transformOrigin = 'center center';
-                el.style.transform = `rotate(${angle}deg)`;
-            }
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isDriver, heading, position[0], position[1]]);
 
     useEffect(() => () => cancelAnimationFrame(requestRef.current), []);
 
