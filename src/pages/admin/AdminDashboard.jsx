@@ -195,7 +195,9 @@ const AdminDashboard = () => {
       // Look for any pending/active incidents
       const unresolved = incidentsData.filter(i => i.status === 'pending' || i.status === 'active');
       if (unresolved.length > 0) {
-        const latestSos = unresolved[0];
+        // Explicitly sort unresolved incidents by created_at descending (newest first) to ensure correctness
+        const sortedUnresolved = [...unresolved].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        const latestSos = sortedUnresolved[0];
         setActiveSOS({
           id: latestSos.id,
           user: latestSos.username || `User #${latestSos.user}`,
@@ -204,10 +206,12 @@ const AdminDashboard = () => {
           description: latestSos.description
         });
         setShowSOSBanner(true);
-        // Only play siren once per unique incident ID, not on every poll cycle
-        if (!notifiedSosIds.current.has(latestSos.id)) {
-          notifiedSosIds.current.add(latestSos.id);
-          notifyEmergencySOS(latestSos.username || `User #${latestSos.user}`, latestSos.description);
+        
+        // Find if there is ANY unresolved incident that has not triggered the siren yet
+        const unnotified = sortedUnresolved.find(i => !notifiedSosIds.current.has(i.id));
+        if (unnotified) {
+          notifiedSosIds.current.add(unnotified.id);
+          notifyEmergencySOS(unnotified.username || `User #${unnotified.user}`, unnotified.description);
         }
       } else {
         setShowSOSBanner(false);
@@ -300,8 +304,12 @@ const AdminDashboard = () => {
       setActiveSOS(emergencyAlert);
       setShowSOSBanner(true);
       setActiveTab('live'); // Force switch to map to see location
+      
       // 🚨 Looping siren + urgent desktop popup (stays until admin dismisses)
-      notifyEmergencySOS(emergencyAlert.user, emergencyAlert.description);
+      if (emergencyAlert.id && !notifiedSosIds.current.has(emergencyAlert.id)) {
+        notifiedSosIds.current.add(emergencyAlert.id);
+        notifyEmergencySOS(emergencyAlert.user, emergencyAlert.description);
+      }
       fetchStats();
     }
   }, [emergencyAlert, fetchStats, notifyEmergencySOS]);
