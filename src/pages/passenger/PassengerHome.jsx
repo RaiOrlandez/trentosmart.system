@@ -91,6 +91,9 @@ const PassengerHome = () => {
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [assignedDriver, setAssignedDriver] = useState(null);
+  // Pre-cached share token so iOS clipboard/share never needs an async fetch on-click
+  const [cachedShareToken, setCachedShareToken] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const [distance, setDistance] = useState(0);
   const [savedPlaces, setSavedPlaces] = useState([]);
@@ -153,6 +156,7 @@ const PassengerHome = () => {
     setFare(0);
     setActiveRideId(null);
     setSelectedDriverId(null);
+    setCachedShareToken(null);
   }, [activeRideId]);
 
   // Quick-book from map POI: set pickup from a landmark tap
@@ -574,6 +578,8 @@ const PassengerHome = () => {
           } else if (ride.status === 'accepted') {
             setStatus('matched');
             setAssignedDriver(ride.driver);
+            // Pre-cache share token for instant iOS share (must be before button tap)
+            if (ride.share_token) setCachedShareToken(ride.share_token);
             // Play chime ONCE when polling detects a newly accepted ride
             if (!notifiedMatchedRideIds.current.has(ride.id)) {
               addNotifiedMatchedRide(ride.id);
@@ -583,6 +589,8 @@ const PassengerHome = () => {
           } else if (ride.status === 'on_route') {
             setStatus('ongoing');
             setAssignedDriver(ride.driver);
+            // Pre-cache share token for ongoing ride too
+            if (ride.share_token) setCachedShareToken(ride.share_token);
           }
 
           // Restore markers on map
@@ -1993,21 +2001,26 @@ const PassengerHome = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          const res = await api.get(`/rides/${activeRideId}/`);
-                          const token = res.data.share_token;
-                          const url = `${window.location.origin}/track/${token}`;
-                          await navigator.clipboard.writeText(url);
-                          alert("🔒 Live tracking link copied to clipboard! You can now share it with family.");
-                        } catch (e) {
-                          alert("Could not generate link.");
+                      onClick={() => {
+                        const token = cachedShareToken;
+                        if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
+                        const url = `${window.location.origin}/track/${token}`;
+                        if (navigator.share) {
+                          navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => {});
+                        } else {
+                          try {
+                            navigator.clipboard.writeText(url);
+                            setShareCopied(true);
+                            setTimeout(() => setShareCopied(false), 2500);
+                          } catch { alert(url); }
                         }
                       }}
-                      className="p-3 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100/60 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                      className={`p-3 border rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${
+                        shareCopied ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-100/60'
+                      }`}
                     >
-                      <Share2 size={16} className="text-blue-500" />
-                      <span className="text-[9px] font-black uppercase tracking-wider text-blue-600">Share</span>
+                      <Share2 size={16} className={shareCopied ? 'text-green-500' : 'text-blue-500'} />
+                      <span className={`text-[9px] font-black uppercase tracking-wider ${shareCopied ? 'text-green-600' : 'text-blue-600'}`}>{shareCopied ? 'Copied!' : 'Share'}</span>
                     </button>
                     <button
                       type="button"
@@ -2213,21 +2226,26 @@ const PassengerHome = () => {
           {/* Share Ride Button */}
           {(status === 'matched' || status === 'ongoing') && activeRideId && (
             <button
-              onClick={async () => {
-                try {
-                  const res = await api.get(`/rides/${activeRideId}/`);
-                  const token = res.data.share_token;
-                  const url = `${window.location.origin}/track/${token}`;
-                  await navigator.clipboard.writeText(url);
-                  alert("🔒 Live tracking link copied to clipboard! You can now share it with family.");
-                } catch (e) {
-                  alert("Could not generate link.");
+              onClick={() => {
+                const token = cachedShareToken;
+                if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
+                const url = `${window.location.origin}/track/${token}`;
+                if (navigator.share) {
+                  navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => {});
+                } else {
+                  try {
+                    navigator.clipboard.writeText(url);
+                    setShareCopied(true);
+                    setTimeout(() => setShareCopied(false), 2500);
+                  } catch { alert(url); }
                 }
               }}
-              className="hidden md:flex bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border border-blue-500/25 active:scale-95"
+              className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border active:scale-95 ${
+                shareCopied ? 'bg-green-600 border-green-500/25' : 'bg-blue-600 hover:bg-blue-700 border-blue-500/25'
+              } text-white`}
             >
               <Share2 size={20} className="text-white" />
-              <span className="text-sm font-bold">Share Ride</span>
+              <span className="text-sm font-bold">{shareCopied ? 'Link Copied!' : 'Share Ride'}</span>
             </button>
           )}
           {/* Chat with Driver Button — shows only during active ride */}

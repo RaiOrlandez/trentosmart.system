@@ -145,9 +145,29 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
         retryCount.current = 0;
         connect();
 
+        // ── iOS Safari Visibility Fix ─────────────────────────────────────────
+        // iOS aggressively kills WebSocket connections when the browser tab is
+        // backgrounded or the screen is locked. When the user returns to the
+        // tab, the existing exponential backoff can wait up to 30 seconds.
+        // Listening to visibilitychange gives us an immediate reconnect.
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && isMounted.current) {
+                const ws = socketRef.current;
+                const isDisconnected = !ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING;
+                if (isDisconnected) {
+                    console.log('[RideTracking] Tab became visible — reconnecting WebSocket immediately.');
+                    clearTimeout(retryTimer.current);
+                    retryCount.current = 0; // reset backoff on user-initiated resume
+                    connect();
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         return () => {
             isMounted.current = false;
             clearTimeout(retryTimer.current);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (socketRef.current) {
                 socketRef.current.onclose = null; // suppress reconnect on unmount
                 socketRef.current.close();
