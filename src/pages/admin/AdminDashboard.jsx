@@ -113,7 +113,6 @@ const AdminDashboard = () => {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [demandPoints, setDemandPoints] = useState([]);
-  const [refreshInterval, setRefreshInterval] = useState(null);
   const [rideData, setRideData] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
   const [dailyData, setDailyData] = useState([]);

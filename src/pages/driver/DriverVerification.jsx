@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Upload, FileText, CheckCircle, AlertCircle, ArrowLeft, Camera, Image as ImageIcon, ChevronRight, Check } from 'lucide-react';
+import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {

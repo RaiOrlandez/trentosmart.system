@@ -69,7 +69,7 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [taglineIdx, setTaglineIdx] = useState(0);
 
-  const { login, logout } = useContext(AuthContext);
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const sessionExpired = new URLSearchParams(location.search).get('expired') === 'true';
@@ -81,7 +81,7 @@ const Login = () => {
     setTaglineIdx(0);
     const t = setInterval(() => setTaglineIdx(i => (i + 1) % cfg.taglines.length), 4000);
     return () => clearInterval(t);
-  }, [activeRole]);
+  }, [activeRole, cfg.taglines.length]);
 
   // Clear fields & errors on tab switch
   const switchRole = (role) => {

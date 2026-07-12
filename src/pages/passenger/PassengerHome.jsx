@@ -71,6 +71,7 @@ const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
 
 const PassengerHome = () => {
   const navigate = useNavigate();
+  const { playSound, notify } = useNotifications();
   const [pickup, setPickup] = useState('');
   const [dest, setDest] = useState('');
   const [status, setStatus] = useState('idle');
@@ -83,11 +84,9 @@ const PassengerHome = () => {
   const [surgeInfo, setSurgeInfo] = useState({ multiplier: 1.0, isSurge: false });
   const [showPayment, setShowPayment] = useState(false);
   const [showGCashPayment, setShowGCashPayment] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const [isRequestingRide, setIsRequestingRide] = useState(false);
   const [showRating, setShowRating] = useState(false);
-  const gcashEnabled = process.env.REACT_APP_GCASH_ENABLED === 'true';
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [assignedDriver, setAssignedDriver] = useState(null);
@@ -226,7 +225,7 @@ const PassengerHome = () => {
     setMarkers(prev => {
       const others = prev.filter(m => m.id !== 'you_are_here');
       const isFirst = !prev.find(m => m.id === 'you_are_here');
-      
+
       // Hide you_are_here marker when ride is ongoing
       if (status === 'ongoing') {
         return others;
@@ -435,6 +434,7 @@ const PassengerHome = () => {
       setFare(Math.round(BASE_FARE + Math.ceil(extraKm) * RATE_PER_KM));
       setRouteCoordinates(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, dest]);
 
 
@@ -506,10 +506,10 @@ const PassengerHome = () => {
     if (params.get('gcash_paid') === 'true') {
       // Clean URL parameters immediately so fresh reloads don't trigger it again
       window.history.replaceState({}, document.title, window.location.pathname);
-      
+
       const savedDriver = sessionStorage.getItem('gcash_assigned_driver');
       const savedRideId = sessionStorage.getItem('gcash_ride_id') || sessionStorage.getItem('active_ride_id_for_gcash');
-      
+
       if (savedDriver) {
         try {
           setAssignedDriver(JSON.parse(savedDriver));
@@ -520,17 +520,17 @@ const PassengerHome = () => {
       if (savedRideId) {
         setActiveRideId(parseInt(savedRideId));
       }
-      
+
       // Clean up session storage
       sessionStorage.removeItem('gcash_assigned_driver');
       sessionStorage.removeItem('gcash_ride_id');
       sessionStorage.removeItem('active_ride_id_for_gcash');
-      
+
       // Clear ride markers/routes and set completed state
       setStatus('completed');
       setMarkers([]);
       setRouteCoordinates(null);
-      
+
       // Trigger the rating modal after a small delay
       setTimeout(() => {
         setShowRating(true);
@@ -638,7 +638,8 @@ const PassengerHome = () => {
       }
     };
     fetchActiveRide();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playSound, notify]);
 
   // Real-time Driver Availability — uses live GPS coords when available
   useEffect(() => {
@@ -683,7 +684,6 @@ const PassengerHome = () => {
   // Live Tracking
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
-  const { playSound, notify } = useNotifications();
   // Track which ride IDs already triggered the "driver found" chime.
   // Seeded from sessionStorage so the dedup survives a page refresh.
   const notifiedMatchedRideIds = React.useRef((() => {
@@ -854,7 +854,7 @@ const PassengerHome = () => {
     if (systemEvent && systemEvent.type === 'config_update') {
       computeFare();
     }
-  }, [systemEvent, computeFare, activeRideId, status]);
+  }, [systemEvent, computeFare, activeRideId, status, playSound, notify]);
 
   // Handle Proximity Alert — compare driver WS position to passenger's real GPS pickup location
   useEffect(() => {
@@ -922,7 +922,7 @@ const PassengerHome = () => {
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsData, paymentMethod, playSound, notify]);
 
   // Polling Fallback for Ride Status (Safety Net)
@@ -1022,7 +1022,7 @@ const PassengerHome = () => {
         // Rate-limit: skip if driver has moved less than 10 meters
         const latDiff = Math.abs(driverLat - lastRouteFetchedCoordsRef.current.lat);
         const lngDiff = Math.abs(driverLng - lastRouteFetchedCoordsRef.current.lng);
-        
+
         if (latDiff >= 0.0001 || lngDiff >= 0.0001 || !routeCoordinates) {
           const fetchLiveRoute = async () => {
             try {
@@ -1047,6 +1047,7 @@ const PassengerHome = () => {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsData, status, isTracking, driverEta]);
 
   // Handle status transitions for Grab-style camera fitBounds & secondary routes
@@ -1086,7 +1087,7 @@ const PassengerHome = () => {
       setDriverEta(null);
       hasAutoFocusedOnMatchRef.current = false;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   // One-time auto-focus: when first driver location arrives after ride is matched,
@@ -1108,7 +1109,7 @@ const PassengerHome = () => {
       ]);
       setFitBoundsKey(prev => prev + 1);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsData, status]);
 
   const requestRide = async (e) => {
@@ -1289,8 +1290,6 @@ const PassengerHome = () => {
   };
 
   const handleGCashSuccess = async (transactionRef) => {
-    setIsProcessingPayment(true);
-
     try {
       // Verify payment with backend before completing ride
       const verifyRes = await api.get('/payments/gcash/verify/', {
@@ -1317,8 +1316,6 @@ const PassengerHome = () => {
       const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment verification failed';
       alert(`Payment Error: ${errorMsg}. Please try again or contact support.`);
       setShowGCashPayment(false);
-    } finally {
-      setIsProcessingPayment(false);
     }
   };
 
@@ -1373,7 +1370,7 @@ const PassengerHome = () => {
                   transition={{ delay: idx * 0.1 }}
                   className={`p-4 rounded-3xl border-2 flex items-start gap-4 shadow-lg cursor-pointer hover:scale-[1.02] transition-all relative group ${b.is_critical ? 'bg-red-50 border-red-100' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-white/5'}`}
                 >
-                  <div 
+                  <div
                     onClick={() => {
                       setCurrentBroadcast(b);
                       setShowBroadcastModal(true);
@@ -1407,7 +1404,7 @@ const PassengerHome = () => {
                 </motion.div>
               ))}
               {visibleBroadcasts.length > 2 && (
-                <button 
+                <button
                   onClick={() => setShowAllBroadcastsModal(true)}
                   className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors text-center"
                 >
@@ -1461,7 +1458,7 @@ const PassengerHome = () => {
                 <Navigation size={18} />
               </button>
             </div>
-              <div className="relative">
+            <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <Search size={18} />
               </div>
@@ -1568,11 +1565,10 @@ const PassengerHome = () => {
                     if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }, 100);
                 }}
-                className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 transition-all text-sm font-bold ${
-                  mapTapMode
+                className={`w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 transition-all text-sm font-bold ${mapTapMode
                     ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20 animate-pulse'
                     : 'bg-white dark:bg-slate-800 text-secondary dark:text-white border-slate-200 dark:border-white/10 hover:border-primary hover:text-primary'
-                }`}
+                  }`}
               >
                 <MapPin size={16} className={mapTapMode ? 'text-secondary' : 'text-primary'} />
                 <span>{mapTapMode ? '📍 Tap the map below to drop your pin…' : '📍 Pin Custom Location on Map'}</span>
@@ -1688,8 +1684,8 @@ const PassengerHome = () => {
                           type="button"
                           onClick={() => setPassengerCount(num)}
                           className={`w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${passengerCount === num
-                              ? 'bg-primary text-secondary border-primary shadow-md'
-                              : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                            ? 'bg-primary text-secondary border-primary shadow-md'
+                            : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
                             }`}
                         >
                           {num}
@@ -1856,7 +1852,7 @@ const PassengerHome = () => {
               </p>
             </div>
           </div>
-          
+
           <button
             type="button"
             onMouseDown={startSosHold}
@@ -1868,17 +1864,17 @@ const PassengerHome = () => {
             style={{ touchAction: 'none' }}
           >
             {/* Hold progress bar background overlay */}
-            <div 
+            <div
               className="absolute left-0 top-0 bottom-0 bg-red-800 transition-all duration-75"
               style={{ width: `${sosHoldProgress}%`, opacity: 0.8 }}
             />
-            
+
             {/* Alert content */}
             <div className="relative z-10 flex items-center gap-2">
               <AlertTriangle size={18} className="animate-bounce" />
               <span>
-                {isHoldingSos 
-                  ? `Holding... ${Math.round(sosHoldProgress)}%` 
+                {isHoldingSos
+                  ? `Holding... ${Math.round(sosHoldProgress)}%`
                   : 'Press & Hold to Trigger SOS'}
               </span>
             </div>
@@ -2006,7 +2002,7 @@ const PassengerHome = () => {
                         if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
                         const url = `${window.location.origin}/track/${token}`;
                         if (navigator.share) {
-                          navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => {});
+                          navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => { });
                         } else {
                           try {
                             navigator.clipboard.writeText(url);
@@ -2015,9 +2011,8 @@ const PassengerHome = () => {
                           } catch { alert(url); }
                         }
                       }}
-                      className={`p-3 border rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${
-                        shareCopied ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-100/60'
-                      }`}
+                      className={`p-3 border rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${shareCopied ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-100/60'
+                        }`}
                     >
                       <Share2 size={16} className={shareCopied ? 'text-green-500' : 'text-blue-500'} />
                       <span className={`text-[9px] font-black uppercase tracking-wider ${shareCopied ? 'text-green-600' : 'text-blue-600'}`}>{shareCopied ? 'Copied!' : 'Share'}</span>
@@ -2039,7 +2034,7 @@ const PassengerHome = () => {
                       <p className="text-[9px] font-black uppercase tracking-widest text-green-600">Trip Status</p>
                     </div>
                     <p className="text-sm font-bold text-green-700">
-                      {status === 'matched' 
+                      {status === 'matched'
                         ? `Driver is arriving in ${driverEta != null ? `${driverEta} min` : 'a few minutes'}`
                         : 'Trip in progress to destination!'}
                     </p>
@@ -2231,7 +2226,7 @@ const PassengerHome = () => {
                 if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
                 const url = `${window.location.origin}/track/${token}`;
                 if (navigator.share) {
-                  navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => {});
+                  navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => { });
                 } else {
                   try {
                     navigator.clipboard.writeText(url);
@@ -2240,9 +2235,8 @@ const PassengerHome = () => {
                   } catch { alert(url); }
                 }
               }}
-              className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border active:scale-95 ${
-                shareCopied ? 'bg-green-600 border-green-500/25' : 'bg-blue-600 hover:bg-blue-700 border-blue-500/25'
-              } text-white`}
+              className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border active:scale-95 ${shareCopied ? 'bg-green-600 border-green-500/25' : 'bg-blue-600 hover:bg-blue-700 border-blue-500/25'
+                } text-white`}
             >
               <Share2 size={20} className="text-white" />
               <span className="text-sm font-bold">{shareCopied ? 'Link Copied!' : 'Share Ride'}</span>
@@ -2253,8 +2247,8 @@ const PassengerHome = () => {
             <button
               onClick={() => setShowChat(prev => !prev)}
               className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border relative ${showChat
-                  ? 'bg-secondary text-white border-white/10'
-                  : 'bg-white text-secondary border-slate-100'
+                ? 'bg-secondary text-white border-white/10'
+                : 'bg-white text-secondary border-slate-100'
                 }`}
             >
               <MessageSquare size={20} className={showChat ? 'text-primary' : 'text-secondary'} />
@@ -2417,7 +2411,7 @@ const PassengerHome = () => {
                           <h4 className={`text-xs font-black truncate ${isDismissed ? 'text-slate-400 line-through' : 'text-secondary dark:text-white'}`}>{b.title}</h4>
                           <p className={`text-[10px] line-clamp-2 mt-0.5 ${isDismissed ? 'text-slate-400' : 'text-slate-500'}`}>{b.message}</p>
                         </div>
-                        
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

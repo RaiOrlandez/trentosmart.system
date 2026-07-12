@@ -16,8 +16,6 @@ import {
     CreditCard,
     Banknote,
     Clock,
-    User,
-    Car,
     Phone,
     MapPin,
     AlertCircle,

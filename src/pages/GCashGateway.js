@@ -31,6 +31,7 @@ const GCashGateway = () => {
     } else if (step === 'receipt' && countdown === 0) {
       handleRedirect();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, countdown]);
 
   const handlePhoneSubmit = (e) => {

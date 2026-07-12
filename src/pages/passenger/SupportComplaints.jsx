@@ -8,7 +8,6 @@ import {
     ChevronRight,
     Clock,
     CheckCircle,
-    Search,
     Send,
     Shield,
     HelpCircle,
@@ -16,8 +15,7 @@ import {
     Mail,
     LifeBuoy,
     Plus,
-    X,
-    MessageCircle
+    X
 } from 'lucide-react';
 
 const SupportComplaints = () => {

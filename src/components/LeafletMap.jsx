@@ -165,7 +165,7 @@ function MapController({ markers, center }) {
             });
             lastCenterRef.current = { lat: center.lat, lng: center.lng };
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [center.lat, center.lng, map, userInteracted]);
 
     useEffect(() => {
@@ -186,7 +186,7 @@ function MapController({ markers, center }) {
                 try {
                     const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lng]));
                     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17, animate: true });
-                } catch (_) {}
+                } catch (_) { }
             }
             isFirstLoad.current = false;
         }
@@ -241,7 +241,7 @@ function FitBoundsController({ points, fitBoundsKey }) {
         try {
             const bounds = L.latLngBounds(points);
             map.fitBounds(bounds, { padding: [70, 70], maxZoom: 17, animate: true, duration: 1.0 });
-        } catch (_) {}
+        } catch (_) { }
     }, [map, points, fitBoundsKey]);
 
     return null;
@@ -264,11 +264,11 @@ function MapClickHandler({ onMapClick, enabled }) {
 // to the new coordinates. Use this for the passenger's own "You are here" pin
 // so it always reflects the exact real-time GPS reading without any lag.
 const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapToPosition, children }) => {
-    const markerRef     = useRef(null);
-    const requestRef    = useRef();
-    const startTimeRef  = useRef(null);
-    const startPosRef   = useRef(position);
-    const targetPosRef  = useRef(position);
+    const markerRef = useRef(null);
+    const requestRef = useRef();
+    const startTimeRef = useRef(null);
+    const startPosRef = useRef(position);
+    const targetPosRef = useRef(position);
 
     // Auto-open popup when marker first mounts (e.g., after a custom pin drop)
     useEffect(() => {
@@ -279,7 +279,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
             }, 250);
             return () => clearTimeout(t);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoOpenPopup]);
 
     // Position interpolation effect (smoothly glides the marker on position change)
@@ -317,7 +317,7 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
 
         cancelAnimationFrame(requestRef.current);
         requestRef.current = requestAnimationFrame(animate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [position[0], position[1], snapToPosition]);
 
     useEffect(() => () => cancelAnimationFrame(requestRef.current), []);
@@ -377,9 +377,9 @@ const LeafletMap = ({
 
     const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
-    const pickup      = markers.find(m => m.isPickup);
+    const pickup = markers.find(m => m.isPickup);
     const destination = markers.find(m => m.isDestination);
-    const driver      = markers.find(m => m.isDriver);
+    const driver = markers.find(m => m.isDriver);
 
     return (
         <div className="absolute inset-0 w-full h-full rounded-[2.5rem] overflow-hidden border-4 border-white/50 dark:border-slate-800 shadow-2xl z-0">
@@ -459,8 +459,8 @@ const LeafletMap = ({
                 {heatPoints && heatPoints.map((point, i) => (
                     <React.Fragment key={`heat-${i}`}>
                         <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.12 }} radius={45} />
-                        <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.3  }} radius={22} />
-                        <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.7  }} radius={8}  />
+                        <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.3 }} radius={22} />
+                        <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: 'transparent', fillColor: '#ef4444', fillOpacity: 0.7 }} radius={8} />
                     </React.Fragment>
                 ))}
 
@@ -495,9 +495,9 @@ const LeafletMap = ({
                 {currentZoom >= 14 && TRENTO_LANDMARKS.map((lm) => {
                     // Check if this landmark is already represented by an active pickup/destination pin
                     // to avoid overlapping duplicate markers
-                    const isOccupied = markers.some(m => 
-                        (m.isPickup || m.isDestination) && 
-                        Math.abs(m.lat - lm.lat) < 0.00005 && 
+                    const isOccupied = markers.some(m =>
+                        (m.isPickup || m.isDestination) &&
+                        Math.abs(m.lat - lm.lat) < 0.00005 &&
                         Math.abs(m.lng - lm.lng) < 0.00005
                     );
                     if (isOccupied) return null;
@@ -505,9 +505,9 @@ const LeafletMap = ({
                     const icon = buildPoiIcon(lm.category, lm.icon);
 
                     return (
-                        <Marker 
-                            key={lm.id} 
-                            position={[lm.lat, lm.lng]} 
+                        <Marker
+                            key={lm.id}
+                            position={[lm.lat, lm.lng]}
                             icon={icon}
                         >
                             <Popup className="custom-popup">
@@ -558,10 +558,10 @@ const LeafletMap = ({
                     // Identify the passenger's own location pin
                     const isYouAreHere = marker.id === 'you_are_here';
 
-                    if (marker.isDriver)           icon = buildDriverIcon(marker.heading ?? 0);
-                    else if (marker.isPickup)      icon = pickupIcon;
+                    if (marker.isDriver) icon = buildDriverIcon(marker.heading ?? 0);
+                    else if (marker.isPickup) icon = pickupIcon;
                     else if (marker.isDestination) icon = destIcon;
-                    else                           icon = youAreHereIcon;
+                    else icon = youAreHereIcon;
 
                     return (
                         <SmoothMarker

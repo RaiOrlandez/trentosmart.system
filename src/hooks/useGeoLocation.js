@@ -2,11 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 const BackgroundGeolocation = registerPlugin('BackgroundGeolocation');
 
-// Map default fallback (not a GPS fix)
-const DEFAULT_CENTER = {
-    lat: 8.03555,
-    lng: 126.06432,
-};
 
 /**
  * useGeoLocation
@@ -185,7 +180,7 @@ const useGeoLocation = (options = {}) => {
                 maximumAge,
             });
         }
-    }, [handleLocationError, enableHighAccuracy, timeout, maximumAge, permissionTimeout]);
+    }, [handleLocationError, enableHighAccuracy, timeout, maximumAge, permissionTimeout, calculateDistanceMetres]);
 
     // Start watching on mount, clean up on unmount
     useEffect(() => {

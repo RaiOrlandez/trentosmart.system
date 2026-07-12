@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getMessaging, getToken } from "firebase/messaging";
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 
 // TODO: Replace with your actual Firebase config from the Firebase Console Let

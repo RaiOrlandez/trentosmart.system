@@ -159,10 +159,10 @@ const Map = ({
         // If forceFocus is a timestamp (from button click), we do a hard zoom and pan
         // If it's isTracking (continuous), we just pan smoothly
         if (typeof focusMarker.forceFocus === 'number') {
-           mapRef.current.setZoom(17);
-           mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
+          mapRef.current.setZoom(17);
+          mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
         } else {
-           mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
+          mapRef.current.panTo({ lat: focusMarker.lat, lng: focusMarker.lng });
         }
       } else {
         const bounds = new window.google.maps.LatLngBounds();

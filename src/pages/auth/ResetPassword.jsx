@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion } from 'framer-motion';
 import { Lock, ChevronRight, Zap, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
@@ -12,7 +12,6 @@ const ResetPassword = () => {
   const [status, setStatus] = useState('idle'); // idle, loading, success, error
   const [message, setMessage] = useState('');
 
-  const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const token = queryParams.get('token');

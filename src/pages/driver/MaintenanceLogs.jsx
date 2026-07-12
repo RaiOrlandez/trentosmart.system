@@ -6,7 +6,6 @@ import {
     Plus,
     Calendar,
     DollarSign,
-    Clock,
     CheckCircle2,
     AlertTriangle,
     History,

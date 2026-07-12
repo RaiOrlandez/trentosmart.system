@@ -39,7 +39,6 @@ import useNotifications from '../../hooks/useNotifications';
 import ChatWindow from '../../components/ChatWindow';
 import DriverSettingsModal from '../../components/DriverSettingsModal';
 import HeatMapModal from '../../components/HeatMapModal';
-import RatingModal from '../../components/RatingModal';
 import useGeoLocation from '../../hooks/useGeoLocation';
 import useLocationSync from '../../hooks/useLocationSync';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
@@ -106,8 +105,6 @@ const DriverHome = () => {
   const [showHeatMapModal, setShowHeatMapModal] = useState(false);
   const [showGCashVerify, setShowGCashVerify] = useState(false);
   const [verificationRef, setVerificationRef] = useState('');
-  const [completedRideId, setCompletedRideId] = useState(null);
-  const [completedPassengerName, setCompletedPassengerName] = useState('');
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [isWaitingForGCashPayment, setIsWaitingForGCashPayment] = useState(false);
   const [isCompletingRide, setIsCompletingRide] = useState(false);
@@ -122,7 +119,7 @@ const DriverHome = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const { newRide, systemEvent } = useSystemEvents();
   const [showVerificationSuccess, setShowVerificationSuccess] = useState(false);
-  const [dailyGoal, setDailyGoal] = useState(1500); // Default ₱1500 goal
+  const dailyGoal = 1500; // Default ₱1500 goal (adjustable in future settings)
 
   // Resolved destination place name (reverse-geocoded from coordinates)
   const [resolvedDestName, setResolvedDestName] = useState('');
@@ -167,7 +164,7 @@ const DriverHome = () => {
     if (user && user.role === 'driver') {
       fetchAnalytics();
     }
-  }, [fetchBroadcasts, fetchAnalytics, user?.id, user?.role]);
+  }, [fetchBroadcasts, fetchAnalytics, user]);
 
   useEffect(() => {
     // Only override localStorage value once on first mount if the server says a different state.
@@ -278,7 +275,7 @@ const DriverHome = () => {
       // Delay LGU receipt modal display slightly for smoother transition
       setTimeout(() => setShowCommissionModal(true), 500);
     }
-  }, [passengerLivePos, isWaitingForGCashPayment, activeRide, getProfile]);
+  }, [passengerLivePos, isWaitingForGCashPayment, activeRide, getProfile, fetchAnalytics]);
 
   // ✅ Persist online status to localStorage on every change (survives page refresh)
   useEffect(() => {
@@ -360,7 +357,7 @@ const DriverHome = () => {
       pickupLng = parseFloat(activeRide.pickup_lng);
       destLat = parseFloat(activeRide.dest_lat);
       destLng = parseFloat(activeRide.dest_lng);
-      
+
       targetLat = isOngoing ? destLat : pickupLat;
       targetLng = isOngoing ? destLng : pickupLng;
       fetchSecondary = !isOngoing; // only fetch pickup -> dest as secondary if we are still going to pickup
@@ -369,7 +366,7 @@ const DriverHome = () => {
       pickupLng = parseFloat(selectedRequest.pickup_lng);
       destLat = parseFloat(selectedRequest.dest_lat);
       destLng = parseFloat(selectedRequest.dest_lng);
-      
+
       targetLat = pickupLat;
       targetLng = pickupLng;
       fetchSecondary = true;
@@ -401,21 +398,21 @@ const DriverHome = () => {
     const fetchRoute = async () => {
       try {
         const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
-        
+
         // 1. Fetch Primary Route (Driver -> Target)
         const res = await fetch(`${osrmUrl}/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
         const data = await res.json();
         if (active && data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const pathCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
           setDriverRouteCoords(pathCoords);
-          
+
           // OSRM duration is in seconds
           const durationMins = Math.ceil(data.routes[0].duration / 60);
           setDriverEta(durationMins);
-          
+
           lastFetchedCoords.current = { lat: startLat, lng: startLng };
         }
-        
+
         // 2. Fetch Secondary Route if required (Pickup -> Dest)
         if (active && fetchSecondary && !isNaN(pickupLat) && !isNaN(destLat)) {
           const resSec = await fetch(`${osrmUrl}/${pickupLng},${pickupLat};${destLng},${destLat}?overview=full&geometries=geojson`);
@@ -436,7 +433,7 @@ const DriverHome = () => {
     return () => {
       active = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.id, activeRide?.status, selectedRequest?.id, gpsLocation?.lat, gpsLocation?.lng]);
 
   // Handle status changes for camera auto-fit
@@ -515,7 +512,7 @@ const DriverHome = () => {
         }
       }
     }
-  }, [gpsLocation, isOnline, activeRide, sendLocation]);
+  }, [gpsLocation, isOnline, activeRide, sendLocation, user?.profile_picture, user?.username]);
 
   // Heartbeat: broadcast driver location every 5 s even when GPS hasn't fired a new event
   // This ensures the passenger's map stays alive when the driver is stationary.
@@ -533,7 +530,7 @@ const DriverHome = () => {
     }, 5000);
 
     return () => clearInterval(wsHeartbeatRef.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.id, gpsLocation?.lat, gpsLocation?.lng, sendLocation]);
 
   const fetchRequests = useCallback(async () => {
@@ -593,7 +590,7 @@ const DriverHome = () => {
         } catch (e) { }
       }
     }
-  }, [newRide, isOnline, activeRide]);
+  }, [newRide, isOnline, activeRide, notifyNewRideRequest]);
 
   // Auto-resolve destination name whenever the selected request or active ride changes
   useEffect(() => {
@@ -601,8 +598,8 @@ const DriverHome = () => {
     if (!ride) { setResolvedDestName(''); return; }
 
     const destLabel = ride.dest_address || ride.dest || '';
-    const destLat   = parseFloat(ride.dest_lat);
-    const destLng   = parseFloat(ride.dest_lng);
+    const destLat = parseFloat(ride.dest_lat);
+    const destLng = parseFloat(ride.dest_lng);
 
     // If the stored label is already a real name, just use it
     if (!isGenericDestLabel(destLabel)) {
@@ -619,7 +616,7 @@ const DriverHome = () => {
     } else {
       setResolvedDestName(destLabel || 'Unknown Destination');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRide?.id, selectedRequest?.id]);
 
   // Consolidate marker generation
@@ -750,7 +747,6 @@ const DriverHome = () => {
     setIsCompletingRide(true);
     try {
       const currentRideId = activeRide.id;
-      const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
 
       // Inform the server that the ride is completed (Cash/Wallet only)
       const response = await api.post(`/rides/${currentRideId}/complete/`);
@@ -763,8 +759,6 @@ const DriverHome = () => {
       setTripsCount(prev => prev + 1);
       if (getProfile) getProfile();
       fetchAnalytics();
-      setCompletedRideId(currentRideId);
-      setCompletedPassengerName(passengerName);
 
       // Set commission data for the modal
       if (data.lgu_commission) {
@@ -780,8 +774,6 @@ const DriverHome = () => {
       } else {
         // Fallback for old API behavior
         setActiveRide(null);
-        setCompletedRideId(null);
-        setCompletedPassengerName('');
       }
 
     } catch (err) {
@@ -1039,7 +1031,7 @@ const DriverHome = () => {
                     transition={{ delay: idx * 0.1 }}
                     className={`p-4 rounded-3xl border-2 flex items-start gap-4 shadow-lg cursor-pointer hover:scale-[1.02] transition-all relative group ${b.is_critical ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100 dark:bg-slate-900 dark:border-white/5'}`}
                   >
-                    <div 
+                    <div
                       onClick={() => {
                         setCurrentBroadcast(b);
                         setShowBroadcastModal(true);
@@ -1073,7 +1065,7 @@ const DriverHome = () => {
                   </motion.div>
                 ))}
                 {visibleBroadcasts.length > 2 && (
-                  <button 
+                  <button
                     onClick={() => setShowAllBroadcastsModal(true)}
                     className="w-full py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors text-center"
                   >
@@ -1197,8 +1189,8 @@ const DriverHome = () => {
                         <div>
                           <p className="font-bold text-lg">{typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}</p>
                           <p className="text-[10px] text-primary font-black uppercase tracking-widest">
-                            {activeRide.status === 'on_route' 
-                              ? 'Heading to Destination' 
+                            {activeRide.status === 'on_route'
+                              ? 'Heading to Destination'
                               : `Arriving in ${driverEta != null ? `${driverEta} min` : 'a few mins'}`}
                           </p>
                         </div>
@@ -1530,7 +1522,7 @@ const DriverHome = () => {
                 </p>
               </div>
             </div>
-            
+
             <button
               type="button"
               onMouseDown={startSosHold}
@@ -1542,17 +1534,17 @@ const DriverHome = () => {
               style={{ touchAction: 'none' }}
             >
               {/* Hold progress bar background overlay */}
-              <div 
+              <div
                 className="absolute left-0 top-0 bottom-0 bg-red-800 transition-all duration-75"
                 style={{ width: `${sosHoldProgress}%`, opacity: 0.8 }}
               />
-              
+
               {/* Alert content */}
               <div className="relative z-10 flex items-center gap-2">
                 <AlertTriangle size={18} className="animate-bounce" />
                 <span>
-                  {isHoldingSos 
-                    ? `Holding... ${Math.round(sosHoldProgress)}%` 
+                  {isHoldingSos
+                    ? `Holding... ${Math.round(sosHoldProgress)}%`
                     : 'Press & Hold to Trigger SOS'}
                 </span>
               </div>
@@ -1667,8 +1659,8 @@ const DriverHome = () => {
               <button
                 onClick={() => setShowChat(prev => !prev)}
                 className={`w-12 h-12 rounded-2xl shadow-lg flex items-center justify-center transition-colors border relative ${showChat
-                    ? 'bg-secondary text-primary border-secondary/20'
-                    : 'bg-white text-slate-600 hover:text-primary border-slate-100'
+                  ? 'bg-secondary text-primary border-secondary/20'
+                  : 'bg-white text-slate-600 hover:text-primary border-slate-100'
                   }`}
                 title="Chat with Passenger"
               >
@@ -1801,7 +1793,7 @@ const DriverHome = () => {
                           <h4 className={`text-xs font-black truncate ${isDismissed ? 'text-slate-400 line-through' : 'text-secondary dark:text-white'}`}>{b.title}</h4>
                           <p className={`text-[10px] line-clamp-2 mt-0.5 ${isDismissed ? 'text-slate-400' : 'text-slate-500'}`}>{b.message}</p>
                         </div>
-                        
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1917,8 +1909,6 @@ const DriverHome = () => {
                 onClick={() => {
                   setShowCommissionModal(false);
                   setCommissionData(null);
-                  setCompletedRideId(null);
-                  setCompletedPassengerName('');
                 }}
                 className="w-full py-4 bg-secondary text-white rounded-2xl font-black uppercase tracking-widest hover:scale-[1.02] transition-transform shadow-lg"
               >
@@ -1967,7 +1957,6 @@ const DriverHome = () => {
                     setIsCompletingRide(true);
                     try {
                       const currentRideId = activeRide.id;
-                      const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
                       const response = await api.post(`/rides/${currentRideId}/complete/`);
                       const data = response.data;
                       const gainedEarnings = data.driver_earnings ? parseFloat(data.driver_earnings) : parseFloat(activeRide.fare);
@@ -1975,8 +1964,6 @@ const DriverHome = () => {
                       setTripsCount(prev => prev + 1);
                       if (getProfile) getProfile();
                       fetchAnalytics();
-                      setCompletedRideId(currentRideId);
-                      setCompletedPassengerName(passengerName);
                       if (data.lgu_commission) {
                         setCommissionData({
                           totalFare: data.total_fare,
@@ -2288,7 +2275,7 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
   };
 
   if (!isOpen) return null;
-  
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">

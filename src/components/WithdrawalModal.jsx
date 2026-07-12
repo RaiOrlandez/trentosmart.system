@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Wallet, CheckCircle2, AlertCircle, Smartphone, Banknote, ShieldCheck } from 'lucide-react';
+import { X, Wallet, CheckCircle2, AlertCircle, Smartphone, ShieldCheck } from 'lucide-react';
 import api from '../api/axios';
 
 const WithdrawalModal = ({ isOpen, onClose, balance, onWithdrawalSuccess }) => {

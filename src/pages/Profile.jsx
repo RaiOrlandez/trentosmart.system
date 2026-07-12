@@ -122,27 +122,7 @@ const Profile = () => {
         setProfile({ ...profile, [name]: value });
     };
 
-    const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
 
-            // Limit to 5MB to handle "oversize" issue
-            if (file.size > 5 * 1024 * 1024) {
-                alert("Selected image is too large! Please choose an image smaller than 5MB to ensure it displays correctly.");
-                return;
-            }
-
-            setProfile({ ...profile, profile_picture: file });
-
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const imgElement = document.getElementById('profile-preview');
-                if (imgElement) imgElement.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();

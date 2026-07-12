@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Phone, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff, ArrowLeft, Scale, ShieldCheck, MapPin, Info } from 'lucide-react';
+import { User, Mail, Lock, CheckCircle, ChevronRight, Zap, Home, Calendar, Loader2, XCircle, Check, Eye, EyeOff, ArrowLeft, Scale, ShieldCheck, MapPin, Info } from 'lucide-react';
 
 const Register = () => {
   const location = useLocation();
@@ -150,6 +150,7 @@ const Register = () => {
     }, 600);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email]);
 
   // Real-time Username Check

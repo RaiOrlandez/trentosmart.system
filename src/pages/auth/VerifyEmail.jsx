@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Mail, ArrowRight, Loader2, CheckCircle, RefreshCcw } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Loader2, CheckCircle, RefreshCcw } from 'lucide-react';
 
 const VerifyEmail = () => {
     const navigate = useNavigate();
