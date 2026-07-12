@@ -544,6 +544,7 @@ const PassengerHome = () => {
         if (res.data) {
           const ride = res.data;
           setActiveRideId(ride.id);
+          if (ride.share_token) setCachedShareToken(ride.share_token);
           setPickup(ride.pickup_address);
           setDest(ride.dest_address);
           setFare(ride.fare);
@@ -837,6 +838,9 @@ const PassengerHome = () => {
         if (matchedRide.driver) {
           setAssignedDriver(matchedRide.driver);
         }
+        if (matchedRide.share_token) {
+          setCachedShareToken(matchedRide.share_token);
+        }
         // Play chime only if not already played by WebSocket path
         if (!notifiedMatchedRideIds.current.has(matchedRide.id)) {
           addNotifiedMatchedRide(matchedRide.id);
@@ -876,6 +880,9 @@ const PassengerHome = () => {
         if (wsData.data && wsData.data.driver) {
           setAssignedDriver(wsData.data.driver);
         }
+        if (wsData.data && wsData.data.share_token) {
+          setCachedShareToken(wsData.data.share_token);
+        }
         // Play chime only once per ride (guard against system event also firing)
         if (activeRideId && !notifiedMatchedRideIds.current.has(activeRideId)) {
           addNotifiedMatchedRide(activeRideId);
@@ -891,6 +898,9 @@ const PassengerHome = () => {
       }
       if (newStatus === 'on_route') {
         setStatus('ongoing');
+        if (wsData.data && wsData.data.share_token) {
+          setCachedShareToken(wsData.data.share_token);
+        }
         if (activeRideId && !notifiedOngoingRideIds.current.has(activeRideId)) {
           addNotifiedOngoingRide(activeRideId);
           playSound('chime');
@@ -923,6 +933,9 @@ const PassengerHome = () => {
         try {
           const res = await api.get(`/rides/${activeRideId}/`);
           const serverStatus = res.data.status;
+          if (res.data.share_token) {
+            setCachedShareToken(res.data.share_token);
+          }
           if (serverStatus === 'accepted' && status === 'requesting') {
             setStatus('matched');
             if (res.data.driver) {
@@ -1138,6 +1151,7 @@ const PassengerHome = () => {
 
       const createdRide = response.data;
       setActiveRideId(createdRide.id);
+      if (createdRide.share_token) setCachedShareToken(createdRide.share_token);
 
       if (selectedDriverId) {
         setRequestTimeRemaining(30); // 30s wait for preferred driver
