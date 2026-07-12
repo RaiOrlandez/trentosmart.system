@@ -531,10 +531,10 @@ const PassengerHome = () => {
       setMarkers([]);
       setRouteCoordinates(null);
 
-      // Trigger the rating modal after a small delay
+      // Trigger the rating modal quickly (reduced delay for snappiness)
       setTimeout(() => {
         setShowRating(true);
-      }, 1000);
+      }, 400);
       return; // Skip active ride fetch since this ride was just completed
     }
 
@@ -1282,10 +1282,10 @@ const PassengerHome = () => {
       setMarkers([]);
       setRouteCoordinates(null);
 
-      // Show rating modal after a short delay
+      // Show rating modal quickly
       setTimeout(() => {
         setShowRating(true);
-      }, 1000);
+      }, 400);
     }
   };
 
@@ -1308,10 +1308,10 @@ const PassengerHome = () => {
       // Show success message
       alert(`Payment successful! Reference: ${transactionRef.slice(0, 8)}...`);
 
-      // Show rating modal after a short delay
+      // Show rating modal quickly
       setTimeout(() => {
         setShowRating(true);
-      }, 1000);
+      }, 400);
     } catch (err) {
       const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment verification failed';
       alert(`Payment Error: ${errorMsg}. Please try again or contact support.`);
@@ -2306,6 +2306,7 @@ const PassengerHome = () => {
         }}
         rideId={activeRideId}
         targetName={assignedDriver?.username || 'Assigned Driver'}
+        targetPhoto={assignedDriver?.profile_picture || null}
         targetRole="Driver"
       />
 

@@ -30,7 +30,7 @@ const STAR_LABELS = {
   5: { text: 'Excellent!', color: 'text-green-600', bg: 'bg-green-50' },
 };
 
-const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver' }) => {
+const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver', targetPhoto }) => {
   const [rating, setRating] = useState(5);
   const [hover, setHover] = useState(0);
   const [comment, setComment] = useState('');
@@ -161,10 +161,22 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
             {/* Avatar + title */}
             <div className="text-center mb-6">
               <div className="w-20 h-20 bg-primary/15 rounded-3xl flex items-center justify-center mx-auto mb-4 overflow-hidden border-2 border-primary/20 shadow-lg shadow-primary/10">
-                <img
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${targetName || 'user'}`}
-                  alt={targetRole}
-                />
+                {targetPhoto ? (
+                  <img
+                    src={targetPhoto}
+                    alt={targetName || targetRole}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetName || 'user'}`;
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${targetName || 'user'}`}
+                    alt={targetRole}
+                  />
+                )}
               </div>
               <h2 className="text-2xl font-black text-secondary uppercase tracking-tight">Rate Your Trip</h2>
               <p className="text-slate-500 font-medium mt-1">
