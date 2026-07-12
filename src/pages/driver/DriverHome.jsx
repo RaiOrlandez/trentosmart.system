@@ -110,6 +110,7 @@ const DriverHome = () => {
   const [completedPassengerName, setCompletedPassengerName] = useState('');
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [isWaitingForGCashPayment, setIsWaitingForGCashPayment] = useState(false);
+  const [isCompletingRide, setIsCompletingRide] = useState(false);
   const [showSOS, setShowSOS] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [navModalData, setNavModalData] = useState(null); // { lat, lng, label }
@@ -731,7 +732,7 @@ const DriverHome = () => {
   };
 
   const completeRide = async () => {
-    if (!activeRide) return;
+    if (!activeRide || isCompletingRide) return;
 
     // For GCash payments, request payment via WS and wait for confirmation
     if (activeRide.payment_method === 'gcash') {
@@ -745,6 +746,7 @@ const DriverHome = () => {
       return;
     }
 
+    setIsCompletingRide(true);
     try {
       const currentRideId = activeRide.id;
       const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
@@ -783,7 +785,20 @@ const DriverHome = () => {
 
     } catch (err) {
       console.error('Failed to complete ride', err);
-      alert('Error: Could not complete the ride on the server. Retrying might be needed.');
+      const serverMsg = err.response?.data?.detail || err.response?.data?.error || '';
+      if (serverMsg) {
+        alert(`Failed to complete ride: ${serverMsg}`);
+        // If the ride was already completed or cancelled on the server, sync driver dashboard to allow new requests
+        if (serverMsg.toLowerCase().includes('completed') || serverMsg.toLowerCase().includes('cancelled') || serverMsg.toLowerCase().includes('status')) {
+          setActiveRide(null);
+          if (getProfile) getProfile();
+          fetchAnalytics();
+        }
+      } else {
+        alert('Error: Could not complete the ride on the server. Please check your network connection.');
+      }
+    } finally {
+      setIsCompletingRide(false);
     }
   };
 
@@ -1282,10 +1297,11 @@ const DriverHome = () => {
                       ) : (
                         <button
                           onClick={completeRide}
-                          className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-primary/20"
+                          disabled={isCompletingRide}
+                          className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-primary/20 disabled:opacity-50"
                         >
                           <Check size={20} />
-                          <span>Complete</span>
+                          <span>{isCompletingRide ? 'Completing...' : 'Complete'}</span>
                         </button>
                       )}
                     </div>
@@ -1941,6 +1957,16 @@ const DriverHome = () => {
               <div className="px-4 py-2 bg-white/5 rounded-full text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Connected to secure gateway
               </div>
+              <button
+                onClick={() => {
+                  if (window.confirm("Bypass GCash waiting screen? Use this if the passenger paid in cash instead, or if the connection was lost.")) {
+                    setIsWaitingForGCashPayment(false);
+                  }
+                }}
+                className="mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all uppercase tracking-wider"
+              >
+                Cancel & Pay in Cash
+              </button>
             </motion.div>
           </div>
         )}
