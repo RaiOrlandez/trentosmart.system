@@ -101,10 +101,10 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.88, opacity: 0, y: 30 }}
           transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-          className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl shadow-black/30 relative overflow-hidden"
+          className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl shadow-black/30 relative overflow-hidden max-h-[92vh] flex flex-col"
         >
           {/* Top accent bar */}
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-yellow-300 to-primary" />
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-primary via-yellow-300 to-primary shrink-0" />
 
           {/* ── Success overlay ─────────────────────────────────────────────── */}
           <AnimatePresence>
@@ -113,23 +113,23 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center text-center p-8 rounded-[2.5rem]"
+                className="absolute inset-0 bg-white z-20 flex flex-col items-center justify-center text-center p-6 md:p-8 rounded-[2.5rem] overflow-y-auto"
               >
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
-                  className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-200"
+                  className="w-20 h-20 md:w-24 md:h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-200"
                 >
-                  <CheckCircle2 size={48} />
+                  <CheckCircle2 size={40} className="md:size-[48px]" />
                 </motion.div>
-                <h2 className="text-2xl font-black text-secondary uppercase tracking-tight mb-2">Thank You!</h2>
-                <p className="text-slate-500 font-medium leading-relaxed">
+                <h2 className="text-xl md:text-2xl font-black text-secondary uppercase tracking-tight mb-2">Thank You!</h2>
+                <p className="text-xs md:text-sm text-slate-500 font-medium leading-relaxed max-w-xs">
                   Your feedback helps build a better Trento transport community. ❤️
                 </p>
                 {/* Animated stars */}
                 <motion.div
-                  className="flex gap-2 mt-6"
+                  className="flex gap-1.5 mt-5"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
@@ -141,7 +141,7 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                       animate={{ scale: 1, rotate: 0 }}
                       transition={{ delay: 0.4 + i * 0.08, type: 'spring', stiffness: 300 }}
                     >
-                      <Star size={28} className={s <= rating ? 'fill-primary text-primary' : 'text-slate-200'} />
+                      <Star size={24} className={s <= rating ? 'fill-primary text-primary' : 'text-slate-200'} />
                     </motion.div>
                   ))}
                 </motion.div>
@@ -149,18 +149,18 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
             )}
           </AnimatePresence>
 
-          <div className="p-8 pt-10">
+          <div className="p-6 md:p-8 pt-9 md:pt-10 overflow-y-auto w-full scrollbar-thin">
             {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-6 right-6 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-secondary transition-all"
+              className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-secondary transition-all"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
 
             {/* Avatar + title */}
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-primary/15 rounded-3xl flex items-center justify-center mx-auto mb-4 overflow-hidden border-2 border-primary/20 shadow-lg shadow-primary/10">
+            <div className="text-center mb-5">
+              <div className="w-16 h-16 md:w-20 md:h-20 bg-primary/15 rounded-[1.8rem] flex items-center justify-center mx-auto mb-3 overflow-hidden border-2 border-primary/20 shadow-md shadow-primary/5">
                 {targetPhoto ? (
                   <img
                     src={targetPhoto}
@@ -175,25 +175,26 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                   <img
                     src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${targetName || 'user'}`}
                     alt={targetRole}
+                    className="w-full h-full object-cover"
                   />
                 )}
               </div>
-              <h2 className="text-2xl font-black text-secondary uppercase tracking-tight">Rate Your Trip</h2>
-              <p className="text-slate-500 font-medium mt-1">
+              <h2 className="text-xl md:text-2xl font-black text-secondary uppercase tracking-tight">Rate Your Trip</h2>
+              <p className="text-xs md:text-sm text-slate-500 font-medium mt-1">
                 How was your experience with{' '}
                 <span className="text-secondary font-bold">{targetName || `the ${targetRole.toLowerCase()}`}</span>?
               </p>
             </div>
 
             {/* ── Stars ────────────────────────────────────────────────────── */}
-            <div className="flex justify-center gap-2 mb-3">
+            <div className="flex justify-center gap-1.5 mb-2.5">
               {[1, 2, 3, 4, 5].map((star) => {
                 const isActive = (hover || rating) >= star;
                 return (
                   <motion.button
                     key={star}
-                    whileHover={{ scale: 1.25, rotate: [-5, 5, 0] }}
-                    whileTap={{ scale: 0.85 }}
+                    whileHover={{ scale: 1.2, rotate: [-3, 3, 0] }}
+                    whileTap={{ scale: 0.9 }}
                     transition={{ type: 'spring', stiffness: 400 }}
                     onClick={() => setRating(star)}
                     onMouseEnter={() => setHover(star)}
@@ -201,10 +202,10 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                     className="focus:outline-none relative"
                   >
                     <Star
-                      size={44}
+                      size={38}
                       className={`transition-all duration-150 ${
                         isActive
-                          ? 'fill-primary text-primary drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]'
+                          ? 'fill-primary text-primary drop-shadow-[0_0_6px_rgba(250,204,21,0.6)]'
                           : 'text-slate-200'
                       }`}
                     />
@@ -217,35 +218,35 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
             <AnimatePresence mode="wait">
               <motion.div
                 key={displayRating}
-                initial={{ opacity: 0, y: -6 }}
+                initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
-                className={`flex items-center justify-center gap-2 mb-6 py-2 px-4 rounded-full mx-auto w-fit ${starLabel.bg}`}
+                exit={{ opacity: 0, y: 4 }}
+                className={`flex items-center justify-center gap-1.5 mb-5 py-1.5 px-3 rounded-full mx-auto w-fit ${starLabel.bg}`}
               >
-                <ThumbsUp size={14} className={starLabel.color} />
-                <span className={`text-sm font-black ${starLabel.color}`}>{starLabel.text}</span>
+                <ThumbsUp size={12} className={starLabel.color} />
+                <span className={`text-xs font-black ${starLabel.color}`}>{starLabel.text}</span>
               </motion.div>
             </AnimatePresence>
 
             {/* ── Quick Feedback Tags ───────────────────────────────────────── */}
-            <div className="mb-5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+            <div className="mb-4">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
                 <span>Quick Feedback</span>
-                <span className="text-slate-300">(optional)</span>
+                <span className="text-slate-350 text-[8px] font-normal normal-case">(optional)</span>
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {tags.map(({ label, emoji }) => {
                   const active = selectedTags.includes(label);
                   return (
                     <motion.button
                       key={label}
                       type="button"
-                      whileTap={{ scale: 0.93 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => toggleTag(label)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold border-2 transition-all ${
                         active
-                          ? 'bg-primary text-secondary border-primary shadow-md shadow-primary/20'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary/40 hover:bg-primary/5'
+                          ? 'bg-primary text-secondary border-primary shadow shadow-primary/10'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary/30 hover:bg-primary/5'
                       }`}
                     >
                       <span>{emoji}</span>
@@ -257,10 +258,10 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
             </div>
 
             {/* ── Comment ──────────────────────────────────────────────────── */}
-            <div className="mb-6">
-              <div className="flex items-center gap-2 ml-1 mb-2 text-slate-400">
-                <MessageSquare size={13} />
-                <label className="text-[10px] font-black uppercase tracking-widest">
+            <div className="mb-5">
+              <div className="flex items-center gap-1.5 ml-0.5 mb-1.5 text-slate-400">
+                <MessageSquare size={12} />
+                <label className="text-[9px] font-black uppercase tracking-widest">
                   Additional Comments
                 </label>
               </div>
@@ -268,38 +269,37 @@ const RatingModal = ({ isOpen, onClose, rideId, targetName, targetRole = 'Driver
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Tell us more about your experience..."
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-medium focus:border-primary outline-none transition-all min-h-[90px] resize-none placeholder:text-slate-300"
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-3 text-xs font-medium focus:border-primary outline-none transition-all min-h-[75px] md:min-h-[90px] resize-none placeholder:text-slate-350"
               />
             </div>
 
             {/* ── Submit & Skip ─────────────────────────────────────────────── */}
-            <div className="space-y-3">
+            <div className="space-y-3.5 text-center">
               <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="w-full bg-secondary text-white font-black py-5 rounded-[1.5rem] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-secondary text-white font-black py-4 rounded-[1.25rem] hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Star size={18} className="fill-primary text-primary" />
+                    <Star size={16} className="fill-primary text-primary" />
                     <span>Submit Feedback</span>
                   </>
                 )}
               </motion.button>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
+              <button
+                type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-4 rounded-[1.5rem] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                className="inline-block text-xs font-black text-slate-400 hover:text-secondary underline underline-offset-4 decoration-slate-350 hover:decoration-secondary transition-all py-1 disabled:opacity-50"
               >
-                <span>Skip & Exit</span>
-              </motion.button>
+                Skip & Exit
+              </button>
             </div>
           </div>
         </motion.div>
