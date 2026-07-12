@@ -1164,16 +1164,15 @@ const DriverHome = () => {
                 </motion.div>
               ) : activeRide ? (
                 <motion.div
-                  initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-                  className="bg-secondary text-white p-6 rounded-[2rem] shadow-2xl relative overflow-hidden"
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  className="rounded-[2.2rem] overflow-hidden border border-slate-200 shadow-xl shadow-slate-100 bg-white"
                 >
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Navigation2 size={80} />
-                  </div>
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
+                  {/* ── Active Ride Header ── */}
+                  <div className="bg-secondary p-5 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 border border-white/15">
                           <img
                             src={(() => {
                               const passengerObj = typeof activeRide.passenger === 'object' ? activeRide.passenger : null;
@@ -1182,122 +1181,137 @@ const DriverHome = () => {
                                 ? ensureImageUrl(passengerObj.profile_picture, pName, passengerObj.profile_picture_url)
                                 : `https://api.dicebear.com/7.x/avataaars/svg?seed=${pName}`;
                             })()}
-                            alt="P"
+                            alt="Passenger"
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div>
-                          <p className="font-bold text-lg">{typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}</p>
-                          <p className="text-[10px] text-primary font-black uppercase tracking-widest">
+                        <div className="min-w-0">
+                          <p className="font-black text-white text-base truncate leading-tight">
+                            {typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger}
+                          </p>
+                          <p className="text-[10px] text-primary font-black uppercase tracking-widest mt-0.5 animate-pulse">
                             {activeRide.status === 'on_route'
                               ? 'Heading to Destination'
                               : `Arriving in ${driverEta != null ? `${driverEta} min` : 'a few mins'}`}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {/* ✅ Passenger Count Badge on Active Ride */}
-                        <div className="flex items-center gap-1 bg-primary/20 text-primary px-3 py-1.5 rounded-full">
-                          <Users size={12} />
-                          <span className="text-[11px] font-black">{activeRide.passenger_count || 1} pax</span>
-                        </div>
-                        <div className="bg-white/10 text-primary px-3 py-1.5 rounded-full text-[10px] font-black uppercase border border-primary/30">
-                          In Progress
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Passenger Count */}
+                        <div className="flex items-center gap-1 bg-white/10 text-primary px-2.5 py-1.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-wide">
+                          <Users size={11} />
+                          <span>{activeRide.passenger_count || 1} pax</span>
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="space-y-4 mb-4 bg-slate-800/50 p-4 rounded-2xl border border-white/5">
+                  {/* ── Route Details ── */}
+                  <div className="p-5 space-y-3 bg-slate-50 border-b border-slate-100">
+                    <div className="space-y-3">
                       <div className="flex items-start space-x-3">
-                        <MapPin size={18} className="text-primary mt-1" />
+                        <div className="p-1.5 bg-primary/10 rounded-lg shrink-0 mt-0.5">
+                          <MapPin size={14} className="text-primary-dark" />
+                        </div>
                         <div className="min-w-0">
-                          <p className="text-[10px] uppercase font-bold text-slate-400">Pickup</p>
-                          <p className="text-sm truncate">{activeRide.pickup_address || activeRide.pickup}</p>
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Pickup</p>
+                          <p className="text-xs font-bold text-secondary truncate">{activeRide.pickup_address || activeRide.pickup}</p>
                         </div>
                       </div>
-                      <div className="border-l-2 border-dashed border-slate-700 ml-2 h-4 my-1"></div>
+                      <div className="border-l border-dashed border-slate-300 ml-4 h-3 my-0.5"></div>
                       <div className="flex items-start space-x-3">
-                        <Navigation2 size={18} className="text-accent mt-1" />
+                        <div className="p-1.5 bg-accent/15 rounded-lg shrink-0 mt-0.5">
+                          <Navigation2 size={14} className="text-accent-dark" />
+                        </div>
                         <div className="min-w-0">
-                          <p className="text-[10px] uppercase font-bold text-slate-400">Destination</p>
-                          <p className="text-sm truncate">{resolvedDestName || activeRide.dest_address || activeRide.dest}</p>
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Destination</p>
+                          <p className="text-xs font-bold text-secondary truncate">{resolvedDestName || activeRide.dest_address || activeRide.dest}</p>
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {activeRide.nearest_landmark && (
-                      <div className="mb-4 px-4 py-3 text-xs bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
-                        <span className="font-black text-primary uppercase text-[9px] block tracking-widest mb-1">📍 Nearest Landmark</span>
-                        <span className="font-medium text-slate-200">{activeRide.nearest_landmark}</span>
-                      </div>
-                    )}
-                    {activeRide.notes && (
-                      <div className="mb-4 px-4 py-3 text-xs bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all">
-                        <span className="font-black text-primary uppercase text-[9px] block tracking-widest mb-1">📝 Passenger Instructions</span>
-                        <span className="font-medium text-slate-200">{activeRide.notes}</span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 mb-6 px-1">
-                      <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/5 flex items-center gap-2">
-                        <CreditCard size={12} className="text-primary" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">{activeRide.payment_method || 'Cash'}</span>
-                      </div>
-                      <div className="bg-white/10 px-3 py-2 rounded-xl border border-white/5 flex items-center gap-2">
-                        <Wallet size={12} className="text-primary" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">₱{activeRide.fare}</span>
-                      </div>
-
-                      {activeRide.payment_method === 'gcash' && (
-                        <button
-                          onClick={() => {
-                            setVerificationRef(`${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`);
-                            setShowGCashVerify(true);
-                          }}
-                          className="ml-auto bg-[#007DFE] text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
-                        >
-                          <Shield size={12} />
-                          <span>Verify GCash</span>
-                        </button>
+                  {/* ── Nearest Landmark / Instructions ── */}
+                  {(activeRide.nearest_landmark || activeRide.notes) && (
+                    <div className="px-5 py-3.5 space-y-2.5 bg-white border-b border-slate-100 text-xs">
+                      {activeRide.nearest_landmark && (
+                        <div>
+                          <span className="font-black text-secondary uppercase text-[9px] block tracking-wider mb-0.5">📍 Nearest Landmark</span>
+                          <p className="font-bold text-slate-600 bg-slate-50 border border-slate-150 rounded-xl px-3 py-2">{activeRide.nearest_landmark}</p>
+                        </div>
+                      )}
+                      {activeRide.notes && (
+                        <div>
+                          <span className="font-black text-secondary uppercase text-[9px] block tracking-wider mb-0.5">📝 Passenger Instructions</span>
+                          <p className="font-bold text-slate-600 bg-slate-50 border border-slate-150 rounded-xl px-3 py-2">{activeRide.notes}</p>
+                        </div>
                       )}
                     </div>
+                  )}
 
-                    <div className="flex gap-3">
-                      <div className="flex-1 flex flex-col gap-2">
-                        <button
-                          onClick={() => {
-                            const target = activeRide.status === 'on_route'
-                              ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
-                              : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
-                            openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
-                          }}
-                          className="w-full bg-white/10 text-white font-black py-4 rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center space-x-2 border border-white/10"
-                        >
-                          <Navigation2 size={20} className="text-primary" />
-                          <span>Navigate</span>
-                        </button>
-                        <p className="text-[8px] text-center text-white/40 uppercase font-black tracking-tighter">Opens Google Maps</p>
+                  {/* ── Payment Details ── */}
+                  <div className="px-5 py-4 bg-white flex items-center justify-between border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-slate-100 text-secondary px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
+                        <CreditCard size={13} className="text-slate-500" />
+                        <span>{activeRide.payment_method || 'Cash'}</span>
                       </div>
+                      <div className="bg-primary/10 text-primary-dark px-3 py-2 rounded-xl border border-primary/25 flex items-center gap-1.5 text-xs font-black uppercase tracking-wider">
+                        <Wallet size={13} />
+                        <span>₱{activeRide.fare}</span>
+                      </div>
+                    </div>
+
+                    {activeRide.payment_method === 'gcash' && (
+                      <button
+                        onClick={() => {
+                          setVerificationRef(`${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`);
+                          setShowGCashVerify(true);
+                        }}
+                        className="bg-[#007DFE] text-white px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-blue-600 transition-colors shadow-md shadow-blue-500/10"
+                      >
+                        <Shield size={13} />
+                        <span>Verify GCash</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* ── Active Ride Actions ── */}
+                  <div className="p-5 bg-slate-50 space-y-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => {
+                          const target = activeRide.status === 'on_route'
+                            ? { lat: activeRide.dest_lat, lng: activeRide.dest_lng }
+                            : (passengerLivePos || { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng });
+                          openNativeNavigation(target.lat, target.lng, activeRide.status === 'on_route' ? 'Destination' : 'Passenger Pickup');
+                        }}
+                        className="w-full bg-white text-secondary font-black py-4 rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center gap-1.5 border border-slate-200 text-sm shadow-sm"
+                      >
+                        <Navigation2 size={16} className="text-secondary" />
+                        <span>Navigate</span>
+                      </button>
 
                       {activeRide.status === 'accepted' || activeRide.status === 'matched' ? (
                         <button
                           onClick={startRide}
-                          className="flex-[2] bg-accent text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-accent/20"
+                          className="col-span-2 bg-accent text-secondary font-black py-4 rounded-2xl hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-accent/20 text-sm"
                         >
-                          <Tractor size={20} />
+                          <Tractor size={18} />
                           <span>Start Ride</span>
                         </button>
                       ) : (
                         <button
                           onClick={completeRide}
                           disabled={isCompletingRide}
-                          className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:bg-white transition-all flex items-center justify-center space-x-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+                          className="col-span-2 bg-primary text-secondary font-black py-4 rounded-2xl hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-primary/20 text-sm disabled:opacity-50"
                         >
-                          <Check size={20} />
+                          <Check size={18} />
                           <span>{isCompletingRide ? 'Completing...' : 'Complete'}</span>
                         </button>
                       )}
                     </div>
+                    <p className="text-[8px] text-center text-slate-400 uppercase font-black tracking-widest mt-1">Navigate opens Google Maps or Waze</p>
                   </div>
                 </motion.div>
               ) : selectedRequest ? (
@@ -1306,30 +1320,32 @@ const DriverHome = () => {
                   initial={{ scale: 0.9, opacity: 0, y: 20 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                  className="bg-white border-2 border-primary p-6 rounded-[2.5rem] shadow-2xl relative"
+                  className="rounded-[2.2rem] overflow-hidden border-2 border-primary shadow-xl bg-white"
                 >
-                  {/* Premium top status header */}
-                  <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        Incoming Request
-                      </span>
+                  {/* ── Incoming Request Header ── */}
+                  <div className="bg-primary p-5 text-secondary">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse" />
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          Incoming Request
+                        </span>
+                      </div>
+                      <button
+                        onClick={fetchRequests}
+                        className="p-1.5 text-secondary/70 hover:text-secondary hover:bg-black/5 rounded-xl transition-all"
+                        title="Refresh Request"
+                      >
+                        <Clock size={14} />
+                      </button>
                     </div>
-                    <button
-                      onClick={fetchRequests}
-                      className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-50 rounded-xl transition-all"
-                      title="Refresh Request"
-                    >
-                      <Clock size={14} />
-                    </button>
                   </div>
 
-                  <div className="space-y-4 pt-1">
-                    {/* Passenger Info Header */}
-                    <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="p-6">
+                    {/* Passenger Profile Header */}
+                    <div className="flex items-start justify-between gap-3 mb-5 border-b border-slate-100 pb-4">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-14 h-14 bg-slate-100 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-sm shrink-0">
+                        <div className="w-14 h-14 bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shrink-0">
                           <img
                             src={(() => {
                               const passengerObj = typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger : null;
@@ -1346,23 +1362,23 @@ const DriverHome = () => {
                           <p className="font-black text-secondary text-base truncate leading-tight">
                             {typeof selectedRequest.passenger === 'object' ? selectedRequest.passenger.username : selectedRequest.passenger}
                           </p>
-                          <div className="flex flex-wrap items-center gap-1 mt-1">
-                            <div className="flex items-center gap-0.5 text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded-lg">
-                              <Star size={10} className="fill-yellow-500" />
-                              <span className="text-[9px] font-bold">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <div className="flex items-center gap-0.5 text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-lg border border-yellow-100">
+                              <Star size={10} className="fill-yellow-500 mr-0.5" />
+                              <span className="text-[9px] font-black">
                                 {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.average_rating
                                   ? parseFloat(selectedRequest.passenger.average_rating).toFixed(1)
                                   : 'New'}
                               </span>
                             </div>
-                            <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">Verified</span>
+                            <span className="text-[9px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-lg border border-green-100 uppercase">Verified</span>
                             {typeof selectedRequest.passenger === 'object' && (
                               <>
                                 {selectedRequest.passenger.gender && (
-                                  <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg uppercase">{selectedRequest.passenger.gender}</span>
+                                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg uppercase border border-blue-100">{selectedRequest.passenger.gender}</span>
                                 )}
                                 {selectedRequest.passenger.date_of_birth && (
-                                  <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                                  <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100 whitespace-nowrap">
                                     {Math.floor((new Date() - new Date(selectedRequest.passenger.date_of_birth)) / 31557600000)} Y/O
                                   </span>
                                 )}
@@ -1372,119 +1388,95 @@ const DriverHome = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-black text-primary text-2xl leading-none">₱{selectedRequest.fare}</p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-1">{getDistanceToPickup(selectedRequest)} away</p>
+                        <p className="font-black text-secondary text-3xl tracking-tight leading-none">₱{selectedRequest.fare}</p>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">{getDistanceToPickup(selectedRequest)} away</p>
                       </div>
                     </div>
 
-                    {/* Passenger Contact Details */}
+                    {/* Passenger Secure Contact */}
                     {typeof selectedRequest.passenger === 'object' && selectedRequest.passenger.phone_number && (
-                      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mb-2">Secure Contact</p>
-                        <div className="flex items-center gap-2">
-                          <Phone size={14} className="text-blue-600" />
-                          <button
-                            onClick={() => alert("Initiating secure proxy call. Passenger number is hidden for privacy.")}
-                            className="text-sm font-bold text-blue-600 hover:underline focus:outline-none"
-                          >
-                            Call Passenger (Masked)
-                          </button>
-                        </div>
+                      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3.5 mb-4 flex items-center gap-2">
+                        <Phone size={14} className="text-blue-600 shrink-0" />
+                        <button
+                          onClick={() => alert("Initiating secure proxy call. Passenger number is hidden for privacy.")}
+                          className="text-xs font-bold text-blue-600 hover:underline focus:outline-none"
+                        >
+                          Call Passenger (Masked Secure Line)
+                        </button>
                       </div>
                     )}
-                  </div>
 
-                  <div className="space-y-3 mb-6">
-                    {/* Trip Details Card */}
-                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-3xl border border-slate-200">
-                      <div className="flex items-start space-x-3 mb-4">
-                        <div className="p-2 bg-primary/10 rounded-xl">
-                          <MapPin size={18} className="text-primary" />
+                    {/* Route Details Card */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-3.5 mb-4">
+                      <div className="flex items-start space-x-3">
+                        <div className="p-1.5 bg-primary/10 rounded-lg shrink-0 mt-0.5">
+                          <MapPin size={15} className="text-primary-dark" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1">Pickup Location</p>
-                          <p className="text-sm font-bold text-secondary leading-tight">{selectedRequest.pickup_address || selectedRequest.pickup}</p>
-                          {selectedRequest.pickup_lat && selectedRequest.pickup_lng && (
-                            <p className="text-[10px] text-slate-400 font-mono mt-1">
-                              📍 {parseFloat(selectedRequest.pickup_lat).toFixed(4)}, {parseFloat(selectedRequest.pickup_lng).toFixed(4)}
-                            </p>
-                          )}
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider mb-0.5">Pickup Location</p>
+                          <p className="text-xs font-bold text-secondary leading-tight">{selectedRequest.pickup_address || selectedRequest.pickup}</p>
                         </div>
                       </div>
-                      <div className="border-l-2 border-dashed border-slate-300 ml-4 h-4 my-2"></div>
+                      <div className="border-l border-dashed border-slate-300 ml-4 h-3 my-0.5"></div>
                       <div className="flex items-start space-x-3">
-                        <div className="p-2 bg-accent/10 rounded-xl">
-                          <Navigation2 size={18} className="text-accent" />
+                        <div className="p-1.5 bg-accent/15 rounded-lg shrink-0 mt-0.5">
+                          <Navigation2 size={15} className="text-accent-dark" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest mb-1">Destination</p>
-                          <p className="text-sm font-bold text-secondary leading-tight">{resolvedDestName || selectedRequest.dest_address || selectedRequest.dest}</p>
-                          {selectedRequest.dest_lat && selectedRequest.dest_lng && (
-                            <p className="text-[10px] text-slate-400 font-mono mt-1">
-                              📍 {parseFloat(selectedRequest.dest_lat).toFixed(4)}, {parseFloat(selectedRequest.dest_lng).toFixed(4)}
-                            </p>
-                          )}
+                          <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider mb-0.5">Destination</p>
+                          <p className="text-xs font-bold text-secondary leading-tight">{resolvedDestName || selectedRequest.dest_address || selectedRequest.dest}</p>
                         </div>
                       </div>
                     </div>
 
+                    {/* Landmark & Instructions */}
                     {selectedRequest.nearest_landmark && (
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-secondary">
-                        <span className="font-black text-primary-dark uppercase text-[9px] block tracking-wider mb-1">📍 Nearest Landmark</span>
-                        <p className="font-bold">{selectedRequest.nearest_landmark}</p>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-secondary mb-3">
+                        <span className="font-black text-secondary uppercase text-[9px] block tracking-wider mb-0.5">📍 Nearest Landmark</span>
+                        <p className="font-bold text-slate-600">{selectedRequest.nearest_landmark}</p>
                       </div>
                     )}
                     {selectedRequest.notes && (
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-secondary">
-                        <span className="font-black text-primary-dark uppercase text-[9px] block tracking-wider mb-1">📝 Passenger Instructions</span>
-                        <p className="font-bold">{selectedRequest.notes}</p>
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs text-secondary mb-4">
+                        <span className="font-black text-secondary uppercase text-[9px] block tracking-wider mb-0.5">📝 Passenger Instructions</span>
+                        <p className="font-bold text-slate-600">{selectedRequest.notes}</p>
                       </div>
                     )}
 
-                    {/* Trip Metadata */}
-                    <div className="grid grid-cols-3 gap-2">
+                    {/* Trip Metadata Grid */}
+                    <div className="grid grid-cols-3 gap-2.5 mb-6">
                       <div className="bg-white p-3 rounded-xl border border-slate-200">
-                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Requested</p>
-                        <p className="text-xs font-bold text-secondary">{new Date(selectedRequest.requested_at).toLocaleTimeString()}</p>
+                        <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Time</p>
+                        <p className="text-xs font-black text-secondary">{new Date(selectedRequest.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                       <div className="bg-white p-3 rounded-xl border border-slate-200">
-                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Payment</p>
-                        <p className="text-xs font-bold text-secondary uppercase italic">{selectedRequest.payment_method || 'Cash'}</p>
+                        <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Payment</p>
+                        <p className="text-xs font-black text-secondary uppercase italic">{selectedRequest.payment_method || 'Cash'}</p>
                       </div>
-                      {/* ✅ Passenger Count — was missing */}
-                      <div className="bg-primary/10 p-3 rounded-xl border-2 border-primary/30 flex flex-col items-center justify-center">
-                        <Users size={14} className="text-primary mb-1" />
-                        <p className="text-lg font-black text-primary leading-none">{selectedRequest.passenger_count || 1}</p>
-                        <p className="text-[8px] font-black uppercase text-primary/70 tracking-tight">Passengers</p>
+                      <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 flex flex-col items-center justify-center">
+                        <Users size={12} className="text-primary-dark mb-0.5" />
+                        <p className="text-sm font-black text-secondary leading-none">{selectedRequest.passenger_count || 1}</p>
+                        <p className="text-[7px] font-black uppercase text-secondary/60 tracking-tighter mt-1">Pax</p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-3 pt-6 border-t border-slate-100">
-                    <button
-                      onClick={() => {
-                        const target = { lat: selectedRequest.pickup_lat, lng: selectedRequest.pickup_lng };
-                        openNativeNavigation(target.lat, target.lng, 'Pickup Location');
-                      }}
-                      className="p-4 bg-slate-50 text-secondary rounded-2xl hover:bg-slate-100 transition-all border border-slate-200"
-                      title="Navigate to Pickup"
-                    >
-                      <Navigation2 size={20} className="text-primary-dark" />
-                    </button>
-                    <button
-                      onClick={() => declineRequest(selectedRequest.id)}
-                      className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl hover:bg-red-100 transition-all flex items-center justify-center gap-2 border border-red-200"
-                    >
-                      <X size={20} />
-                      <span>Decline</span>
-                    </button>
-                    <button
-                      onClick={() => acceptRide(selectedRequest)}
-                      className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/30"
-                    >
-                      <Check size={20} />
-                      <span>Accept Ride</span>
-                    </button>
+                    {/* Action buttons */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => declineRequest(selectedRequest.id)}
+                        className="flex-1 bg-red-50 text-red-600 font-black py-4 rounded-2xl hover:bg-red-100 transition-all flex items-center justify-center gap-1.5 border border-red-200 text-sm"
+                      >
+                        <X size={18} />
+                        <span>Decline</span>
+                      </button>
+                      <button
+                        onClick={() => acceptRide(selectedRequest)}
+                        className="flex-[2] bg-primary text-secondary font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-primary/30 text-sm"
+                      >
+                        <Check size={18} />
+                        <span>Accept Ride</span>
+                      </button>
+                    </div>
                   </div>
 
                   {requests.length > 1 && (
