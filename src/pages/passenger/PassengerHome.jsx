@@ -84,7 +84,7 @@ const PassengerHome = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [showGCashPayment, setShowGCashPayment] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [paymentError, setPaymentError] = useState(null);
+
   const [isRequestingRide, setIsRequestingRide] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const gcashEnabled = process.env.REACT_APP_GCASH_ENABLED === 'true';
@@ -1275,20 +1275,8 @@ const PassengerHome = () => {
     } else if (paymentMethod !== 'cash') {
       setShowPayment(true);
     } else {
-      // Mark ride as completed in database
-      try {
-        if (activeRideId) {
-          await api.patch(`/rides/${activeRideId}/`, {
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          });
-        }
-      } catch (err) {
-        const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to complete ride';
-        alert(`Error: ${errorMsg}`);
-        return;
-      }
-
+      // Cash payment: the driver's complete/ endpoint already marked the ride completed.
+      // Passenger only needs to navigate to the rating screen.
       setStatus('completed');
       setMarkers([]);
       setRouteCoordinates(null);
@@ -1302,7 +1290,6 @@ const PassengerHome = () => {
 
   const handleGCashSuccess = async (transactionRef) => {
     setIsProcessingPayment(true);
-    setPaymentError(null);
 
     try {
       // Verify payment with backend before completing ride
@@ -1328,7 +1315,6 @@ const PassengerHome = () => {
       }, 1000);
     } catch (err) {
       const errorMsg = err.response?.data?.detail || err.response?.data?.error || err.message || 'Payment verification failed';
-      setPaymentError(errorMsg);
       alert(`Payment Error: ${errorMsg}. Please try again or contact support.`);
       setShowGCashPayment(false);
     } finally {
@@ -2304,18 +2290,7 @@ const PassengerHome = () => {
         amount={fare}
         method={paymentMethod}
         onComplete={async () => {
-          // Mark ride as completed in database
-          try {
-            if (activeRideId) {
-              await api.patch(`/rides/${activeRideId}/`, {
-                status: 'completed',
-                completed_at: new Date().toISOString()
-              });
-            }
-          } catch (err) {
-            console.error('Failed to update ride status', err);
-          }
-
+          // Driver's complete/ endpoint already handled the backend. Just update UI.
           setShowPayment(false);
           setStatus('completed');
           setMarkers([]);

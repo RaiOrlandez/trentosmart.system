@@ -1234,12 +1234,14 @@ class RideViewSet(viewsets.ModelViewSet):
                             description=f'Completed Ride #{updated_ride.id}'
                         )
                         
-                        # Log LGU commission
-                        LGURevenue.objects.create(
+                        # Log LGU commission (get_or_create prevents IntegrityError from duplicate calls)
+                        LGURevenue.objects.get_or_create(
                             ride=updated_ride,
-                            amount=lgu_comm,
-                            commission_rate=rate,
-                            notes=f'Auto-recorded from Ride #{updated_ride.id}'
+                            defaults={
+                                'amount': lgu_comm,
+                                'commission_rate': rate,
+                                'notes': f'Auto-recorded from Ride #{updated_ride.id}'
+                            }
                         )
                 
                 # Mark payment as paid
@@ -1515,6 +1517,20 @@ def ride_complete(request, ride_id):
         return Response({'detail': 'You are not the driver for this ride'}, status=status.HTTP_403_FORBIDDEN)
     
     # Verify ride is in acceptable status
+    # Idempotent: if already completed, return the existing completion data as success
+    if ride.status == 'completed':
+        driver = ride.driver
+        total_fare = ride.fare or Decimal('0.00')
+        return Response({
+            'status': 'completed',
+            'total_fare': str(total_fare),
+            'lgu_commission': str(ride.lgu_commission),
+            'driver_earnings': str(ride.driver_earnings),
+            'commission_rate': str(ride.commission_rate),
+            'driver_balance': str(driver.wallet_balance) if driver else '0.00',
+            'message': 'Ride was already completed.',
+            'already_completed': True
+        })
     if ride.status not in ['accepted', 'on_route']:
         return Response({'detail': f'Cannot complete ride with status: {ride.status}'}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -1555,13 +1571,15 @@ def ride_complete(request, ride_id):
         description=f'Ride #{ride.id} earnings (₱{total_fare} - ₱{lgu_commission} LGU commission)'
     )
     
-    # Log LGU commission revenue
-    LGURevenue.objects.create(
+    # Log LGU commission revenue (use get_or_create to prevent IntegrityError if already created)
+    LGURevenue.objects.get_or_create(
         ride=ride,
-        amount=lgu_commission,
-        commission_rate=commission_rate,
-        purpose='general',  # Can be customized based on admin settings
-        notes=f'Commission from Ride #{ride.id} - {driver.username}'
+        defaults={
+            'amount': lgu_commission,
+            'commission_rate': commission_rate,
+            'purpose': 'general',
+            'notes': f'Commission from Ride #{ride.id} - {driver.username}'
+        }
     )
     
     # Notify passenger via WebSocket

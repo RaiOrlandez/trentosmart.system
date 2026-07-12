@@ -255,10 +255,11 @@ const DriverHome = () => {
 
   // Handle passenger GCash payment verification and completion
   useEffect(() => {
-    if (passengerLivePos && passengerLivePos.status === 'completed' && passengerLivePos.data?.payment_verified) {
+    // Trigger when WS sends status='completed' while we are waiting for GCash payment
+    if (passengerLivePos && passengerLivePos.status === 'completed' && isWaitingForGCashPayment) {
       setIsWaitingForGCashPayment(false);
-      
-      const pData = passengerLivePos.data;
+
+      const pData = passengerLivePos.data || {};
       const gainedEarnings = pData.driver_earnings ? parseFloat(pData.driver_earnings) : parseFloat(activeRide?.fare || 0);
 
       setTodayEarnings(prev => prev + gainedEarnings);
@@ -267,17 +268,17 @@ const DriverHome = () => {
       fetchAnalytics();
 
       setCommissionData({
-        totalFare: pData.total_fare,
+        totalFare: pData.total_fare || pData.fare,
         lguCommission: pData.lgu_commission,
         driverEarnings: pData.driver_earnings,
         commissionRate: pData.commission_rate
       });
       setActiveRide(null);
-      
+
       // Delay LGU receipt modal display slightly for smoother transition
       setTimeout(() => setShowCommissionModal(true), 500);
     }
-  }, [passengerLivePos, activeRide, getProfile]);
+  }, [passengerLivePos, isWaitingForGCashPayment, activeRide, getProfile]);
 
   // ✅ Persist online status to localStorage on every change (survives page refresh)
   useEffect(() => {
@@ -1958,9 +1959,41 @@ const DriverHome = () => {
                 Connected to secure gateway
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (window.confirm("Bypass GCash waiting screen? Use this if the passenger paid in cash instead, or if the connection was lost.")) {
                     setIsWaitingForGCashPayment(false);
+                    // Directly complete the ride as a cash payment
+                    if (!activeRide || isCompletingRide) return;
+                    setIsCompletingRide(true);
+                    try {
+                      const currentRideId = activeRide.id;
+                      const passengerName = typeof activeRide.passenger === 'object' ? activeRide.passenger.username : activeRide.passenger;
+                      const response = await api.post(`/rides/${currentRideId}/complete/`);
+                      const data = response.data;
+                      const gainedEarnings = data.driver_earnings ? parseFloat(data.driver_earnings) : parseFloat(activeRide.fare);
+                      setTodayEarnings(prev => prev + gainedEarnings);
+                      setTripsCount(prev => prev + 1);
+                      if (getProfile) getProfile();
+                      fetchAnalytics();
+                      setCompletedRideId(currentRideId);
+                      setCompletedPassengerName(passengerName);
+                      if (data.lgu_commission) {
+                        setCommissionData({
+                          totalFare: data.total_fare,
+                          lguCommission: data.lgu_commission,
+                          driverEarnings: data.driver_earnings,
+                          commissionRate: data.commission_rate
+                        });
+                      }
+                      setActiveRide(null);
+                      setTimeout(() => setShowCommissionModal(true), 500);
+                    } catch (err) {
+                      console.error('Failed to complete ride (bypass GCash)', err);
+                      const serverMsg = err.response?.data?.detail || err.response?.data?.error || '';
+                      alert(serverMsg ? `Failed: ${serverMsg}` : 'Could not complete the ride. Please check connection.');
+                    } finally {
+                      setIsCompletingRide(false);
+                    }
                   }
                 }}
                 className="mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all uppercase tracking-wider"
