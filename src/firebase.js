@@ -20,6 +20,10 @@ export const auth = getAuth(app);
 // Request permission and get device token
 export const requestForToken = async () => {
   try {
+    if (typeof Notification === 'undefined') {
+      console.warn('[FCM] Push notifications are not supported by this browser.');
+      return null;
+    }
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       const currentToken = await getToken(messaging, {

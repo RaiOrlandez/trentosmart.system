@@ -117,7 +117,7 @@ const useNotifications = () => {
 
   // ── 2. Show a desktop notification ────────────────────────────────────────
   const notify = useCallback((title, body, options = {}) => {
-    if (Notification.permission !== 'granted') return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     try {
       const n = new Notification(title, {
         body,
