@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Star,
   Search,
-  TrendingUp,
   Wallet,
   MessageSquare,
   Home,
@@ -77,6 +76,7 @@ const PassengerHome = () => {
   const [status, setStatus] = useState('idle');
   const [markers, setMarkers] = useState([]);
   const [fare, setFare] = useState(0);
+  const [isFetchingFare, setIsFetchingFare] = useState(false);
   const [nearbyDrivers, setNearbyDrivers] = useState(0);
   const [showSOS, setShowSOS] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -260,8 +260,11 @@ const PassengerHome = () => {
     if (!pickup || !dest) {
       setFare(0);
       setDistance(0);
+      setIsFetchingFare(false);
       return;
     }
+
+    setIsFetchingFare(true);
 
     // Lookup local landmark coordinates if they exist
     const matchedPickupLm = TRENTO_LANDMARKS.find(l => l.name.toLowerCase() === pickup.trim().toLowerCase());
@@ -433,6 +436,8 @@ const PassengerHome = () => {
       const extraKm = Math.max(0, fallbackDist - BASE_DIST);
       setFare(Math.round(BASE_FARE + Math.ceil(extraKm) * RATE_PER_KM));
       setRouteCoordinates(null);
+    } finally {
+      setIsFetchingFare(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup, dest]);
@@ -1611,81 +1616,118 @@ const PassengerHome = () => {
               </div>
             )}
 
-            {fare > 0 && (
+            {/* ── Booking Info Card: shows as soon as both pickup & dest are set ── */}
+            {(isFetchingFare || fare > 0) && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                className="p-5 bg-gradient-to-br from-primary/20 to-secondary text-white rounded-3xl border border-primary/30 relative overflow-hidden"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="rounded-3xl overflow-hidden border border-slate-200 shadow-lg shadow-slate-100"
               >
-                <div className="absolute -right-4 -top-4 opacity-10">
-                  <TrendingUp size={80} />
+                {/* ── Fare Header ── */}
+                <div className="bg-secondary px-5 py-4">
+                  <div className="flex items-center justify-between">
+                    {/* Estimated Fare */}
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-0.5">Estimated Fare</p>
+                      {isFetchingFare ? (
+                        <div className="h-10 w-28 bg-white/10 rounded-xl animate-pulse" />
+                      ) : (
+                        <motion.p
+                          key={fare}
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="text-4xl font-black text-primary tracking-tight"
+                        >
+                          ₱{fare}
+                        </motion.p>
+                      )}
+                    </div>
+                    {/* Distance & ETA */}
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-0.5">Distance & ETA</p>
+                      {isFetchingFare ? (
+                        <div className="space-y-1.5">
+                          <div className="h-5 w-20 bg-white/10 rounded-lg animate-pulse ml-auto" />
+                          <div className="h-3.5 w-14 bg-white/10 rounded-lg animate-pulse ml-auto" />
+                        </div>
+                      ) : (
+                        <motion.div key={distance} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                          <p className="text-lg font-black text-white">{distance} <span className="text-sm font-bold text-white/60">km</span></p>
+                          <p className="text-xs text-white/60 font-semibold">~{estimatedTime} mins</p>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="relative z-10">
-                  <div className="flex justify-between items-end mb-4">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary/80">Estimated Fare</p>
-                      <p className="text-3xl font-black italic underline decoration-primary">₱{fare}.00</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Distance</p>
-                      <p className="font-bold text-accent">{distance} km</p>
-                      <p className="text-[10px] text-slate-300 font-bold mt-0.5">~{estimatedTime} mins</p>
-                    </div>
+                {/* ── Fare Breakdown ── */}
+                <div className="bg-white px-5 pt-4 pb-3 space-y-2.5">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Fare Breakdown</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-semibold text-slate-500">Base Fare</span>
+                    {isFetchingFare ? <div className="h-3.5 w-12 bg-slate-100 rounded animate-pulse" /> : <span className="text-xs font-black text-secondary">₱{fareParams.base}</span>}
                   </div>
-
-                  <div className="space-y-1 mb-6 opacity-80">
-                    <div className="flex justify-between text-[10px] font-bold">
-                      <span>Base Fare</span>
-                      <span>₱{fareParams.base}.00</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-bold">
-                      <span>Rate per KM</span>
-                      <span>₱{fareParams.perKm}.00 / km</span>
-                    </div>
-                    {surgeInfo.isSurge && (
-                      <div className="flex justify-between text-[10px] font-bold text-accent animate-pulse">
-                        <span>High Demand Surge (x{surgeInfo.multiplier})</span>
-                        <span>+₱{(fare - (fare / surgeInfo.multiplier)).toFixed(0)}.00</span>
-                      </div>
-                    )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-semibold text-slate-500">Rate per km</span>
+                    {isFetchingFare ? <div className="h-3.5 w-16 bg-slate-100 rounded animate-pulse" /> : <span className="text-xs font-black text-secondary">₱{fareParams.perKm} / km</span>}
                   </div>
+                  {surgeInfo.isSurge && !isFetchingFare && (
+                    <div className="flex justify-between items-center bg-orange-50 px-3 py-1.5 rounded-xl">
+                      <span className="text-xs font-bold text-orange-600">⚡ High Demand (×{surgeInfo.multiplier})</span>
+                      <span className="text-xs font-black text-orange-600">+₱{(fare - (fare / surgeInfo.multiplier)).toFixed(0)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-slate-100 pt-2 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-600">Total</span>
+                    {isFetchingFare ? <div className="h-4 w-14 bg-slate-100 rounded animate-pulse" /> : <span className="text-sm font-black text-secondary">₱{fare}</span>}
+                  </div>
+                </div>
 
+                {/* ── Ride Details: Landmark, Notes, Pax Count ── */}
+                <div className="bg-slate-50 px-5 py-4 space-y-3 border-t border-slate-100">
                   {/* Nearest Landmark */}
-                  <div className="mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-1.5">📍 Nearest Landmark <span className="normal-case font-medium opacity-60">(helps driver find you)</span></p>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1 mb-1.5">
+                      <span>📍</span> Nearest Landmark <span className="normal-case font-normal">(helps driver find you)</span>
+                    </label>
                     <input
                       type="text"
                       value={nearestLandmark}
                       onChange={(e) => setNearestLandmark(e.target.value)}
                       placeholder="e.g. Near Public Market, Beside Mercury Drug…"
-                      className="w-full bg-white/10 text-white placeholder-white/40 border border-white/20 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-white/30"
+                      className="w-full bg-white text-secondary placeholder-slate-300 border-2 border-slate-200 focus:border-primary rounded-xl px-3 py-2.5 text-xs font-medium outline-none transition-all"
                     />
                   </div>
 
                   {/* Ride Notes */}
-                  <div className="mb-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-1.5">📝 Ride Instructions <span className="normal-case font-medium opacity-60">(optional)</span></p>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1 mb-1.5">
+                      <span>📝</span> Ride Instructions <span className="normal-case font-normal">(optional)</span>
+                    </label>
                     <input
                       type="text"
                       value={rideNotes}
                       onChange={(e) => setRideNotes(e.target.value)}
                       placeholder="e.g. Blue Gate, Waiting Outside, Second House…"
-                      className="w-full bg-white/10 text-white placeholder-white/40 border border-white/20 rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-white/30"
+                      className="w-full bg-white text-secondary placeholder-slate-300 border-2 border-slate-200 focus:border-primary rounded-xl px-3 py-2.5 text-xs font-medium outline-none transition-all"
                     />
                   </div>
 
-                  <div className="mb-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80 mb-2">Number of Passengers (Max 5)</p>
+                  {/* Number of Passengers */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 block">
+                      👥 Passengers <span className="normal-case font-normal">(max 5)</span>
+                    </label>
                     <div className="flex gap-2">
                       {[1, 2, 3, 4, 5].map((num) => (
                         <button
                           key={num}
                           type="button"
                           onClick={() => setPassengerCount(num)}
-                          className={`w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${passengerCount === num
-                            ? 'bg-primary text-secondary border-primary shadow-md'
-                            : 'bg-white/10 text-white border-white/20 hover:bg-white/20'
+                          className={`w-10 h-10 rounded-xl text-sm font-black transition-all border-2 ${passengerCount === num
+                            ? 'bg-secondary text-white border-secondary shadow-md'
+                            : 'bg-white text-slate-500 border-slate-200 hover:border-secondary/40'
                             }`}
                         >
                           {num}
@@ -1693,26 +1735,35 @@ const PassengerHome = () => {
                       ))}
                     </div>
                   </div>
+                </div>
 
+                {/* ── Payment Method ── */}
+                <div className="bg-white px-5 py-4 border-t border-slate-100">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3">Payment Method</p>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('cash')}
-                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'cash' ? 'bg-primary text-secondary border-primary shadow-lg shadow-primary/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-3 rounded-2xl text-sm font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'cash'
+                        ? 'bg-secondary text-white border-secondary shadow-lg'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-secondary/40'}`}
                     >
-                      <Wallet size={16} /> CASH
+                      <Wallet size={16} /> Cash
                     </button>
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('gcash')}
-                      className={`py-3 px-1 rounded-2xl text-xs font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'gcash' ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                      className={`py-3 px-3 rounded-2xl text-sm font-black flex items-center justify-center gap-2 border-2 transition-all ${paymentMethod === 'gcash'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/20'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'}`}
                     >
-                      <CreditCard size={16} /> GCASH
+                      <CreditCard size={16} /> GCash
                     </button>
                   </div>
                 </div>
               </motion.div>
             )}
+
 
             {fare > 0 && nearbyDriverList.length > 0 && (
               <div className="pt-2">
