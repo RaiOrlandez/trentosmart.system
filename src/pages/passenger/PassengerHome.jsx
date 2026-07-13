@@ -90,6 +90,10 @@ const PassengerHome = () => {
   const [activeRideId, setActiveRideId] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [assignedDriver, setAssignedDriver] = useState(null);
+  // Snapshots at the moment rating is triggered — prevents race condition where
+  // activeRideId or assignedDriver get cleared before the rating modal renders.
+  const [ratingRideId, setRatingRideId] = useState(null);
+  const [ratingDriver, setRatingDriver] = useState(null);
   // Pre-cached share token so iOS clipboard/share never needs an async fetch on-click
   const [cachedShareToken, setCachedShareToken] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
@@ -517,13 +521,17 @@ const PassengerHome = () => {
 
       if (savedDriver) {
         try {
-          setAssignedDriver(JSON.parse(savedDriver));
+          const parsed = JSON.parse(savedDriver);
+          setAssignedDriver(parsed);
+          setRatingDriver(parsed);
         } catch (e) {
           console.error('Failed to parse saved driver details', e);
         }
       }
       if (savedRideId) {
-        setActiveRideId(parseInt(savedRideId));
+        const parsedRideId = parseInt(savedRideId);
+        setActiveRideId(parsedRideId);
+        setRatingRideId(parsedRideId);
       }
 
       // Clean up session storage
@@ -1283,6 +1291,9 @@ const PassengerHome = () => {
     } else {
       // Cash payment: the driver's complete/ endpoint already marked the ride completed.
       // Passenger only needs to navigate to the rating screen.
+      // Snapshot rideId + driver BEFORE any state changes.
+      setRatingRideId(activeRideId);
+      setRatingDriver(assignedDriver);
       setStatus('completed');
       setMarkers([]);
       setRouteCoordinates(null);
@@ -1304,6 +1315,10 @@ const PassengerHome = () => {
       if (!verifyRes.data.success) {
         throw new Error('Payment verification failed. Please contact support.');
       }
+
+      // Snapshot rideId + driver BEFORE clearing state
+      setRatingRideId(activeRideId);
+      setRatingDriver(assignedDriver);
 
       setShowGCashPayment(false);
       setStatus('completed');
@@ -2335,7 +2350,10 @@ const PassengerHome = () => {
         amount={fare}
         method={paymentMethod}
         onComplete={async () => {
-          // Driver's complete/ endpoint already handled the backend. Just update UI.
+          // Snapshot rideId + driver BEFORE clearing state, so the rating modal
+          // always receives a valid rideId regardless of subsequent state resets.
+          setRatingRideId(activeRideId);
+          setRatingDriver(assignedDriver);
           setShowPayment(false);
           setStatus('completed');
           setMarkers([]);
@@ -2347,6 +2365,8 @@ const PassengerHome = () => {
         isOpen={showRating}
         onClose={() => {
           setShowRating(false);
+          setRatingRideId(null);
+          setRatingDriver(null);
           setStatus('idle');
           setFare(0);
           setPickup('');
@@ -2355,9 +2375,15 @@ const PassengerHome = () => {
           setAssignedDriver(null);
           setRouteCoordinates(null);
         }}
-        rideId={activeRideId}
-        targetName={assignedDriver?.username || 'Assigned Driver'}
-        targetPhoto={assignedDriver?.profile_picture || null}
+        rideId={ratingRideId || activeRideId}
+        targetName={ratingDriver?.username || assignedDriver?.username || 'Assigned Driver'}
+        targetPhoto={
+          ratingDriver?.profile_picture_url ||
+          ratingDriver?.profile_picture ||
+          assignedDriver?.profile_picture_url ||
+          assignedDriver?.profile_picture ||
+          null
+        }
         targetRole="Driver"
       />
 
