@@ -205,8 +205,12 @@ const AdminDashboard = () => {
       const res = await api.get('/incidents/');
       // Handle both flat list and paginated response from DRF
       const incidentsData = Array.isArray(res.data) ? res.data : (res.data?.results || []);
-      // Look for any pending/active incidents
-      const unresolved = incidentsData.filter(i => i.status === 'pending' || i.status === 'active');
+      // Look for any pending/active incidents in the last 12 hours (stale mock/test alerts are ignored in the banner)
+      const twelveHoursAgo = Date.now() - (12 * 60 * 60 * 1000);
+      const unresolved = incidentsData.filter(i => 
+        (i.status === 'pending' || i.status === 'active') &&
+        new Date(i.created_at).getTime() > twelveHoursAgo
+      );
       if (unresolved.length > 0) {
         // Explicitly sort unresolved incidents by created_at descending (newest first)
         const sortedUnresolved = [...unresolved].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -335,6 +339,26 @@ const AdminDashboard = () => {
       }, ...prev].slice(0, 50));
       setActiveSOS(emergencyAlert);
       setShowSOSBanner(true);
+
+      // Pre-inject the SOS marker immediately to avoid map loading delay
+      if (emergencyAlert.lat && emergencyAlert.lng) {
+        setLiveMarkers(prev => {
+          const others = prev.filter(m => m.id !== `sos_${emergencyAlert.id}`);
+          return [
+            ...others,
+            {
+              id: `sos_${emergencyAlert.id}`,
+              lat: parseFloat(emergencyAlert.lat),
+              lng: parseFloat(emergencyAlert.lng),
+              title: `🚨 SOS: ${emergencyAlert.user}`,
+              info: `🚨 EMERGENCY SOS ALERT!\nUser: ${emergencyAlert.user}\nDetails: ${emergencyAlert.description || 'Distress signal'}\nCoordinates: ${emergencyAlert.lat}, ${emergencyAlert.lng}`,
+              isDestination: true,
+              forceFocus: Date.now()
+            }
+          ];
+        });
+      }
+
       setActiveTab('live'); // Force switch to map to see location
       
       // 🚨 Looping siren + urgent desktop popup (stays until admin dismisses)
@@ -643,6 +667,7 @@ const AdminDashboard = () => {
       setShowSOSBanner(false);
       stopSiren(); // ✅ Stop looping siren when SOS is resolved
       fetchStats();
+      fetchPendingIncidents(); // ✅ Instantly sync pending incidents list to avoid repeating alerts
     }
   };
 
@@ -675,7 +700,27 @@ const AdminDashboard = () => {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setActiveTab('live')}
+                  onClick={() => {
+                    setActiveTab('live');
+                    // Pre-inject the SOS marker immediately into the map to avoid network latency delay!
+                    if (activeSOS && activeSOS.lat && activeSOS.lng) {
+                      setLiveMarkers(prev => {
+                        const others = prev.filter(m => m.id !== `sos_${activeSOS.id}`);
+                        return [
+                          ...others,
+                          {
+                            id: `sos_${activeSOS.id}`,
+                            lat: parseFloat(activeSOS.lat),
+                            lng: parseFloat(activeSOS.lng),
+                            title: `🚨 SOS: ${activeSOS.user}`,
+                            info: `🚨 EMERGENCY SOS ALERT!\nUser: ${activeSOS.user}\nDetails: ${activeSOS.description || 'Distress signal'}\nCoordinates: ${activeSOS.lat}, ${activeSOS.lng}`,
+                            isDestination: true,
+                            forceFocus: Date.now()
+                          }
+                        ];
+                      });
+                    }
+                  }}
                   className="px-4 py-2 bg-white text-red-600 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-50 transition-all"
                 >
                   View on Map

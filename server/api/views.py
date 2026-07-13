@@ -2052,6 +2052,18 @@ class IncidentViewSet(viewsets.ModelViewSet):
             return Incident.objects.all().order_by('-created_at')
         return Incident.objects.filter(user=user).order_by('-created_at')
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        if instance.status == 'resolved' and instance.user:
+            # Auto-resolve other pending/active incidents for the same user
+            Incident.objects.filter(
+                user=instance.user,
+                status__in=['pending', 'active']
+            ).exclude(id=instance.id).update(
+                status='resolved',
+                admin_notes=f"Auto-resolved as part of resolving Incident #{instance.id}"
+            )
+
     def perform_create(self, serializer):
         incident = serializer.save(user=self.request.user)
         
