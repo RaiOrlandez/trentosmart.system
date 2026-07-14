@@ -390,8 +390,6 @@ const AdminDashboard = () => {
         });
       }
 
-      setActiveTab('live'); // Force switch to map to see location
-
       // 🚨 Looping siren + urgent desktop popup (stays until admin dismisses)
       if (emergencyAlert.id && !notifiedSosIds.current.has(emergencyAlert.id)) {
         notifiedSosIds.current.add(emergencyAlert.id);

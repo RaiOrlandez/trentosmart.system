@@ -2094,8 +2094,73 @@ class IncidentViewSet(viewsets.ModelViewSet):
         except Exception as ws_err:
             print(f"[WebSocket] SOS group broadcast failed: {ws_err}")
         
-        # 2. Dispatch SMS and Email alerts safely
+        # 2. Dispatch SMS and Email alerts in background (non-blocking)
+        # Both send_sms() calls have a 5-second gateway timeout each.
+        # Running them synchronously would delay the SOS API response by 10+ s.
+        # We fire them in a daemon thread so the API returns immediately.
+        def _send_sos_notifications(incident, sos_alert_phone, sos_alert_email):
+            try:
+                # SMS to personal emergency contact
+                if incident.user.emergency_contact_phone:
+                    personal_msg = (
+                        f"🚨 EMERGENCY: Your emergency contact {incident.user.username} (Phone: {incident.user.phone_number}) "
+                        f"has triggered a real-time SOS distress alert on Trento Smart Tricycle System. "
+                        f"Distress description: {incident.description or 'No details provided'}. "
+                        f"Last known coordinates: {incident.lat or 'N/A'}, {incident.lng or 'N/A'}."
+                    )
+                    send_sms(incident.user.emergency_contact_phone, personal_msg)
+
+                # SMS to global LGU dispatcher contact
+                if sos_alert_phone:
+                    dispatcher_msg = (
+                        f"🚨 LGU SOS ALERT: User {incident.user.username} (Phone: {incident.user.phone_number}) "
+                        f"has triggered a real-time SOS alert at {incident.lat or 'N/A'}, {incident.lng or 'N/A'}. "
+                        f"Details: {incident.description or 'No details provided'}."
+                    )
+                    send_sms(sos_alert_phone, dispatcher_msg)
+            except Exception as sms_err:
+                print(f"[SOS SMS] Background send failed: {sms_err}")
+
+            # Email to global LGU dispatcher
+            if sos_alert_email:
+                html_msg = f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333; border: 2px solid #ef4444; border-radius: 12px; padding: 20px;">
+                    <div style="background-color: #ef4444; color: #fff; padding: 15px; text-align: center; border-radius: 8px;">
+                        <h1 style="margin: 0; font-size: 24px; letter-spacing: 2px;">🚨 EMERGENCY SOS ALERT 🚨</h1>
+                    </div>
+                    <p style="font-size: 16px; margin-top: 20px;">An SOS distress signal has been triggered on the <b>Trento Smart Tricycle Dispatch System</b>.</p>
+                    
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2;">
+                        <p style="margin:0 0 10px 0; font-weight: bold; color: #991b1b;">⚠️ Distress Details:</p>
+                        <ul style="margin:0; padding-left: 20px; color: #7f1d1d;">
+                            <li><b>User:</b> {incident.user.username} ({incident.user.role.capitalize()})</li>
+                            <li><b>Phone Number:</b> {incident.user.phone_number or 'N/A'}</li>
+                            <li><b>Emergency Description:</b> {incident.description or 'No description provided'}</li>
+                            <li><b>Latitude:</b> {incident.lat or 'N/A'}</li>
+                            <li><b>Longitude:</b> {incident.lng or 'N/A'}</li>
+                            <li><b>Triggered At:</b> {incident.created_at.strftime('%B %d, %Y at %I:%M %p') if incident.created_at else 'Just now'}</li>
+                        </ul>
+                    </div>
+
+                    <p>Please open the Admin Dashboard or dispatch immediate LGU emergency responders to the user's coordinates.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="https://trentosmartsystem-production.up.railway.app/admin/" style="display: inline-block; background-color: #ef4444; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;">Open SOS Dispatch Dashboard</a>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                    <p style="color: #64748b; font-size: 12px; text-align: center;">Trento Smart Automated Emergency Dispatch System</p>
+                </div>
+                """
+                try:
+                    success, response = send_brevo_email(sos_alert_email, "Trento Emergency Dispatch", f"🚨 EMERGENCY SOS - User {incident.user.username} 🚨", html_msg)
+                    if success:
+                        print(f"[Email] ✅ SOS notification email sent to {sos_alert_email}")
+                    else:
+                        print(f"[Email] ❌ SOS notification email FAILED: {response}")
+                except Exception as email_send_err:
+                    print(f"[Email] Exception during send: {email_send_err}")
+
         try:
+            import threading
             # Fetch LGU Dispatcher emergency contacts from SystemConfig
             sos_alert_phone_cfg = SystemConfig.objects.filter(key='sos_alert_phone').first()
             sos_alert_phone = sos_alert_phone_cfg.value.strip() if sos_alert_phone_cfg else ""
@@ -2103,66 +2168,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
             sos_alert_email_cfg = SystemConfig.objects.filter(key='sos_alert_email').first()
             sos_alert_email = sos_alert_email_cfg.value.strip() if sos_alert_email_cfg else ""
 
-            # SMS to personal emergency contact
-            if incident.user.emergency_contact_phone:
-                personal_msg = (
-                    f"🚨 EMERGENCY: Your emergency contact {incident.user.username} (Phone: {incident.user.phone_number}) "
-                    f"has triggered a real-time SOS distress alert on Trento Smart Tricycle System. "
-                    f"Distress description: {incident.description or 'No details provided'}. "
-                    f"Last known coordinates: {incident.lat or 'N/A'}, {incident.lng or 'N/A'}."
-                )
-                send_sms(incident.user.emergency_contact_phone, personal_msg)
-
-            # SMS to global LGU dispatcher contact
-            if sos_alert_phone:
-                dispatcher_msg = (
-                    f"🚨 LGU SOS ALERT: User {incident.user.username} (Phone: {incident.user.phone_number}) "
-                    f"has triggered a real-time SOS alert at {incident.lat or 'N/A'}, {incident.lng or 'N/A'}. "
-                    f"Details: {incident.description or 'No details provided'}."
-                )
-                send_sms(sos_alert_phone, dispatcher_msg)
-
-            # Email to global LGU dispatcher
-            if sos_alert_email:
-                import threading
-                def _send_sos_email(recipient_email, user_obj, inc_obj):
-                    html_msg = f"""
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333; border: 2px solid #ef4444; border-radius: 12px; padding: 20px;">
-                        <div style="background-color: #ef4444; color: #fff; padding: 15px; text-align: center; border-radius: 8px;">
-                            <h1 style="margin: 0; font-size: 24px; letter-spacing: 2px;">🚨 EMERGENCY SOS ALERT 🚨</h1>
-                        </div>
-                        <p style="font-size: 16px; margin-top: 20px;">An SOS distress signal has been triggered on the <b>Trento Smart Tricycle Dispatch System</b>.</p>
-                        
-                        <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #fee2e2;">
-                            <p style="margin:0 0 10px 0; font-weight: bold; color: #991b1b;">⚠️ Distress Details:</p>
-                            <ul style="margin:0; padding-left: 20px; color: #7f1d1d;">
-                                <li><b>User:</b> {user_obj.username} ({user_obj.role.capitalize()})</li>
-                                <li><b>Phone Number:</b> {user_obj.phone_number or 'N/A'}</li>
-                                <li><b>Emergency Description:</b> {inc_obj.description or 'No description provided'}</li>
-                                <li><b>Latitude:</b> {inc_obj.lat or 'N/A'}</li>
-                                <li><b>Longitude:</b> {inc_obj.lng or 'N/A'}</li>
-                                <li><b>Triggered At:</b> {inc_obj.created_at.strftime('%B %d, %Y at %I:%M %p') if inc_obj.created_at else 'Just now'}</li>
-                            </ul>
-                        </div>
-
-                        <p>Please open the Admin Dashboard or dispatch immediate LGU emergency responders to the user's coordinates.</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="https://trentosmartsystem-production.up.railway.app/admin/" style="display: inline-block; background-color: #ef4444; color: #fff; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: bold;">Open SOS Dispatch Dashboard</a>
-                        </div>
-                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
-                        <p style="color: #64748b; font-size: 12px; text-align: center;">Trento Smart Automated Emergency Dispatch System</p>
-                    </div>
-                    """
-                    try:
-                        success, response = send_brevo_email(recipient_email, "Trento Emergency Dispatch", f"🚨 EMERGENCY SOS - User {user_obj.username} 🚨", html_msg)
-                        if success:
-                            print(f"[Email] ✅ SOS notification email sent to {recipient_email}")
-                        else:
-                            print(f"[Email] ❌ SOS notification email FAILED: {response}")
-                    except Exception as email_send_err:
-                        print(f"[Email] Exception during send: {email_send_err}")
-
-                threading.Thread(target=_send_sos_email, args=(sos_alert_email, incident.user, incident), daemon=True).start()
+            threading.Thread(
+                target=_send_sos_notifications,
+                args=(incident, sos_alert_phone, sos_alert_email),
+                daemon=True
+            ).start()
         except Exception as alert_err:
             print(f"[SOS Notification Backend] Setup failed: {alert_err}")
 

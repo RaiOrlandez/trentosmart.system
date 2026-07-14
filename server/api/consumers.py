@@ -398,8 +398,14 @@ class SystemConsumer(AsyncWebsocketConsumer):
         ))
 
     async def system_emergency_alert(self, event):
+        # CRITICAL FIX: 'event' contains 'type': 'system_emergency_alert' (the
+        # Django Channels routing key). If we spread **event after our explicit
+        # 'type': 'emergency_alert', Python overwrites it — so the frontend
+        # would never see 'emergency_alert' and the red SOS banner would never
+        # fire via WebSocket. We explicitly exclude the routing key here.
+        payload = {k: v for k, v in event.items() if k != 'type'}
         await self.send(text_data=json.dumps(
-            {'type': 'emergency_alert', **event}
+            {'type': 'emergency_alert', **payload}
         ))
 
     async def system_event(self, event):

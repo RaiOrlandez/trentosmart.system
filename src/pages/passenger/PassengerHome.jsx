@@ -1200,10 +1200,21 @@ const PassengerHome = () => {
   const [sosHoldProgress, setSosHoldProgress] = useState(0);
   const [isHoldingSos, setIsHoldingSos] = useState(false);
   const sosTimerRef = useRef(null);
+  const isTouchActiveRef = useRef(false);
+  const isSendingSosRef = useRef(false);
+  const [isSendingSos, setIsSendingSos] = useState(false);
 
   const startSosHold = (e) => {
-    // Prevent default context menus on mobile devices
+    // Prevent emulated mouse click event when touch is active
+    const isTouchEvent = e.type.startsWith('touch');
+    if (isTouchEvent) {
+      isTouchActiveRef.current = true;
+    } else if (isTouchActiveRef.current) {
+      return;
+    }
+
     if (e.cancelable) e.preventDefault();
+    if (isSendingSosRef.current) return;
 
     setIsHoldingSos(true);
     setSosHoldProgress(0);
@@ -1223,12 +1234,19 @@ const PassengerHome = () => {
     }, 40);
   };
 
-  const cancelSosHold = () => {
+  const cancelSosHold = (e) => {
     setIsHoldingSos(false);
     if (sosTimerRef.current) {
       clearInterval(sosTimerRef.current);
     }
     setSosHoldProgress(0);
+
+    // Keep touch active active briefly to block emulated mouse events
+    if (e && e.type.startsWith('touch')) {
+      setTimeout(() => {
+        isTouchActiveRef.current = false;
+      }, 500);
+    }
   };
 
   // Cleanup timers on unmount
@@ -1241,7 +1259,9 @@ const PassengerHome = () => {
   }, []);
 
   const triggerSOS = async () => {
-    setShowSOS(true);
+    if (isSendingSosRef.current) return;
+    isSendingSosRef.current = true;
+    setIsSendingSos(true);
 
     let currentLat = 8.03555; // Fallback to Trento Municipal Hall
     let currentLng = 126.06432;
@@ -1263,12 +1283,15 @@ const PassengerHome = () => {
           : 'Passenger SOS Triggered from Mobile App Dashboard'
       });
       console.log('[SOS] ✅ Emergency signal sent successfully. Incident ID:', res.data?.id, '| Status:', res.status);
+      setShowSOS(true);
+      setTimeout(() => setShowSOS(false), 5000);
     } catch (err) {
       console.error('[SOS] ❌ Failed to send SOS alert:', err?.response?.status, err?.response?.data || err.message);
-      // Show visible error so admin knows the signal didn't reach the server
       alert(`⚠️ SOS signal failed to send (${err?.response?.status || 'Network Error'}). Please retry or call emergency services directly.`);
+    } finally {
+      isSendingSosRef.current = false;
+      setIsSendingSos(false);
     }
-    setTimeout(() => setShowSOS(false), 5000);
   };
 
   const completeAndPay = async () => {
@@ -2325,20 +2348,34 @@ const PassengerHome = () => {
 
         {/* SOS Overlay */}
         <AnimatePresence>
-          {showSOS && (
+          {(showSOS || isSendingSos) && (
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               className="absolute inset-0 z-50 bg-red-600/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-8 text-white"
             >
-              <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-ping mb-8">
-                <AlertTriangle size={64} />
-              </div>
-              <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter">Emergency Signal Sent!</h2>
-              <p className="text-xl max-w-md opacity-90">
-                Authorities in Trento and your emergency contacts have been notified via SMS with your exact live location. Stay calm and remain where you are.
-              </p>
+              {isSendingSos ? (
+                <>
+                  <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-8">
+                    <div className="w-16 h-16 border-4 border-t-transparent border-white rounded-full animate-spin"></div>
+                  </div>
+                  <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter animate-pulse">Sending SOS...</h2>
+                  <p className="text-xl max-w-md opacity-90">
+                    Connecting to Trento LGU Dispatcher emergency services. Please wait.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center animate-ping mb-8">
+                    <AlertTriangle size={64} />
+                  </div>
+                  <h2 className="text-4xl font-extrabold mb-4 uppercase tracking-tighter">Emergency Signal Sent!</h2>
+                  <p className="text-xl max-w-md opacity-90">
+                    Authorities in Trento and your emergency contacts have been notified via SMS with your exact live location. Stay calm and remain where you are.
+                  </p>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
