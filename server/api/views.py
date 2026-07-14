@@ -2808,8 +2808,8 @@ class PasswordResetRequestView(APIView):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
             
-            # Combine uid-token
-            combined_token = f'{uid}-{token}'
+            # Combine uid-token using a dot (.) to prevent base64 dash conflicts
+            combined_token = f'{uid}.{token}'
             
             # Pass this combined_token to the frontend URL
             reset_link = f'https://trentosmart-system.vercel.app/reset-password?token={combined_token}'
@@ -2858,7 +2858,10 @@ class PasswordResetConfirmView(APIView):
             return Response({'detail': 'Token and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            uid_b64, reset_token = token.rsplit('-', 1)
+            if '.' in token:
+                uid_b64, reset_token = token.split('.', 1)
+            else:
+                uid_b64, reset_token = token.rsplit('-', 1)
             uid = force_str(urlsafe_base64_decode(uid_b64))
             
             User = get_user_model()
