@@ -240,6 +240,7 @@ const PassengerHome = () => {
           id: 'you_are_here',
           lat: gpsLocation.lat,
           lng: gpsLocation.lng,
+          accuracy: gpsLocation.accuracy || 0,  // numeric — used by LeafletMap accuracy ring
           title: '📍 You are here',
           info: `GPS live · ±${Math.round(gpsLocation.accuracy || 0)} m`,
           // Only force-pan to the pin the very first time it appears

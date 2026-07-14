@@ -36,6 +36,7 @@ const useGeoLocation = (options = {}) => {
     const hasGotLocationRef = useRef(false);
     const lastValidLocationRef = useRef(null);
     const lastValidTimeRef = useRef(0);
+    const mountTimeRef = useRef(Date.now()); // track startup time for cold-start grace window
 
     // Calculate distance in metres between two GPS coords (Haversine formula)
     const calculateDistanceMetres = useCallback((lat1, lng1, lat2, lng2) => {
@@ -97,15 +98,24 @@ const useGeoLocation = (options = {}) => {
             }
 
             const now = Date.now();
+            const ageMs = now - mountTimeRef.current;
+            // Cold-start grace window: first 12 seconds after app open.
+            // During this time we skip all rejection filters so that an accurate
+            // GPS fix can override the initial inaccurate cell-tower/Wi-Fi position.
+            const inColdStart = ageMs < 12000;
 
-            // 1. Reject GPS updates with extremely poor accuracy (>100 meters) if we already have a better lock
-            if (acc > 100 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
+            // 1. Reject GPS updates with extremely poor accuracy (>150m) ONLY if we
+            //    already have a good lock AND we are past the cold-start window.
+            //    This allows the real GPS correction to arrive and override a bad first fix.
+            if (!inColdStart && acc > 150 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
                 console.warn('GPS spike filtered: accuracy too poor (accuracy:', acc, 'm)');
                 return;
             }
 
             // 2. Reject speed spikes (impossible coordinate jumps e.g. >80 km/h)
-            if (lastValidLocationRef.current && lastValidTimeRef.current > 0) {
+            //    SKIP this check during cold-start so the first accurate GPS reading
+            //    can always override the initial inaccurate cell-tower/Wi-Fi fix.
+            if (!inColdStart && lastValidLocationRef.current && lastValidTimeRef.current > 0) {
                 const timeDiffSec = (now - lastValidTimeRef.current) / 1000;
                 if (timeDiffSec > 0.5) {
                     const distMetres = calculateDistanceMetres(
@@ -157,7 +167,7 @@ const useGeoLocation = (options = {}) => {
                     backgroundTitle: "Transmart GPS Active",
                     requestPermissions: true,
                     stale: false,
-                    distanceFilter: 10
+                    distanceFilter: 3  // was 10 — lowered to 3m for accurate position on iOS
                 },
                 (geoObj, error) => {
                     if (error) {
@@ -182,9 +192,15 @@ const useGeoLocation = (options = {}) => {
         }
     }, [handleLocationError, enableHighAccuracy, timeout, maximumAge, permissionTimeout, calculateDistanceMetres]);
 
+    // Reset cold-start timer whenever watching restarts
+    const startWatchingWithReset = useCallback(() => {
+        mountTimeRef.current = Date.now();
+        startWatching();
+    }, [startWatching]);
+
     // Start watching on mount, clean up on unmount
     useEffect(() => {
-        startWatching();
+        startWatchingWithReset();
         return () => {
             if (watchIdRef.current !== null) {
                 if (Capacitor.isNativePlatform()) {
@@ -198,7 +214,7 @@ const useGeoLocation = (options = {}) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { location, status, error, retry: startWatching };
+    return { location, status, error, retry: startWatchingWithReset };
 };
 
 export default useGeoLocation;

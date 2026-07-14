@@ -482,7 +482,7 @@ const LeafletMap = ({
                     />
                 )}
 
-                {/* GPS Accuracy Confidence Ring — only show when fix is good (≤80m) and not too large */}
+                {/* GPS Accuracy Confidence Ring (Driver) — only show when fix is good (≤80m) */}
                 {driver && driver.accuracy && driver.accuracy > 0 && driver.accuracy <= 80 && (
                     <Circle
                         center={[driver.lat, driver.lng]}
@@ -490,6 +490,19 @@ const LeafletMap = ({
                         pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.07, weight: 1.5, opacity: 0.4 }}
                     />
                 )}
+
+                {/* GPS Accuracy Confidence Ring (Passenger "You are here") — shows accuracy margin visually */}
+                {(() => {
+                    const youPin = markers.find(m => m.id === 'you_are_here');
+                    if (!youPin || !youPin.accuracy || youPin.accuracy <= 0 || youPin.accuracy > 200) return null;
+                    return (
+                        <Circle
+                            center={[youPin.lat, youPin.lng]}
+                            radius={youPin.accuracy}
+                            pathOptions={{ color: '#3b82f6', fillColor: '#60a5fa', fillOpacity: 0.10, weight: 1.5, opacity: 0.45, dashArray: '5, 5' }}
+                        />
+                    );
+                })()}
 
                 {/* ── INTERACTIVE POI LANDMARKS ── */}
                 {currentZoom >= 14 && TRENTO_LANDMARKS.map((lm) => {
