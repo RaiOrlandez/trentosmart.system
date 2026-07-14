@@ -8,6 +8,7 @@ import {
   Car, TrendingUp, Wallet, BarChart3
 } from 'lucide-react';
 import { signInWithGoogle } from '../../firebase';
+import jwtDecode from 'jwt-decode';
 import api from '../../api/axios';
 
 // ─── Role Config ──────────────────────────────────────────────────────────────
@@ -129,9 +130,16 @@ const Login = () => {
       const idToken = await signInWithGoogle();
       const res = await api.post('/auth/google-login/', { token: idToken });
       const { access, refresh } = res.data;
+      
+      const decoded = jwtDecode(access);
+      if (decoded.role === 'driver') {
+        setError('This email is registered to a driver account. Google sign-in is only available for passengers.');
+        return;
+      }
+
       localStorage.setItem('token', access);
       if (refresh) localStorage.setItem('refresh', refresh);
-      window.location.href = '/';
+      window.location.href = '/passenger';
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
       setError(err.response?.data?.detail || err.message || 'Google sign-in failed. Please try again.');
