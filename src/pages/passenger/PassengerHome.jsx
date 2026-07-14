@@ -131,6 +131,10 @@ const PassengerHome = () => {
   const destCoordsRef = useRef(null); // { lat, lng } — geocoded destination point
   const lastRouteFetchedCoordsRef = useRef({ lat: 0, lng: 0 }); // Rate limit dynamic OSRM calls
   const hasAutoFocusedOnMatchRef = useRef(false); // One-time auto-focus when driver location first arrives after matching
+  // ── FIX #2: Always-current GPS ref so computeFare never reads a stale closure ──
+  // useCallback deps only include [pickup, dest] to avoid infinite re-renders;
+  // reading gpsLocationRef.current inside the callback always gives the latest fix.
+  const gpsLocationRef = useRef(null);
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
   // eslint-disable-next-line no-unused-vars
@@ -214,6 +218,13 @@ const PassengerHome = () => {
   // ── Real-time GPS tracking (falls back to Trento ADS demo if denied) ────────
   const { location: gpsLocation, status: gpsStatus, error: gpsError, retry: retryGps } = useGeoLocation();
 
+  // ── FIX #2: Keep gpsLocationRef always in sync with the latest GPS fix ─────
+  // This lets computeFare read the freshest GPS without declaring it as a
+  // useCallback dependency (which would cause infinite re-render loops).
+  useEffect(() => {
+    gpsLocationRef.current = gpsLocation;
+  }, [gpsLocation]);
+
   // Derived map centre: use live GPS when available, else TRENTO_CENTER
   const userCenter = gpsLocation
     ? { lat: gpsLocation.lat, lng: gpsLocation.lng }
@@ -281,9 +292,12 @@ const PassengerHome = () => {
     let pLon = matchedPickupLm ? matchedPickupLm.lng : null;
 
     if (!pLat || !pLon) {
-      if (pickup === 'Current GPS Location' && gpsLocation) {
-        pLat = gpsLocation.lat;
-        pLon = gpsLocation.lng;
+      // FIX #2: Read from gpsLocationRef (always current) instead of the stale
+      // gpsLocation closure captured at useCallback definition time.
+      const currentGps = gpsLocationRef.current;
+      if (pickup === 'Current GPS Location' && currentGps) {
+        pLat = currentGps.lat;
+        pLon = currentGps.lng;
       } else if (pickupCoordsRef.current && !pickupCoordsRef.current.isFallback) {
         pLat = pickupCoordsRef.current.lat;
         pLon = pickupCoordsRef.current.lng;
@@ -301,15 +315,22 @@ const PassengerHome = () => {
       }
     }
 
-    // Fallbacks if not set
+    // Pickup fallback — use live GPS or last known userCenter
     if (!pLat || !pLon) {
-      pLat = parseFloat(userCenter.lat);
-      pLon = parseFloat(userCenter.lng);
+      const currentGps = gpsLocationRef.current;
+      pLat = currentGps ? currentGps.lat : parseFloat(userCenter.lat);
+      pLon = currentGps ? currentGps.lng : parseFloat(userCenter.lng);
     }
+
+    // FIX #4: NEVER store a fake +0.003° offset as destination coords.
+    // If the destination is still unresolved at this point, mark it as a
+    // fallback so requestRide() can block submission with a proper error.
     const hadValidDest = !!(dLat && dLon);
     if (!dLat || !dLon) {
-      dLat = parseFloat(userCenter.lat) + 0.003;
-      dLon = parseFloat(userCenter.lng) + 0.003;
+      // Use pickup coords as a same-location placeholder — at least it won't
+      // generate phantom distance. Flag as isFallback so requestRide blocks.
+      dLat = pLat;
+      dLon = pLon;
     }
 
     // Store in refs
@@ -782,36 +803,22 @@ const PassengerHome = () => {
     }
   }, [messages, paymentMethod]);
 
-  // Send passenger location to driver
+  // FIX #3: Send passenger location to driver via the already-running useGeoLocation stream.
+  // Previously, a second independent watchPosition() was opened here which competed with
+  // useGeoLocation for the GPS hardware, causing jitter and delay. Now we simply react to
+  // the gpsLocation that useGeoLocation already maintains continuously.
   useEffect(() => {
-    let watchId;
-    if (activeRideId && (status === 'matched' || status === 'ongoing')) {
-      if (navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            sendLocation(pos.coords.latitude, pos.coords.longitude);
-          },
-          (err) => {
-            // Gracefully handle geolocation errors without spamming console
-            if (err.code === 1) {
-              // Permission denied - user chose not to share location
-              console.warn('Geolocation permission denied by user');
-            } else if (err.code === 2) {
-              // Position unavailable - GPS issue
-              console.warn('Geolocation position unavailable');
-            } else if (err.code === 3) {
-              // Timeout
-              console.warn('Geolocation request timed out');
-            }
-          },
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
-        );
-      }
-    }
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [activeRideId, status, sendLocation]);
+    if (!activeRideId) return;
+    if (status !== 'matched' && status !== 'ongoing') return;
+    if (!gpsLocation) return;
+
+    sendLocation(
+      gpsLocation.lat,
+      gpsLocation.lng,
+      gpsLocation.heading ?? 0,
+      gpsLocation.accuracy ?? null,
+    );
+  }, [activeRideId, status, gpsLocation, sendLocation]);
 
   // Handle Real-time Driver Location Updates (WebSocket → patch nearbyDriverList)
   // Instead of writing to markers directly (which caused a race condition with the
@@ -1014,7 +1021,7 @@ const PassengerHome = () => {
             } else {
               // General request timeout: auto-cancel the ride
               cancelRide();
-              alert("Booking Timeout: No drivers are currently available in your area. Please try booking again.");
+              notify("Booking Timeout", "No drivers are currently available in your area. Please try booking again.");
             }
             return 0;
           }
@@ -1164,9 +1171,16 @@ const PassengerHome = () => {
     setStatus('requesting');
 
     try {
-      // ✅ Use real geocoded pickup coords (from computeFare ref) — fall back to live GPS if not yet geocoded
-      const realPickupLat = pickupCoordsRef.current?.lat ?? userCenter.lat;
-      const realPickupLng = pickupCoordsRef.current?.lng ?? userCenter.lng;
+      // FIX #5: Re-stamp pickup with the very latest GPS fix at request time.
+      // Between computeFare and the user tapping "Request Ride", the GPS may have
+      // improved from a cell-tower fix (~100m) to a true GPS fix (~5m). Using
+      // gpsLocationRef.current guarantees we always submit the freshest coordinate.
+      const currentGps = gpsLocationRef.current;
+      if (pickup === 'Current GPS Location' && currentGps) {
+        pickupCoordsRef.current = { lat: currentGps.lat, lng: currentGps.lng };
+      }
+      const realPickupLat = pickupCoordsRef.current?.lat ?? (currentGps?.lat ?? userCenter.lat);
+      const realPickupLng = pickupCoordsRef.current?.lng ?? (currentGps?.lng ?? userCenter.lng);
 
       // ✅ Use real geocoded destination coords (from computeFare ref) — reject fake offsets
       if (!destCoordsRef.current) {
@@ -1205,9 +1219,7 @@ const PassengerHome = () => {
         setShowFallbackButton(false);
       }
 
-      // REAL-TIME DISPATCH:
-      console.log('Ride requested. Waiting for driver...');
-
+      // REAL-TIME DISPATCH: Ride created, waiting for driver match via WebSocket
 
 
     } catch (err) {
@@ -1216,7 +1228,7 @@ const PassengerHome = () => {
       if (err.response?.data?.server_error) {
         errorMsg += ` (Server Error: ${err.response.data.server_error})`;
       }
-      alert(`Failed to request ride: ${errorMsg}`);
+      notify('Booking Failed', errorMsg);
       setStatus('idle');
       setActiveRideId(null); // ✅ Clear stale ride ID so WS doesn't reconnect to a failed ride
     } finally {
@@ -1562,9 +1574,19 @@ const PassengerHome = () => {
               />
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (gpsLocation) {
-                    setPickup('Current GPS Location');
+                    // FIX #1: Stamp pickupCoordsRef immediately with the current GPS fix
+                    // so computeFare never has to wait for an async geocode call to set it.
+                    pickupCoordsRef.current = { lat: gpsLocation.lat, lng: gpsLocation.lng };
+                    // Try to get a human-readable label via reverse geocode.
+                    // Fall back to the raw coordinate string if Nominatim is slow/offline.
+                    try {
+                      const label = await reverseGeocode(gpsLocation.lat, gpsLocation.lng);
+                      setPickup(label || `${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`);
+                    } catch {
+                      setPickup(`${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`);
+                    }
                   } else {
                     alert('Please wait for GPS to locate you, or enter manually.');
                   }

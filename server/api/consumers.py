@@ -33,11 +33,17 @@ class RideConsumer(AsyncWebsocketConsumer):
 
         if is_guest and jwt_token:
             # ── Guest / public tracker: validate share token ────────────────
-            valid = await self.validate_share_token(self.ride_id, jwt_token)
+            valid, ride_ended = await self.validate_share_token(self.ride_id, jwt_token)
+            if ride_ended:
+                # Ride is completed/cancelled — close with a distinct code so the
+                # frontend can show "This ride has already ended" instead of retrying.
+                await self.close(code=4004)
+                return
             if not valid:
                 await self.close(code=4001)
                 return
             self.scope['is_guest'] = True
+
         else:
             # ── Authenticated user: validate JWT from query string ──────────
             # AuthMiddlewareStack only supports session/cookie auth, not JWT.
@@ -74,11 +80,23 @@ class RideConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def validate_share_token(self, ride_id, token):
+        """
+        Validates a public share token for a ride.
+        Returns:
+            (True, False)  — valid token, ride is active
+            (False, True)  — valid token, but ride is already completed/cancelled
+            (False, False) — invalid token
+        """
         from .models import Ride
         try:
-            return Ride.objects.filter(id=ride_id, share_token=token).exists()
+            ride = Ride.objects.filter(id=ride_id, share_token=token).first()
+            if not ride:
+                return (False, False)
+            if ride.status in ('completed', 'cancelled'):
+                return (False, True)  # ride ended — deny WS, special close code
+            return (True, False)
         except Exception:
-            return False
+            return (False, False)
 
     async def disconnect(self, close_code):
         if hasattr(self, 'ride_group_name'):

@@ -65,7 +65,6 @@ const unlockAudio = () => {
   silentUnlock(sirenAudio);
 
   isUnlocked = true;
-  console.log('[Notifications] Audio players successfully unlocked (silent mode).');
 
   // Clean up event listeners
   if (typeof window !== 'undefined') {
@@ -146,7 +145,6 @@ const useNotifications = () => {
     // Cooldown guard: skip if this sound type played too recently (siren is exempt — it loops)
     const now = Date.now();
     if (type !== 'siren' && lastPlayedAt[type] && (now - lastPlayedAt[type]) < SOUND_COOLDOWN_MS) {
-      console.log(`[Notifications] Cooldown active for sound type "${type}" — skipping.`);
       return null;
     }
     if (type !== 'siren') lastPlayedAt[type] = now;

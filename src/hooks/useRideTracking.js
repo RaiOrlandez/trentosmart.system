@@ -57,13 +57,11 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             socketRef.current.close();
         }
 
-        console.log(`[RideTracking] Connecting → ${url}`);
         const ws = new WebSocket(url);
         socketRef.current = ws;
 
         ws.onopen = () => {
             if (!isMounted.current) return;
-            console.log('[RideTracking] ✅ Connected');
             setConnected(true);
             retryCount.current = 0;
         };
@@ -111,9 +109,9 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             console.warn(`[RideTracking] Disconnected (code=${evt.code})`);
             setConnected(false);
 
-            // Do not retry on auth failures (4001 = bad share token, 4003 = not authenticated)
-            if (evt.code === 4001 || evt.code === 4003) {
-                console.error('[RideTracking] Auth error — will not retry.');
+            // Do not retry on auth failures (4001 = bad share token, 4003 = not authenticated, 4004 = ride ended)
+            if (evt.code === 4001 || evt.code === 4003 || evt.code === 4004) {
+                console.error('[RideTracking] Auth/expiry error — will not retry.');
                 return;
             }
 
@@ -121,7 +119,6 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
             if (rideIdRef.current) {
                 const delay = Math.min(1000 * Math.pow(2, retryCount.current), 30000);
                 retryCount.current += 1;
-                console.log(`[RideTracking] Reconnecting in ${delay / 1000}s (attempt ${retryCount.current})…`);
                 retryTimer.current = setTimeout(connect, delay);
             }
         };
@@ -155,7 +152,6 @@ const useRideTracking = (rideId, isDriver = false, isGuest = false, shareToken =
                 const ws = socketRef.current;
                 const isDisconnected = !ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING;
                 if (isDisconnected) {
-                    console.log('[RideTracking] Tab became visible — reconnecting WebSocket immediately.');
                     clearTimeout(retryTimer.current);
                     retryCount.current = 0; // reset backoff on user-initiated resume
                     connect();

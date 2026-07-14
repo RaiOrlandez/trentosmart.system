@@ -47,7 +47,6 @@ const useSystemEvents = () => {
 
         ws.onopen = () => {
             if (!isMounted.current) { ws.close(); return; }
-            console.log('[SystemEvents] WebSocket connected ✅');
             reconnectDelay.current = 1000; // reset backoff on success
 
             // Heartbeat: send a ping every 25s to keep Railway from dropping idle WS

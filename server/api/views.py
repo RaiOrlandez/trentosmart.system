@@ -1640,7 +1640,14 @@ def track_ride(request, token):
         ride = Ride.objects.get(share_token=token)
     except (Ride.DoesNotExist, ValueError):
         return Response({'detail': 'Invalid tracking link'}, status=status.HTTP_404_NOT_FOUND)
-        
+
+    # ── Expire tracking link once the ride is done ──────────────────────────
+    # Once a ride is completed or cancelled, the share link should no longer
+    # be accessible from any device. Return 410 Gone so the frontend can show
+    # an informative "Ride has ended" screen instead of stale data.
+    if ride.status in ('completed', 'cancelled'):
+        return Response({'detail': 'This ride has already ended.', 'status': ride.status}, status=status.HTTP_410_GONE)
+
     driver_data = None
     if ride.driver:
         profile_picture_url = None
@@ -1662,7 +1669,10 @@ def track_ride(request, token):
         'id': ride.id,
         'status': ride.status,
         'passenger': ride.passenger.first_name or ride.passenger.username,
+        'passenger_name': ride.passenger.first_name or ride.passenger.username,
         'pickup': ride.pickup_address,
+        'pickup_address': ride.pickup_address,
+        'dest_address': ride.dest_address,
         'destination': ride.dest_address,
         'pickup_lat': ride.pickup_lat,
         'pickup_lng': ride.pickup_lng,
