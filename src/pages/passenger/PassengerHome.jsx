@@ -133,6 +133,7 @@ const PassengerHome = () => {
   const hasAutoFocusedOnMatchRef = useRef(false); // One-time auto-focus when driver location first arrives after matching
 
   const [fareParams, setFareParams] = useState({ base: 30, perKm: 8 });
+  // eslint-disable-next-line no-unused-vars
   const { driverLocation, systemEvent } = useSystemEvents();
   const [proximityAlert, setProximityAlert] = useState(false);
   const [requestTimeRemaining, setRequestTimeRemaining] = useState(0);
