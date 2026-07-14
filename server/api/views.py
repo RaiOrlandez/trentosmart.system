@@ -2049,8 +2049,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'admin':
-            return Incident.objects.all().order_by('-created_at')
-        return Incident.objects.filter(user=user).order_by('-created_at')
+            return Incident.objects.all().select_related('user').order_by('-created_at')
+        return Incident.objects.filter(user=user).select_related('user').order_by('-created_at')
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -2197,8 +2197,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.role == 'admin':
-            return Complaint.objects.all().order_by('-created_at')
-        return Complaint.objects.filter(user=self.request.user).order_by('-created_at')
+            return Complaint.objects.all().select_related('user').order_by('-created_at')
+        return Complaint.objects.filter(user=self.request.user).select_related('user').order_by('-created_at')
 
     def perform_create(self, serializer):
         complaint = serializer.save(user=self.request.user)

@@ -1,4 +1,5 @@
 import os
+import socket
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -84,7 +85,22 @@ else:
         },
     }
 
-if os.environ.get('USE_SQLITE') == 'True':
+def _is_mysql_available(host, port):
+    if host not in ('127.0.0.1', 'localhost'):
+        return True
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        s.connect((host, int(port)))
+        s.close()
+        return True
+    except Exception:
+        return False
+
+mysql_host = os.environ.get('MYSQLHOST', os.environ.get('MYSQL_HOST', '127.0.0.1'))
+mysql_port = os.environ.get('MYSQLPORT', os.environ.get('MYSQL_PORT', '3306'))
+
+if os.environ.get('USE_SQLITE') == 'True' or not _is_mysql_available(mysql_host, mysql_port):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -98,8 +114,8 @@ else:
             'NAME': os.environ.get('MYSQLDATABASE', os.environ.get('MYSQL_DATABASE', 'transport')),
             'USER': os.environ.get('MYSQLUSER', os.environ.get('MYSQL_USER', 'root')),
             'PASSWORD': os.environ.get('MYSQLPASSWORD', os.environ.get('MYSQL_PASSWORD', '')),
-            'HOST': os.environ.get('MYSQLHOST', os.environ.get('MYSQL_HOST', '127.0.0.1')),
-            'PORT': os.environ.get('MYSQLPORT', os.environ.get('MYSQL_PORT', '3306')),
+            'HOST': mysql_host,
+            'PORT': mysql_port,
         }
     }
 

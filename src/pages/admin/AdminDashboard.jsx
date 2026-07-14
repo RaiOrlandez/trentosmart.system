@@ -2272,28 +2272,44 @@ const SafetyHubTab = ({ onSosCountChange }) => {
   const [selectedCase, setSelectedCase] = useState(null);
   const [deletingId, setDeletingId] = useState(null); // ✅ Moved here — was incorrectly placed after callbacks
 
+  const onSosCountChangeRef = React.useRef(onSosCountChange);
+  useEffect(() => {
+    onSosCountChangeRef.current = onSosCountChange;
+  }, [onSosCountChange]);
+
   const fetchData = useCallback(async () => {
     try {
-      const [incRes, compRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get('/incidents/'),
         api.get('/complaints/')
       ]);
       // Handle both flat array and paginated (results: [...]) DRF response
       const toArr = (d) => Array.isArray(d) ? d : (d?.results || []);
-      const incList = toArr(incRes.data);
-      const compList = toArr(compRes.data);
-      setIncidents(incList);
-      setComplaints(compList);
-      // ✅ Keep the parent tab badge accurate using real SOS incident count
-      if (onSosCountChange) {
-        onSosCountChange(incList.filter(i => i.status === 'pending' || i.status === 'active').length);
+
+      let incList = [];
+      if (results[0].status === 'fulfilled') {
+        incList = toArr(results[0].value.data);
+        setIncidents(incList);
+        // ✅ Keep the parent tab badge accurate using real SOS incident count
+        if (onSosCountChangeRef.current) {
+          onSosCountChangeRef.current(incList.filter(i => i.status === 'pending' || i.status === 'active').length);
+        }
+      } else {
+        console.error("Failed to fetch incidents", results[0].reason);
+      }
+
+      if (results[1].status === 'fulfilled') {
+        const compList = toArr(results[1].value.data);
+        setComplaints(compList);
+      } else {
+        console.error("Failed to fetch complaints", results[1].reason);
       }
     } catch (err) {
       console.error("Failed to fetch safety data", err);
     } finally {
       setLoading(false);
     }
-  }, [onSosCountChange]);
+  }, []);
 
   // Fetch on mount, then poll every 10 seconds for live updates
   useEffect(() => {
