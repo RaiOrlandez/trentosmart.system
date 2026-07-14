@@ -2308,37 +2308,80 @@ const SafetyHubTab = () => {
 
 
 
-  if (loading) return <div className="p-20 text-center font-bold text-slate-400">LOADING SAFETY RECORDS...</div>;
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDeleteCase = async (type, id) => {
+    if (!window.confirm(`Are you sure you want to permanently delete this ${type === 'incident' ? 'Incident Alert' : 'Complaint'} case? All related records will be lost.`)) return;
+    setDeletingId(`${type}-${id}`);
+    try {
+      if (type === 'incident') {
+        await api.delete(`/incidents/${id}/`);
+      } else {
+        await api.delete(`/complaints/${id}/`);
+      }
+      setSelectedCase(null);
+      await fetchData();
+    } catch (err) {
+      alert("Failed to delete record: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const allCases = [
     ...(Array.isArray(incidents) ? incidents : []).map(i => ({ ...i, type: 'incident', title: 'SOS EMERGENCY' })),
-    ...(Array.isArray(complaints) ? complaints : []).map(c => ({ ...c, type: 'complaint', title: c.subject }))
+    ...(Array.isArray(complaints) ? complaints : []).map(c => ({ ...c, type: 'complaint', title: c.subject || 'Distress Call' }))
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   return (
     <div className="space-y-8 animate-in fade-in zoom-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass-card p-6 bg-red-600 text-white rounded-3xl">
+        <div className="glass-card p-6 bg-red-600 text-white rounded-3xl relative overflow-hidden">
           <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Critical Alerts</p>
-          <h3 className="text-4xl font-black italic">{incidents.filter(i => i.status === 'pending' || i.status === 'active').length}</h3>
+          <h3 className="text-4xl font-black italic mt-1">
+            {loading ? (
+              <span className="inline-block w-8 h-8 rounded bg-white/20 animate-pulse" />
+            ) : (
+              incidents.filter(i => i.status === 'pending' || i.status === 'active').length
+            )}
+          </h3>
           <p className="text-xs font-bold mt-2">Active SOS Signals in Trento</p>
         </div>
-        <div className="glass-card p-6 bg-secondary text-white rounded-3xl">
+        <div className="glass-card p-6 bg-secondary text-white rounded-3xl relative overflow-hidden">
           <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Open Complaints</p>
-          <h3 className="text-4xl font-black italic">{complaints.filter(c => c.status !== 'closed').length}</h3>
+          <h3 className="text-4xl font-black italic mt-1">
+            {loading ? (
+              <span className="inline-block w-8 h-8 rounded bg-white/20 animate-pulse" />
+            ) : (
+              complaints.filter(c => c.status !== 'closed').length
+            )}
+          </h3>
           <p className="text-xs font-bold mt-2">Requiring Investigation</p>
         </div>
-        <div className="glass-card p-6 bg-green-500 text-white rounded-3xl">
+        <div className="glass-card p-6 bg-green-500 text-white rounded-3xl relative overflow-hidden">
           <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Resolved Today</p>
-          <h3 className="text-4xl font-black italic">14</h3>
+          <h3 className="text-4xl font-black italic mt-1">
+            {loading ? (
+              <span className="inline-block w-8 h-8 rounded bg-white/20 animate-pulse" />
+            ) : (
+              incidents.filter(i => i.status === 'resolved').length + complaints.filter(c => c.status === 'closed').length
+            )}
+          </h3>
           <p className="text-xs font-bold mt-2">Safe Public Utility Status</p>
         </div>
       </div>
 
       <div className="glass-card p-8 rounded-[3rem]">
-        <h2 className="text-2xl font-black text-secondary dark:text-white mb-8 flex items-center gap-3">
-          <ShieldAlert size={32} className="text-red-500" /> Resolution Workflow
-        </h2>
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-black text-secondary dark:text-white flex items-center gap-3">
+            <ShieldAlert size={32} className="text-red-500" /> Resolution Workflow
+          </h2>
+          {loading && (
+            <div className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-widest">
+              <RefreshCw size={14} className="animate-spin text-slate-400" /> Syncing...
+            </div>
+          )}
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -2353,34 +2396,60 @@ const SafetyHubTab = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-              {allCases.map((item) => (
-                <tr key={`${item.type}-${item.id}`} className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                  <td className="py-6 text-sm font-mono text-slate-500">#{item.type.charAt(0).toUpperCase()}{item.id}</td>
-                  <td className="py-6">
-                    <div className={`text-[10px] font-black px-2 py-1 rounded inline-block ${item.type === 'incident' ? 'bg-red-100 text-red-600' : 'bg-secondary/10 text-secondary dark:text-slate-300'}`}>
-                      {item.title}
-                    </div>
-                  </td>
-                  <td className="py-6 font-bold text-secondary dark:text-white">{item.username || item.user?.username || 'System User'}</td>
-                  <td className="py-6">
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${['resolved', 'closed'].includes(item.status) ? 'bg-green-100 text-green-700' :
-                      ['investigating', 'active'].includes(item.status) ? 'bg-orange-100 text-orange-700' :
-                        'bg-slate-100 text-slate-400'
-                      }`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="py-6 text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</td>
-                  <td className="py-6 text-right">
-                    <button
-                      onClick={() => setSelectedCase(item)}
-                      className="px-4 py-2 bg-secondary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-secondary transition-all"
-                    >
-                      Investigate
-                    </button>
-                  </td>
+              {loading && allCases.length === 0 ? (
+                [1, 2, 3].map(n => (
+                  <tr key={n} className="animate-pulse">
+                    <td className="py-6"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-16" /></td>
+                    <td className="py-6"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-28" /></td>
+                    <td className="py-6"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-32" /></td>
+                    <td className="py-6"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-20" /></td>
+                    <td className="py-6"><div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-40" /></td>
+                    <td className="py-6 text-right"><div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-24 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : allCases.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-sm">No safety logs or complaints recorded</td>
                 </tr>
-              ))}
+              ) : (
+                allCases.map((item) => (
+                  <tr key={`${item.type}-${item.id}`} className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                    <td className="py-6 text-sm font-mono text-slate-500">#{item.type.charAt(0).toUpperCase()}{item.id}</td>
+                    <td className="py-6">
+                      <div className={`text-[10px] font-black px-2 py-1 rounded inline-block ${item.type === 'incident' ? 'bg-red-100 text-red-600' : 'bg-secondary/10 text-secondary dark:text-slate-300'}`}>
+                        {item.title}
+                      </div>
+                    </td>
+                    <td className="py-6 font-bold text-secondary dark:text-white">{item.username || item.user?.username || 'System User'}</td>
+                    <td className="py-6">
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${['resolved', 'closed'].includes(item.status) ? 'bg-green-100 text-green-700' :
+                        ['investigating', 'active'].includes(item.status) ? 'bg-orange-100 text-orange-700' :
+                          'bg-slate-100 text-slate-400'
+                        }`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="py-6 text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</td>
+                    <td className="py-6 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setSelectedCase(item)}
+                          className="px-4 py-2 bg-secondary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-secondary transition-all"
+                        >
+                          Investigate
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCase(item.type, item.id)}
+                          disabled={deletingId === `${item.type}-${item.id}`}
+                          className="px-4 py-2 bg-red-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-800 transition-all disabled:opacity-50"
+                        >
+                          {deletingId === `${item.type}-${item.id}` ? '...' : 'Remove'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -2391,12 +2460,14 @@ const SafetyHubTab = () => {
         onClose={() => setSelectedCase(null)}
         data={selectedCase}
         onUpdate={handleUpdateCase}
+        onDelete={handleDeleteCase}
+        deletingId={deletingId}
       />
     </div>
   );
 };
 
-const InvestigationModal = ({ isOpen, onClose, data, onUpdate }) => {
+const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletingId }) => {
   const [notes, setNotes] = useState('');
   const [statusTab, setStatusTab] = useState('');
 
@@ -2495,12 +2566,21 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate }) => {
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={() => onUpdate(data.type, data.id, { admin_notes: notes, status: statusTab })}
-                    className="px-8 py-4 bg-primary text-secondary font-black uppercase tracking-widest rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all"
-                  >
-                    Update Case File
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => onDelete(data.type, data.id)}
+                      disabled={deletingId === `${data.type}-${data.id}`}
+                      className="px-6 py-4 bg-red-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-red-800 transition-all disabled:opacity-50"
+                    >
+                      {deletingId === `${data.type}-${data.id}` ? 'Removing...' : 'Remove Record'}
+                    </button>
+                    <button
+                      onClick={() => onUpdate(data.type, data.id, { admin_notes: notes, status: statusTab })}
+                      className="px-8 py-4 bg-primary text-secondary font-black uppercase tracking-widest rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all"
+                    >
+                      Update Case File
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

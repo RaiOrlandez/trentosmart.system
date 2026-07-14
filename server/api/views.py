@@ -2064,6 +2064,13 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 admin_notes=f"Auto-resolved as part of resolving Incident #{instance.id}"
             )
 
+    def perform_destroy(self, instance):
+        """Only admins can delete incident records."""
+        from rest_framework.exceptions import PermissionDenied
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admins can delete incident records.")
+        instance.delete()
+
     def perform_create(self, serializer):
         incident = serializer.save(user=self.request.user)
         
@@ -2225,6 +2232,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
                     }
                 }
             )
+
+    def perform_destroy(self, instance):
+        """Only admins can delete complaint records."""
+        from rest_framework.exceptions import PermissionDenied
+        if self.request.user.role != 'admin':
+            raise PermissionDenied("Only admins can delete complaint records.")
+        instance.delete()
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
