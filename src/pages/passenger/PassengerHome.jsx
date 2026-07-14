@@ -803,14 +803,17 @@ const PassengerHome = () => {
     }
   }, [messages, paymentMethod]);
 
-  // FIX #3: Send passenger location to driver via the already-running useGeoLocation stream.
-  // Previously, a second independent watchPosition() was opened here which competed with
-  // useGeoLocation for the GPS hardware, causing jitter and delay. Now we simply react to
-  // the gpsLocation that useGeoLocation already maintains continuously.
+  // Send live passenger location to driver.
+  // Key fixes:
+  //  • `connected` is in the dep array — fires immediately when the WebSocket
+  //    first opens, capturing any gpsLocation that arrived while WS was still connecting.
+  //  • Without this, sends during WS handshake are silently dropped and the driver's
+  //    map shows a stale pickup pin until the passenger physically moves again.
   useEffect(() => {
     if (!activeRideId) return;
     if (status !== 'matched' && status !== 'ongoing') return;
     if (!gpsLocation) return;
+    if (!connected) return; // wait for WebSocket handshake to complete
 
     sendLocation(
       gpsLocation.lat,
@@ -818,7 +821,29 @@ const PassengerHome = () => {
       gpsLocation.heading ?? 0,
       gpsLocation.accuracy ?? null,
     );
-  }, [activeRideId, status, gpsLocation, sendLocation]);
+  }, [activeRideId, status, gpsLocation, sendLocation, connected]);
+
+  // Heartbeat: resend location every 5 s even if GPS hasn't moved.
+  // Without this, a stationary passenger never triggers the above effect after
+  // the first send, so the driver's map freezes on the last received position.
+  useEffect(() => {
+    if (!activeRideId) return;
+    if (status !== 'matched' && status !== 'ongoing') return;
+    if (!connected) return;
+
+    const heartbeat = setInterval(() => {
+      const loc = gpsLocationRef.current;
+      if (!loc) return;
+      sendLocation(
+        loc.lat,
+        loc.lng,
+        loc.heading ?? 0,
+        loc.accuracy ?? null,
+      );
+    }, 5000);
+
+    return () => clearInterval(heartbeat);
+  }, [activeRideId, status, connected, sendLocation]);
 
   // Handle Real-time Driver Location Updates (WebSocket → patch nearbyDriverList)
   // Instead of writing to markers directly (which caused a race condition with the

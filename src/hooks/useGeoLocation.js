@@ -105,11 +105,16 @@ const useGeoLocation = (options = {}) => {
             const inColdStart = ageMs < 12000;
 
             const isNative = Capacitor.isNativePlatform();
-            // Skip all rejection filters on desktop/laptop browsers (non-native platform).
-            // This ensures that when testing on a laptop, browser geolocation updates
-            // (or Chrome DevTools mock coordinates) are never blocked by speed-spike
-            // or accuracy thresholds.
-            const shouldFilter = isNative && !inColdStart;
+            // Detect mobile web browsers — they are NOT a native Capacitor app but still
+            // run on GPS-capable hardware. We apply the same accuracy/speed filters as
+            // native apps so that inaccurate cell-tower / Wi-Fi positions (accuracy > 150 m)
+            // are rejected once a good GPS lock has been established.
+            // Desktop/laptop browsers are explicitly excluded so Chrome DevTools mock
+            // coordinates (which have accuracy ≈ 0) are never rejected during development.
+            const isMobileBrowser = !isNative &&
+                typeof navigator !== 'undefined' &&
+                /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+            const shouldFilter = (isNative || isMobileBrowser) && !inColdStart;
 
             // 1. Reject GPS updates with extremely poor accuracy (>150m) ONLY if we
             //    already have a good lock AND we are on a native device past the cold-start window.

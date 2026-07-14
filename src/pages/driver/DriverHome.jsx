@@ -635,18 +635,29 @@ const DriverHome = () => {
       // Once ride is on_route, passenger is already in the vehicle — hide the
       // passenger pin to eliminate the artificial distance gap on the map.
       if (!isOnRoute) {
-        if (passengerLivePos && passengerLivePos.lat) {
+        // Accuracy guard: only use the WebSocket live position if it is within
+        // 300 m accuracy. Cell-tower / Wi-Fi fixes can be 500-2000 m off and
+        // would place the passenger icon far from their actual location.
+        const liveAccuracy = passengerLivePos?.accuracy ?? 0;
+        const liveIsUsable = passengerLivePos?.lat &&
+          (!liveAccuracy || liveAccuracy < 300);
+
+        if (liveIsUsable) {
           newMarkers.push({
+            id: 'passenger',
             lat: parseFloat(passengerLivePos.lat),
             lng: parseFloat(passengerLivePos.lng),
             title: 'Passenger (Live)',
-            info: 'Current location of passenger',
+            info: `Passenger location · ±${Math.round(liveAccuracy)}m`,
             isPickup: true
           });
         } else {
+          // No live position yet (WS still connecting) or accuracy too poor —
+          // fall back to the GPS-accurate pickup coordinates from the ride record.
           newMarkers.push({
-            lat: activeRide.pickup_lat || 8.03555,
-            lng: activeRide.pickup_lng || 126.06432,
+            id: 'passenger',
+            lat: parseFloat(activeRide.pickup_lat) || 8.03555,
+            lng: parseFloat(activeRide.pickup_lng) || 126.06432,
             title: 'Pickup',
             info: activeRide.pickup_address || activeRide.pickup,
             isPickup: true
@@ -657,6 +668,7 @@ const DriverHome = () => {
       // Destination pin — always shown; use resolved name so driver sees real place name in popup
       const destDisplayName = resolvedDestName || activeRide.dest_address || activeRide.dest || 'Destination';
       newMarkers.push({
+        id: 'dest',
         lat: activeRide.dest_lat || 8.056,
         lng: activeRide.dest_lng || 126.072,
         title: '📍 ' + destDisplayName,
@@ -665,6 +677,7 @@ const DriverHome = () => {
       });
     } else if (selectedRequest) {
       newMarkers.push({
+        id: 'req_pickup',
         lat: selectedRequest.pickup_lat || 8.03555,
         lng: selectedRequest.pickup_lng || 126.06432,
         title: 'New Request',
@@ -676,6 +689,7 @@ const DriverHome = () => {
       if (selectedRequest.dest_lat && selectedRequest.dest_lng) {
         const destDisplayName = resolvedDestName || selectedRequest.dest_address || selectedRequest.dest || 'Destination';
         newMarkers.push({
+          id: 'req_dest',
           lat: parseFloat(selectedRequest.dest_lat),
           lng: parseFloat(selectedRequest.dest_lng),
           title: '📍 ' + destDisplayName,
