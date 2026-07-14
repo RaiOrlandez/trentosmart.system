@@ -104,18 +104,25 @@ const useGeoLocation = (options = {}) => {
             // GPS fix can override the initial inaccurate cell-tower/Wi-Fi position.
             const inColdStart = ageMs < 12000;
 
+            const isNative = Capacitor.isNativePlatform();
+            // Skip all rejection filters on desktop/laptop browsers (non-native platform).
+            // This ensures that when testing on a laptop, browser geolocation updates
+            // (or Chrome DevTools mock coordinates) are never blocked by speed-spike
+            // or accuracy thresholds.
+            const shouldFilter = isNative && !inColdStart;
+
             // 1. Reject GPS updates with extremely poor accuracy (>150m) ONLY if we
-            //    already have a good lock AND we are past the cold-start window.
+            //    already have a good lock AND we are on a native device past the cold-start window.
             //    This allows the real GPS correction to arrive and override a bad first fix.
-            if (!inColdStart && acc > 150 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
+            if (shouldFilter && acc > 150 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
                 console.warn('GPS spike filtered: accuracy too poor (accuracy:', acc, 'm)');
                 return;
             }
 
             // 2. Reject speed spikes (impossible coordinate jumps e.g. >80 km/h)
-            //    SKIP this check during cold-start so the first accurate GPS reading
+            //    SKIP this check on laptops/desktops or during cold-start so the first accurate GPS reading
             //    can always override the initial inaccurate cell-tower/Wi-Fi fix.
-            if (!inColdStart && lastValidLocationRef.current && lastValidTimeRef.current > 0) {
+            if (shouldFilter && lastValidLocationRef.current && lastValidTimeRef.current > 0) {
                 const timeDiffSec = (now - lastValidTimeRef.current) / 1000;
                 if (timeDiffSec > 0.5) {
                     const distMetres = calculateDistanceMetres(

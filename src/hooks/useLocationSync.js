@@ -40,7 +40,7 @@ const useLocationSync = (location, options = {}) => {
     const {
         enabled = true,
         interval = 6000,
-        minDistanceMetres = 10,
+        minDistanceMetres = 3, // lowered from 10 to sync small coordinates updates and mock positions on desktop/laptop
         onSyncSuccess,
         onSyncError,
     } = options;
