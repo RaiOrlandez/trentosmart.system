@@ -79,6 +79,8 @@ const AdminDashboard = () => {
   const notifiedSosIds = React.useRef(new Set());        // track which SOS incidents already triggered siren
   const resolvedSosIds = React.useRef(new Set());         // track which SOS incidents admin has resolved — NEVER re-show these
   const isFirstSosFetch = React.useRef(true);            // true on initial load — skip siren for pre-existing old incidents
+  // ✅ Real SOS count sourced from SafetyHubTab's own data (not the wrong FraudAlert stats counter)
+  const [sosBadgeCount, setSosBadgeCount] = React.useState(0);
 
   // Avatar Viewer State
   const [showAvatarViewer, setShowAvatarViewer] = useState(false);
@@ -917,9 +919,9 @@ const AdminDashboard = () => {
               {tab === 'drivers' && users.some(u => u.role === 'driver' && !u.is_verified_driver) && (
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-sm shadow-red-500/50"></span>
               )}
-              {tab === 'safety' && stats.incidents > 0 && (
+              {tab === 'safety' && sosBadgeCount > 0 && (
                 <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm shadow-red-500/50">
-                  {stats.incidents}
+                  {sosBadgeCount}
                 </span>
               )}
             </button>
@@ -1642,7 +1644,7 @@ const AdminDashboard = () => {
       )
       }
 
-      {activeTab === 'safety' && <SafetyHubTab />}
+      {activeTab === 'safety' && <SafetyHubTab onSosCountChange={setSosBadgeCount} />}
       {activeTab === 'economy' && <FinanceTab stats={stats} />}
       {activeTab === 'broadcast' && <BroadcastTab setPinModalConfig={setPinModalConfig} />}
       {activeTab === 'audit' && <AuditLogTab alerts={liveAlerts} />}
@@ -2262,11 +2264,13 @@ const FareControlTab = () => {
   );
 };
 
-const SafetyHubTab = () => {
+const SafetyHubTab = ({ onSosCountChange }) => {
+  // ✅ ALL hooks declared at the top level (React rules of hooks)
   const [incidents, setIncidents] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [deletingId, setDeletingId] = useState(null); // ✅ Moved here — was incorrectly placed after callbacks
 
   const fetchData = useCallback(async () => {
     try {
@@ -2276,14 +2280,20 @@ const SafetyHubTab = () => {
       ]);
       // Handle both flat array and paginated (results: [...]) DRF response
       const toArr = (d) => Array.isArray(d) ? d : (d?.results || []);
-      setIncidents(toArr(incRes.data));
-      setComplaints(toArr(compRes.data));
+      const incList = toArr(incRes.data);
+      const compList = toArr(compRes.data);
+      setIncidents(incList);
+      setComplaints(compList);
+      // ✅ Keep the parent tab badge accurate using real SOS incident count
+      if (onSosCountChange) {
+        onSosCountChange(incList.filter(i => i.status === 'pending' || i.status === 'active').length);
+      }
     } catch (err) {
       console.error("Failed to fetch safety data", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onSosCountChange]);
 
   // Fetch on mount, then poll every 10 seconds for live updates
   useEffect(() => {
@@ -2306,23 +2316,33 @@ const SafetyHubTab = () => {
     }
   };
 
-
-
-  const [deletingId, setDeletingId] = useState(null);
-
   const handleDeleteCase = async (type, id) => {
     if (!window.confirm(`Are you sure you want to permanently delete this ${type === 'incident' ? 'Incident Alert' : 'Complaint'} case? All related records will be lost.`)) return;
     setDeletingId(`${type}-${id}`);
+    // ✅ Optimistic UI update — remove from local state IMMEDIATELY so list updates at once
+    if (type === 'incident') {
+      setIncidents(prev => {
+        const updated = prev.filter(i => i.id !== id);
+        if (onSosCountChange) onSosCountChange(updated.filter(i => i.status === 'pending' || i.status === 'active').length);
+        return updated;
+      });
+    } else {
+      setComplaints(prev => prev.filter(c => c.id !== id));
+    }
+    setSelectedCase(null);
     try {
       if (type === 'incident') {
         await api.delete(`/incidents/${id}/`);
       } else {
         await api.delete(`/complaints/${id}/`);
       }
-      setSelectedCase(null);
+      // Refresh from server to ensure consistency
       await fetchData();
     } catch (err) {
+      console.error('Delete failed:', err);
       alert("Failed to delete record: " + (err.response?.data?.detail || err.message));
+      // ✅ Rollback on error — refetch to restore deleted item
+      await fetchData();
     } finally {
       setDeletingId(null);
     }

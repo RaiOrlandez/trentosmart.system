@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import BasePermission
 
-from .models import Ride, User, FraudAlert, LGURevenue
+from .models import Ride, User, FraudAlert, LGURevenue, Incident
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -334,8 +334,10 @@ def get_admin_dashboard_stats(request):
         'totalRidesToday': Ride.objects.filter(requested_at__gte=today_start).count(),
         'completedToday': Ride.objects.filter(status='completed', completed_at__gte=today_start).count(),
         'cancelledToday': Ride.objects.filter(status='cancelled', requested_at__gte=today_start).count(),
-        'incidents': FraudAlert.objects.filter(is_resolved=False).count(),
+        # ✅ FIX: Use actual SOS Incident model (not FraudAlert) so Safety Hub badge shows correct count
+        'incidents': Incident.objects.filter(status__in=['pending', 'active']).count(),
         'criticalAlerts': FraudAlert.objects.filter(is_resolved=False, severity='critical').count(),
+        'fraudAlerts': FraudAlert.objects.filter(is_resolved=False).count(),
         'totalRevenue': float(
             Ride.objects.filter(status='completed')
             .aggregate(total=Sum('fare'))['total'] or 0
