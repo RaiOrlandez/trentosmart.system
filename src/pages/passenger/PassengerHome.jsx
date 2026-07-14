@@ -674,10 +674,36 @@ const PassengerHome = () => {
     };
 
     fetchDrivers(); // Initial
-    const interval = setInterval(fetchDrivers, 15000); // Poll every 15s
+    const interval = setInterval(fetchDrivers, 8000); // Poll every 8s for near-realtime freshness
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userCenter.lat, userCenter.lng]);
+
+  // ── Sync nearbyDriverList → map markers (single source of truth) ────────────
+  // This effect runs every time the REST poll returns (every 8s) AND every time
+  // a WebSocket update patches the list. It replaces all driver markers atomically,
+  // so drivers appear immediately on first load without waiting for WS events.
+  useEffect(() => {
+    if (status !== 'idle') {
+      // Remove all idle driver icons when passenger is in an active ride
+      setMarkers(prev => prev.filter(m => !m.isDriver || m.title === 'Driver'));
+      return;
+    }
+    setMarkers(prev => {
+      const nonDriverMarkers = prev.filter(m => !m.isDriver);
+      const driverMarkers = nearbyDriverList
+        .filter(d => d.lat && d.lng && !isNaN(parseFloat(d.lat)) && !isNaN(parseFloat(d.lng)))
+        .map(d => ({
+          id: d.id,
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lng),
+          title: 'Trike Driver',
+          info: `Available\nVehicle: ${d.vehicle_model || 'Tricycle'}\nPlate: ${d.vehicle_plate || 'N/A'}`,
+          isDriver: true,
+        }));
+      return [...nonDriverMarkers, ...driverMarkers];
+    });
+  }, [nearbyDriverList, status]);
 
   useEffect(() => {
     // Check for new critical broadcasts
@@ -785,48 +811,50 @@ const PassengerHome = () => {
     };
   }, [activeRideId, status, sendLocation]);
 
-  // Handle Real-time Driver Markers (Global — from system WebSocket)
+  // Handle Real-time Driver Location Updates (WebSocket → patch nearbyDriverList)
+  // Instead of writing to markers directly (which caused a race condition with the
+  // REST-based sync effect), we patch nearbyDriverList. This triggers the sync
+  // effect above, which atomically rebuilds the marker list — single source of truth.
   useEffect(() => {
     if (!driverLocation) return;
 
-    // Bug Fix 2: When passenger is in an active ride state, remove all idle
-    // driver markers from the map — they're irrelevant and confusing.
-    if (status !== 'idle') {
-      setMarkers(prev => prev.filter(m => !m.isDriver || m.title === 'Driver'));
-      return;
-    }
+    // When passenger is in an active ride, WS idle-driver updates are irrelevant
+    if (status !== 'idle') return;
 
-    // If driver went offline or status is not explicitly online, remove their marker
+    // Driver went offline — remove from list (sync effect will clear the marker)
     if (driverLocation.is_online === false || driverLocation.is_online !== true) {
-      setMarkers(prev => prev.filter(m => m.id !== driverLocation.id));
+      setNearbyDriverList(prev => prev.filter(d => d.id !== driverLocation.id));
+      setNearbyDrivers(prev => Math.max(0, prev - 1));
       return;
     }
 
-    // Bug Fix 3: Validate coordinates before placing marker to prevent NaN/ghost markers
+    // Validate coordinates before patching
     const markerLat = parseFloat(driverLocation.lat);
     const markerLng = parseFloat(driverLocation.lng);
     if (isNaN(markerLat) || isNaN(markerLng)) {
-      console.warn('Driver location update has invalid coordinates, skipping marker:', driverLocation);
+      console.warn('Driver location update has invalid coordinates, skipping:', driverLocation);
       return;
     }
 
-    // Only add/update marker when driver is confirmed online with valid coordinates
-    setMarkers(prev => {
-      const existingIdx = prev.findIndex(m => m.id === driverLocation.id);
-      const newMarker = {
-        id: driverLocation.id,
-        lat: markerLat,
-        lng: markerLng,
-        title: 'Trike Driver',
-        info: 'Available',
-        isDriver: true
-      };
-      if (existingIdx >= 0) {
+    // Patch lat/lng in-place for existing driver, or add new driver to list
+    setNearbyDriverList(prev => {
+      const idx = prev.findIndex(d => d.id === driverLocation.id);
+      if (idx >= 0) {
         const updated = [...prev];
-        updated[existingIdx] = newMarker;
+        updated[idx] = { ...updated[idx], lat: markerLat, lng: markerLng };
         return updated;
       }
-      return [...prev, newMarker];
+      // New driver came online between REST polls — add them immediately
+      setNearbyDrivers(c => c + 1);
+      return [...prev, {
+        id: driverLocation.id,
+        username: driverLocation.username || 'Trike Driver',
+        lat: markerLat,
+        lng: markerLng,
+        vehicle_model: driverLocation.vehicle_model || null,
+        vehicle_plate: driverLocation.vehicle_plate || null,
+        is_online: true,
+      }];
     });
   }, [driverLocation, status]);
 
