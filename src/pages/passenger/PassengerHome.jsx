@@ -1055,7 +1055,7 @@ const PassengerHome = () => {
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [status, requestTimeRemaining, selectedDriverId, cancelRide]);
+  }, [status, requestTimeRemaining, selectedDriverId, cancelRide, notify]);
 
   // Handle Real-time Driver Markers & Dynamic Navigation Routing (Passenger Screen)
   useEffect(() => {

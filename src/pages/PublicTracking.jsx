@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../api/axios';
 import LeafletMap from '../components/LeafletMap';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Car, ShieldCheck, Phone, AlertTriangle, Wifi, WifiOff, RefreshCw, CheckCircle2, XCircle, Clock, Navigation } from 'lucide-react';
+import { Car, ShieldCheck, Phone, AlertTriangle, Wifi, WifiOff, RefreshCw, CheckCircle2, Clock, Navigation } from 'lucide-react';
 import useRideTracking from '../hooks/useRideTracking';
 
 // ── OSRM helper ──────────────────────────────────────────────────────────────
