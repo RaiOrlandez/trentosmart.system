@@ -240,10 +240,12 @@ class RegisterView(APIView):
         
         # Generate 6-digit OTP
         otp = ''.join(random.choices(string.digits, k=6))
-        
+
+        from django.utils import timezone as tz
         user = ser.save()
         user.email_otp = otp
-        user.save(update_fields=['email_otp'])
+        user.email_otp_created_at = tz.now()
+        user.save(update_fields=['email_otp', 'email_otp_created_at'])
         print(f"👉 [DEMO/LOG] Generated initial OTP for {user.email}: {otp}")
 
         # ── Fire all post-registration notifications in the background ────────
@@ -254,38 +256,6 @@ class RegisterView(APIView):
         from django.conf import settings as django_settings
 
         def send_notifications(username, email, role, date_joined, otp_code):
-            # Welcome Email with OTP
-            try:
-                html_msg = f"""
-                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                    <h2>Verify Your Trento Smart Account 🛺</h2>
-                    <p>Hi {username},</p>
-                    <p>Welcome to the Trento Smart Tricycle System!</p>
-                    <p>To complete your registration, please verify your email address using the code below.</p>
-                    <div style="background-color: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
-                        <h1 style="font-size: 36px; letter-spacing: 8px; color: #2563eb; margin: 0;">{otp_code}</h1>
-                    </div>
-                    <p>This code expires in 30 minutes. Do not share it with anyone.</p>
-                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
-                        <p style="margin:0 0 10px 0;"><b>Account Details:</b></p>
-                        <ul style="margin:0; padding-left: 20px;">
-                            <li>Username: {username}</li>
-                            <li>Email: {email}</li>
-                            <li>Role: {role.capitalize()}</li>
-                        </ul>
-                    </div>
-                    <p>{"Your driver account is currently pending verification. The admin will review your documents and approve your account shortly." if role == 'driver' else "Once verified, you can log in and start booking rides!"}</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
-                    <p style="color: #64748b; font-size: 12px; text-align: center;">If you did not create this account, please ignore this email or contact support immediately.</p>
-                </div>
-                """
-                success, response = send_brevo_email(email, username, 'Verify Your Trento Smart Account 🛺', html_msg)
-                if success:
-                    print(f"[Email] ✅ Verification OTP sent to {email}")
-                else:
-                    print(f"[Email] ❌ Welcome email FAILED for {email}: {response}")
-            except Exception as e:
-                print(f"[Email] ❌ Welcome email Exception: {e}")
 
             # Admin Notification Email
             try:
@@ -350,12 +320,51 @@ class RegisterView(APIView):
                 except Exception as push_err:
                     print(f"[Push] Admin notification failed (non-critical): {push_err}")
 
-        thread = threading.Thread(
+        # Send OTP email and admin notification in PARALLEL threads for max speed
+        def send_otp_email(username, email, otp_code):
+            try:
+                html_msg = f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2>Verify Your Trento Smart Account 🛺</h2>
+                    <p>Hi {username},</p>
+                    <p>Welcome to the Trento Smart Tricycle System!</p>
+                    <p>To complete your registration, please verify your email address using the code below.</p>
+                    <div style="background-color: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
+                        <h1 style="font-size: 36px; letter-spacing: 8px; color: #2563eb; margin: 0;">{otp_code}</h1>
+                    </div>
+                    <p>This code expires in <strong>30 minutes</strong>. Do not share it with anyone.</p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0;">
+                        <p style="margin:0 0 10px 0;"><b>Account Details:</b></p>
+                        <ul style="margin:0; padding-left: 20px;">
+                            <li>Username: {username}</li>
+                            <li>Email: {email}</li>
+                        </ul>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                    <p style="color: #64748b; font-size: 12px; text-align: center;">If you did not create this account, please ignore this email or contact support immediately.</p>
+                </div>
+                """
+                success, response = send_brevo_email(email, username, 'Verify Your Trento Smart Account 🛺', html_msg)
+                if success:
+                    print(f"[Email] ✅ Verification OTP sent to {email}")
+                else:
+                    print(f"[Email] ❌ OTP email FAILED for {email}: {response}")
+            except Exception as e:
+                print(f"[Email] ❌ OTP email Exception: {e}")
+
+        thread_otp = threading.Thread(
+            target=send_otp_email,
+            args=(user.username, user.email, otp),
+            daemon=True
+        )
+        thread_otp.start()
+
+        thread_notif = threading.Thread(
             target=send_notifications,
             args=(user.username, user.email, user.role, user.date_joined, otp),
             daemon=True
         )
-        thread.start()
+        thread_notif.start()
 
         return Response(UserSerializer(user, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
@@ -2671,9 +2680,22 @@ class VerifyEmailView(APIView):
         is_valid_otp = user.email_otp and user.email_otp == otp
 
         if is_valid_otp:
+            # Enforce 30-minute OTP expiry
+            from django.utils import timezone as tz
+            if user.email_otp_created_at:
+                age_minutes = (tz.now() - user.email_otp_created_at).total_seconds() / 60
+                if age_minutes > 30:
+                    user.email_otp = None
+                    user.email_otp_created_at = None
+                    user.save(update_fields=['email_otp', 'email_otp_created_at'])
+                    return Response(
+                        {'detail': 'This verification code has expired. Please request a new one.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             user.is_email_verified = True
-            user.email_otp = None  # Clear OTP after successful verification
-            user.save(update_fields=['is_email_verified', 'email_otp'])
+            user.email_otp = None
+            user.email_otp_created_at = None
+            user.save(update_fields=['is_email_verified', 'email_otp', 'email_otp_created_at'])
             return Response({'detail': 'Email verified successfully! You can now log in.'}, status=status.HTTP_200_OK)
         else:
             return Response({'detail': 'Invalid OTP code. Please check your email or request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2701,10 +2723,12 @@ class ResendOTPView(APIView):
         if user.is_email_verified:
             return Response({'detail': 'This email is already verified. Please log in.'}, status=status.HTTP_200_OK)
 
-        # Generate a fresh 6-digit OTP
+        # Generate a fresh 6-digit OTP and reset its timestamp
+        from django.utils import timezone as tz
         new_otp = ''.join(random.choices(string.digits, k=6))
         user.email_otp = new_otp
-        user.save(update_fields=['email_otp'])
+        user.email_otp_created_at = tz.now()
+        user.save(update_fields=['email_otp', 'email_otp_created_at'])
         print(f"👉 [DEMO/LOG] Generated new OTP for {email}: {new_otp}")
 
         # Send the new OTP via email

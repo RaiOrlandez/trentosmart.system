@@ -80,6 +80,7 @@ class User(AbstractUser):
     # Email Verification
     is_email_verified = models.BooleanField(default=False)
     email_otp = models.CharField(max_length=6, blank=True, null=True)
+    email_otp_created_at = models.DateTimeField(null=True, blank=True)  # For 30-min expiry enforcement
 
     # Session management to prevent concurrent logins
     jwt_session_salt = models.CharField(max_length=255, default=uuid.uuid4)
