@@ -1194,7 +1194,51 @@ const PassengerHome = () => {
     }
   };
 
+  const getShareTrackingUrl = (token) => {
+    const envWebUrl = process.env.REACT_APP_WEB_URL;
+    if (envWebUrl) {
+      return `${envWebUrl}/track/${token}`;
+    }
+    const origin = window.location.origin;
+    if (origin.startsWith('capacitor://') || (origin.includes('localhost') && !origin.includes(':3000'))) {
+      return `https://trentosmart-system.vercel.app/track/${token}`;
+    }
+    return `${origin}/track/${token}`;
+  };
 
+  const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        console.warn("[Clipboard] API writeText failed, attempting fallback...", err);
+      }
+    }
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.width = "2em";
+      textArea.style.height = "2em";
+      textArea.style.padding = "0";
+      textArea.style.border = "none";
+      textArea.style.outline = "none";
+      textArea.style.boxShadow = "none";
+      textArea.style.background = "transparent";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) return true;
+    } catch (err) {
+      console.error("[Clipboard] Fallback copying failed:", err);
+    }
+    return false;
+  };
 
   // Press and Hold SOS States & Refs
   const [sosHoldProgress, setSosHoldProgress] = useState(0);
@@ -2086,18 +2130,20 @@ const PassengerHome = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const token = cachedShareToken;
                         if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
-                        const url = `${window.location.origin}/track/${token}`;
+                        const url = getShareTrackingUrl(token);
                         if (navigator.share) {
                           navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => { });
                         } else {
-                          try {
-                            navigator.clipboard.writeText(url);
+                          const success = await copyTextToClipboard(url);
+                          if (success) {
                             setShareCopied(true);
                             setTimeout(() => setShareCopied(false), 2500);
-                          } catch { alert(url); }
+                          } else {
+                            alert(`Copy failed. Please manually copy this link: ${url}`);
+                          }
                         }
                       }}
                       className={`p-3 border rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${shareCopied ? 'bg-green-50 text-green-600 border-green-200' : 'bg-blue-50 hover:bg-blue-100 text-blue-600 border-blue-100/60'
@@ -2310,18 +2356,20 @@ const PassengerHome = () => {
           {/* Share Ride Button */}
           {(status === 'matched' || status === 'ongoing') && activeRideId && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 const token = cachedShareToken;
                 if (!token) { alert('Tracking link not ready yet. Please try again.'); return; }
-                const url = `${window.location.origin}/track/${token}`;
+                const url = getShareTrackingUrl(token);
                 if (navigator.share) {
                   navigator.share({ title: "My Live Ride", text: "Track my ride live on TrentoSmart 🚗", url }).catch(() => { });
                 } else {
-                  try {
-                    navigator.clipboard.writeText(url);
+                  const success = await copyTextToClipboard(url);
+                  if (success) {
                     setShareCopied(true);
                     setTimeout(() => setShareCopied(false), 2500);
-                  } catch { alert(url); }
+                  } else {
+                    alert(`Copy failed. Please manually copy this link: ${url}`);
+                  }
                 }
               }}
               className={`hidden md:flex p-4 rounded-2xl shadow-lg items-center gap-3 hover:scale-105 transition-all border active:scale-95 ${shareCopied ? 'bg-green-600 border-green-500/25' : 'bg-blue-600 hover:bg-blue-700 border-blue-500/25'
