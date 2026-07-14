@@ -77,6 +77,7 @@ const AdminDashboard = () => {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false);
   const [approvingId, setApprovingId] = useState(null); // prevent double-click
   const notifiedSosIds = React.useRef(new Set());        // track which SOS incidents already triggered siren
+  const resolvedSosIds = React.useRef(new Set());         // track which SOS incidents admin has resolved — NEVER re-show these
   const isFirstSosFetch = React.useRef(true);            // true on initial load — skip siren for pre-existing old incidents
 
   // Avatar Viewer State
@@ -207,14 +208,29 @@ const AdminDashboard = () => {
       const incidentsData = Array.isArray(res.data) ? res.data : (res.data?.results || []);
       // Look for any pending/active incidents in the last 12 hours (stale mock/test alerts are ignored in the banner)
       const twelveHoursAgo = Date.now() - (12 * 60 * 60 * 1000);
-      const unresolved = incidentsData.filter(i => 
+      const unresolved = incidentsData.filter(i =>
         (i.status === 'pending' || i.status === 'active') &&
-        new Date(i.created_at).getTime() > twelveHoursAgo
+        new Date(i.created_at).getTime() > twelveHoursAgo &&
+        // ✅ CRITICAL: Never re-show an incident the admin already resolved in this session
+        !resolvedSosIds.current.has(i.id)
       );
       if (unresolved.length > 0) {
-        // Explicitly sort unresolved incidents by created_at descending (newest first)
+        // Sort unresolved incidents by created_at descending (newest first)
         const sortedUnresolved = [...unresolved].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         const latestSos = sortedUnresolved[0];
+
+        if (isFirstSosFetch.current) {
+          // On first load: silently mark all existing incidents as "already notified"
+          // so we only alarm for brand-new ones (< 2 minutes old)
+          sortedUnresolved.forEach(i => {
+            const ageMs = Date.now() - new Date(i.created_at).getTime();
+            if (ageMs > 2 * 60 * 1000) {
+              notifiedSosIds.current.add(i.id);
+            }
+          });
+          isFirstSosFetch.current = false;
+        }
+
         setActiveSOS({
           id: latestSos.id,
           user: latestSos.username || `User #${latestSos.user}`,
@@ -224,17 +240,23 @@ const AdminDashboard = () => {
         });
         setShowSOSBanner(true);
 
-        if (isFirstSosFetch.current) {
-          // On first load: silently mark all existing incidents as "already notified"
-          // so we only alarm for brand-new ones (< 2 minutes old)
-          sortedUnresolved.forEach(i => {
-            const ageMs = Date.now() - new Date(i.created_at).getTime();
-            if (ageMs > 2 * 60 * 1000) {
-              // Older than 2 minutes — pre-mark so siren doesn't fire for stale incidents
-              notifiedSosIds.current.add(i.id);
-            }
+        // Pre-inject SOS marker immediately so "View on Map" is instant with no delay
+        if (latestSos.lat && latestSos.lng) {
+          setLiveMarkers(prev => {
+            const others = prev.filter(m => m.id !== `sos_${latestSos.id}`);
+            return [
+              ...others,
+              {
+                id: `sos_${latestSos.id}`,
+                lat: parseFloat(latestSos.lat),
+                lng: parseFloat(latestSos.lng),
+                title: `🚨 SOS: ${latestSos.username || `User #${latestSos.user}`}`,
+                info: `🚨 EMERGENCY SOS!\nUser: ${latestSos.username || `User #${latestSos.user}`}\nDetails: ${latestSos.description || 'Distress signal'}\nCoordinates: ${latestSos.lat}, ${latestSos.lng}`,
+                isDestination: true,
+                forceFocus: Date.now()
+              }
+            ];
           });
-          isFirstSosFetch.current = false;
         }
 
         // Find if there is ANY unresolved incident that has not triggered the siren yet
@@ -244,13 +266,17 @@ const AdminDashboard = () => {
           notifyEmergencySOS(unnotified.username || `User #${unnotified.user}`, unnotified.description);
         }
       } else {
+        // No genuinely pending incidents — hide the banner.
+        // We only reach here if ALL incidents were filtered out by resolvedSosIds or by status.
+        // setActiveSOS(null) via the functional updater so we clear only if not freshly set by a WS event.
         setShowSOSBanner(false);
-        setActiveSOS(null);
+        setActiveSOS(prev => resolvedSosIds.current.has(prev?.id) ? null : prev);
         isFirstSosFetch.current = false;
       }
     } catch (err) {
       console.error('Failed to fetch pending incidents', err);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifyEmergencySOS]);
 
   useEffect(() => {
@@ -323,6 +349,9 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     if (emergencyAlert) {
+      // ✅ Skip if this incident was already resolved by admin in this session
+      if (emergencyAlert.id && resolvedSosIds.current.has(emergencyAlert.id)) return;
+
       const msg = `SOS from ${emergencyAlert.user || 'Unknown'}: ${emergencyAlert.description || 'Emergency signal detected!'}`;
       setLiveAlerts(prev => [{
         time: 'CRITICAL',
@@ -360,7 +389,7 @@ const AdminDashboard = () => {
       }
 
       setActiveTab('live'); // Force switch to map to see location
-      
+
       // 🚨 Looping siren + urgent desktop popup (stays until admin dismisses)
       if (emergencyAlert.id && !notifiedSosIds.current.has(emergencyAlert.id)) {
         notifiedSosIds.current.add(emergencyAlert.id);
@@ -655,19 +684,30 @@ const AdminDashboard = () => {
 
   const handleResolveActiveSOS = async () => {
     if (!activeSOS?.id) { setActiveSOS(null); setShowSOSBanner(false); stopSiren(); return; }
+    const resolvedId = activeSOS.id;
+    const resolvedUser = activeSOS.user;
+    // ✅ CRITICAL: Mark as resolved FIRST — before any API call or re-fetch —
+    // so that neither the polling interval nor the WebSocket event can re-show this banner.
+    resolvedSosIds.current.add(resolvedId);
+    notifiedSosIds.current.add(resolvedId);
+    // Optimistically clear the UI immediately (no waiting for API response)
+    setActiveSOS(null);
+    setShowSOSBanner(false);
+    stopSiren();
+    // Remove the SOS marker from the live map immediately
+    setLiveMarkers(prev => prev.filter(m => m.id !== `sos_${resolvedId}`));
     setResolvingSOS(true);
     try {
-      await api.patch(`/incidents/${activeSOS.id}/`, { status: 'resolved', admin_notes: 'Resolved via Admin SOS Console.' });
-      setLiveAlerts(prev => [{ time: 'Just now', type: 'SYSTEM', msg: `SOS from ${activeSOS.user} marked RESOLVED.`, urgent: false }, ...prev].slice(0, 15));
+      await api.patch(`/incidents/${resolvedId}/`, { status: 'resolved', admin_notes: 'Resolved via Admin SOS Console.' });
+      setLiveAlerts(prev => [{ time: 'Just now', type: 'SYSTEM', msg: `SOS from ${resolvedUser} marked RESOLVED.`, urgent: false }, ...prev].slice(0, 15));
     } catch (err) {
       console.error('Failed to resolve SOS', err);
+      // Even on API error we keep it resolved in UI — admin chose to dismiss it
     } finally {
       setResolvingSOS(false);
-      setActiveSOS(null);
-      setShowSOSBanner(false);
-      stopSiren(); // ✅ Stop looping siren when SOS is resolved
       fetchStats();
-      fetchPendingIncidents(); // ✅ Instantly sync pending incidents list to avoid repeating alerts
+      // Delayed re-fetch allows the DB to persist before we query again
+      setTimeout(() => fetchPendingIncidents(), 1500);
     }
   };
 
