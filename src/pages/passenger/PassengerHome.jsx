@@ -747,6 +747,14 @@ const PassengerHome = () => {
   // Live Tracking
   const { user } = useContext(AuthContext);
   const { location: wsData, sendMessage, messages, connected, sendLocation } = useRideTracking(activeRideId);
+
+  // Dynamic map center: follow the driver's vehicle during active travel (matched/ongoing);
+  // otherwise, default to the passenger's own live coordinates.
+  const driverLat = wsData?.lat ? parseFloat(wsData.lat) : null;
+  const driverLng = wsData?.lng ? parseFloat(wsData.lng) : null;
+  const mapCenter = (status === 'matched' || status === 'ongoing') && driverLat && driverLng
+    ? { lat: driverLat, lng: driverLng }
+    : userCenter;
   // Track which ride IDs already triggered the "driver found" chime.
   // Seeded from sessionStorage so the dedup survives a page refresh.
   const notifiedMatchedRideIds = React.useRef((() => {
@@ -2308,7 +2316,7 @@ const PassengerHome = () => {
           )}
         </AnimatePresence>
         <Map
-          center={userCenter}
+          center={mapCenter}
           markers={markers}
           routeCoordinates={routeCoordinates}
           secondaryRouteCoordinates={secondaryRouteCoordinates}
