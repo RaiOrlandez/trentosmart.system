@@ -147,11 +147,28 @@ function MapController({ markers, center }) {
     const isFirstLoad = useRef(true);
     const lastHandledFocusRef = useRef(null);
     const [userInteracted, setUserInteracted] = useState(false);
+    const userInteractedTimerRef = useRef(null);
 
     useMapEvents({
-        dragstart() { setUserInteracted(true); },
-        zoomstart() { setUserInteracted(true); }
+        dragstart() {
+            setUserInteracted(true);
+            clearTimeout(userInteractedTimerRef.current);
+            userInteractedTimerRef.current = setTimeout(() => {
+                setUserInteracted(false);
+            }, 30000);
+        },
+        zoomstart() {
+            setUserInteracted(true);
+            clearTimeout(userInteractedTimerRef.current);
+            userInteractedTimerRef.current = setTimeout(() => {
+                setUserInteracted(false);
+            }, 30000);
+        }
     });
+
+    useEffect(() => {
+        return () => clearTimeout(userInteractedTimerRef.current);
+    }, []);
 
     useEffect(() => {
         if (!center?.lat || !center?.lng || userInteracted) return;
@@ -296,13 +313,30 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
         }
 
         const currentLatLng = markerRef.current.getLatLng();
+
+        // Jump guard: if the new position is more than ~200 m away, snap immediately.
+        // This prevents the driver icon from slowly gliding across the map when the
+        // server sends a corrected GPS fix after a large position error. The threshold
+        // 0.0018° ≈ 200 m at Philippine latitudes (1° lat ≈ 111 km).
+        const latDelta = Math.abs(position[0] - currentLatLng.lat);
+        const lngDelta = Math.abs(position[1] - currentLatLng.lng);
+        if (latDelta > 0.0018 || lngDelta > 0.0018) {
+            cancelAnimationFrame(requestRef.current);
+            markerRef.current.setLatLng([position[0], position[1]]);
+            startPosRef.current = { lat: position[0], lng: position[1] };
+            targetPosRef.current = { lat: position[0], lng: position[1] };
+            return;
+        }
+
         startPosRef.current = { lat: currentLatLng.lat, lng: currentLatLng.lng };
         targetPosRef.current = { lat: position[0], lng: position[1] };
         startTimeRef.current = null;
 
         const animate = (timestamp) => {
             if (!startTimeRef.current) startTimeRef.current = timestamp;
-            const progress = (timestamp - startTimeRef.current) / 1500; // 1500ms — spans a full GPS update interval for smooth glide
+            // 800ms — snappier than the original 1500ms so the icon reaches the real
+            // driver position before the next WebSocket update can interrupt it.
+            const progress = (timestamp - startTimeRef.current) / 800;
             const t = easeOutCubic(Math.min(progress, 1));
 
             const lat = startPosRef.current.lat + (targetPosRef.current.lat - startPosRef.current.lat) * t;

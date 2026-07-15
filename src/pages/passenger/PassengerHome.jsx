@@ -1063,25 +1063,42 @@ const PassengerHome = () => {
       const driverLat = parseFloat(wsData.lat);
       const driverLng = parseFloat(wsData.lng);
 
-      // Update map marker
-      setMarkers(current => {
-        const otherMarkers = current.filter(m => m.title !== 'Driver');
-        return [
-          ...otherMarkers,
-          {
-            id: 'driver',
-            lat: driverLat,
-            lng: driverLng,
-            title: 'Driver',
-            info: status === 'matched' ? 'On the way to pick you up!' : 'Heading to destination!',
-            isDriver: true,
-            heading: wsData.heading || 0,
-            accuracy: wsData.accuracy || null,
-            isTracking: isTracking,
-            eta: driverEta
-          }
-        ];
-      });
+      // Accuracy guard: skip position updates from the driver when their GPS fix is
+      // very poor (> 200 m). A bad fix would teleport the driver icon to a wrong
+      // location. We still update heading and ETA so the UI stays live; only the
+      // map pin position is held at the last known accurate location.
+      const driverAccuracy = wsData.accuracy ? parseFloat(wsData.accuracy) : null;
+      const hasGoodAccuracy = driverAccuracy === null || driverAccuracy <= 200;
+
+      if (hasGoodAccuracy) {
+        // Update map marker only when accuracy is acceptable
+        setMarkers(current => {
+          const otherMarkers = current.filter(m => m.title !== 'Driver');
+          return [
+            ...otherMarkers,
+            {
+              id: 'driver',
+              lat: driverLat,
+              lng: driverLng,
+              title: 'Driver',
+              info: status === 'matched' ? 'On the way to pick you up!' : 'Heading to destination!',
+              isDriver: true,
+              heading: wsData.heading || 0,
+              accuracy: driverAccuracy,
+              isTracking: isTracking,
+              eta: driverEta
+            }
+          ];
+        });
+      } else {
+        // Poor GPS accuracy — update heading/ETA only, keep pin at last known position
+        console.warn('[DriverMarker] Skipping position update: driver accuracy too poor (', driverAccuracy, 'm)');
+        setMarkers(current => current.map(m =>
+          m.title === 'Driver'
+            ? { ...m, heading: wsData.heading || m.heading, eta: driverEta }
+            : m
+        ));
+      }
 
       // Live Routing Call
       let targetLat, targetLng;

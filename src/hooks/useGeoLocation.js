@@ -109,18 +109,21 @@ const useGeoLocation = (options = {}) => {
             // run on GPS-capable hardware. We apply the same accuracy/speed filters as
             // native apps so that inaccurate cell-tower / Wi-Fi positions (accuracy > 150 m)
             // are rejected once a good GPS lock has been established.
-            // Desktop/laptop browsers are explicitly excluded so Chrome DevTools mock
-            // coordinates (which have accuracy ≈ 0) are never rejected during development.
             const isMobileBrowser = !isNative &&
                 typeof navigator !== 'undefined' &&
                 /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-            const shouldFilter = (isNative || isMobileBrowser) && !inColdStart;
+            const isDesktop = !isNative && !isMobileBrowser;
+            // Apply accuracy filter to ALL platforms — desktops use a much looser threshold
+            // (3000m) because they rely on Wi-Fi/IP geolocation which can be wildly off.
+            // Mobile and native use the tighter 150m threshold.
+            const shouldFilter = !inColdStart;
+            const accuracyThreshold = isDesktop ? 3000 : 150;
 
-            // 1. Reject GPS updates with extremely poor accuracy (>150m) ONLY if we
-            //    already have a good lock AND we are on a native device past the cold-start window.
-            //    This allows the real GPS correction to arrive and override a bad first fix.
-            if (shouldFilter && acc > 150 && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < 50) {
-                console.warn('GPS spike filtered: accuracy too poor (accuracy:', acc, 'm)');
+            // 1. Reject GPS updates with extremely poor accuracy ONLY if we already have
+            //    a good lock — this allows the real GPS correction to arrive and override
+            //    a bad first fix, while blocking runaway Wi-Fi/IP geolocation jumps.
+            if (shouldFilter && acc > accuracyThreshold && lastValidLocationRef.current && lastValidLocationRef.current.accuracy < (isDesktop ? 3000 : 50)) {
+                console.warn('GPS spike filtered: accuracy too poor (accuracy:', acc, 'm, threshold:', accuracyThreshold, 'm)');
                 return;
             }
 
@@ -146,7 +149,26 @@ const useGeoLocation = (options = {}) => {
                 }
             }
 
-            // 3. Accept the raw GPS reading — no position smoothing.
+            // 3. Suppress GPS wander < 5 m when stationary.
+            // GPS hardware continuously reports slightly different coordinates even when
+            // the device is motionless (GPS wander ±2–30 m). If the new fix is within
+            // 5 m of the last valid fix AND accuracy did not improve, skip the update.
+            // This stops the "You are here" dot from vibrating when the passenger is
+            // standing still. The 5 m gate is well below the icon size on the map.
+            if (lastValidLocationRef.current) {
+                const wanderDist = calculateDistanceMetres(
+                    lastValidLocationRef.current.lat,
+                    lastValidLocationRef.current.lng,
+                    lat, lng
+                );
+                const accuracyImproved = acc < (lastValidLocationRef.current.accuracy || Infinity);
+                if (wanderDist < 5 && !accuracyImproved) {
+                    // Position didn't meaningfully change and accuracy didn't improve — skip
+                    return;
+                }
+            }
+
+            // 4. Accept the GPS reading — no position smoothing.
             // The "you are here" marker uses snapToPosition in LeafletMap, so it
             // always reflects the exact GPS fix instantly. Smoothing here causes
             // the displayed position to lag 30–50 m behind the real location,
