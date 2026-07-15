@@ -1501,7 +1501,7 @@ const PassengerHome = () => {
   };
 
   return (
-    <div className="min-h-screen pt-4 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col-reverse md:flex-row gap-4 md:gap-6 px-4 md:px-6 max-w-[1400px] mx-auto transition-colors duration-500">
+    <div className="min-h-screen pt-20 pb-10 bg-slate-100 dark:bg-slate-950 flex flex-col-reverse md:flex-row gap-4 md:gap-6 px-4 md:px-6 max-w-[1400px] mx-auto transition-colors duration-500">
       <LocationPermissionModal
         isOpen={gpsStatus === 'error'}
         error={gpsError}

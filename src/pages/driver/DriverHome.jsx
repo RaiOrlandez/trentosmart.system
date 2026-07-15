@@ -915,7 +915,7 @@ const DriverHome = () => {
   };
 
   return (
-    <div className="min-h-screen pt-4 pb-10 bg-slate-100 px-4 md:px-6 relative">
+    <div className="min-h-screen pt-24 pb-10 bg-slate-100 px-4 md:px-6 relative">
       {/* Top Navigation Bar */}
       <div className="absolute top-0 left-0 w-full p-4 sm:p-6 z-[100] pointer-events-none">
         <div className="max-w-[1400px] mx-auto flex justify-between items-start">

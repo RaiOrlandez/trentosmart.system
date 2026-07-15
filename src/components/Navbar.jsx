@@ -55,15 +55,6 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
-  // Hide the Navbar entirely on full-screen dashboard routes.
-  // These pages have their own in-app navigation/controls and the Navbar
-  // wastes 64px of critical vertical space on mobile screens.
-  const dashboardRoutes = ['/passenger', '/driver'];
-  const isOnDashboard = dashboardRoutes.some(
-    r => location.pathname === r || location.pathname.startsWith(r + '/')
-  );
-  if (isOnDashboard) return null;
-
   return (
     <nav className="fixed w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
