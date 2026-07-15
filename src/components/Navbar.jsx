@@ -27,7 +27,8 @@ const Navbar = () => {
     visible: (i) => ({
       opacity: 1,
       y: 0,
-      transition: { delay: i * 0.07, type: 'spring', stiffness: 300, damping: 24 }
+      // Reduced stiffness (220 vs 300) for smoother animation on budget Android phones
+      transition: { delay: i * 0.06, type: 'spring', stiffness: 220, damping: 22 }
     })
   };
 
@@ -37,22 +38,31 @@ const Navbar = () => {
       opacity: 1,
       y: 0,
       scaleY: 1,
-      transition: { type: 'spring', stiffness: 300, damping: 28, staggerChildren: 0.06 }
+      transition: { type: 'spring', stiffness: 220, damping: 24, staggerChildren: 0.05 }
     },
     exit: {
       opacity: 0,
       y: -12,
       scaleY: 0.95,
-      transition: { duration: 0.2 }
+      transition: { duration: 0.18 }
     }
   };
 
   const mobileItemVariants = {
     hidden: { opacity: 0, x: -12 },
-    visible: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+    visible: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 220, damping: 22 } }
   };
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+
+  // Hide the Navbar entirely on full-screen dashboard routes.
+  // These pages have their own in-app navigation/controls and the Navbar
+  // wastes 64px of critical vertical space on mobile screens.
+  const dashboardRoutes = ['/passenger', '/driver'];
+  const isOnDashboard = dashboardRoutes.some(
+    r => location.pathname === r || location.pathname.startsWith(r + '/')
+  );
+  if (isOnDashboard) return null;
 
   return (
     <nav className="fixed w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">

@@ -915,7 +915,7 @@ const DriverHome = () => {
   };
 
   return (
-    <div className="min-h-screen pt-24 pb-10 bg-slate-100 px-4 md:px-6 relative">
+    <div className="min-h-screen pt-4 pb-10 bg-slate-100 px-4 md:px-6 relative">
       {/* Top Navigation Bar */}
       <div className="absolute top-0 left-0 w-full p-4 sm:p-6 z-[100] pointer-events-none">
         <div className="max-w-[1400px] mx-auto flex justify-between items-start">
@@ -1584,7 +1584,7 @@ const DriverHome = () => {
         </div>
 
         {/* Right Column: Map and Navigation */}
-        <div className="flex-1 h-[45vh] lg:h-auto min-h-[350px] lg:min-h-[650px] relative rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white order-1 lg:order-2">
+        <div className="flex-1 min-h-[300px] h-[45svh] lg:h-auto lg:min-h-[650px] relative rounded-[2.5rem] lg:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white order-1 lg:order-2">
           <Map
             markers={markers}
             center={driverCenter}

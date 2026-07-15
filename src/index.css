@@ -3,8 +3,43 @@
 @tailwind utilities;
 
 @layer base {
+  /* ── Global mobile resets ─────────────────────────────────────────── */
+
+  /* Prevent iOS Safari from auto-zooming when tapping inputs (requires font-size ≥ 16px) */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Remove the grey tap highlight on Android Chrome — gives a native-app feel */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    /* Suppress iOS long-press callout on images/buttons */
+    -webkit-touch-callout: none;
+  }
+
+  /* Allow text selection where meaningful (inputs, paragraphs) */
+  input, textarea, p, span, h1, h2, h3, h4, h5, h6, label {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
+  html {
+    /* Prevent elastic over-scroll bounce on iOS from causing white flashes */
+    overscroll-behavior: none;
+    /* Use safe-area-aware height on iOS — avoids content under notch / home bar */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 transition-colors duration-300;
+    /* Ensure smooth rendering on mobile GPU */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   .dark body {
@@ -89,4 +124,31 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* ── Mobile viewport & safe area utilities ────────────────────────────── */
+
+/* pb-safe: adds bottom padding equal to the iPhone home indicator height.
+   Apply to fixed bottom bars / nav tabs to avoid the home bar overlap.   */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* dvh fix: on iOS, 100vh includes the browser chrome causing overflow.
+   100dvh shrinks/grows as the browser toolbar appears/disappears.         */
+.min-h-screen {
+  min-height: 100vh;
+  min-height: 100dvh; /* Modern iOS Safari 15.4+ and Android Chrome 108+ */
+}
+
+/* Momentum scrolling for overflow containers on iOS (scrolls smoothly) */
+.overflow-y-auto,
+.overflow-y-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text size adjustment on orientation change (iOS Safari quirk) */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }

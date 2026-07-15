@@ -422,7 +422,7 @@ const LeafletMap = ({
                 zoom={zoom}
                 minZoom={10}
                 maxZoom={19}
-                style={{ height: '100%', width: '100%', touchAction: 'none' }}
+                style={{ height: '100%', width: '100%', touchAction: 'pan-x pan-y' }}
                 className="z-0"
                 zoomControl={false}
             >
