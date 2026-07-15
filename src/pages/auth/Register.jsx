@@ -54,7 +54,7 @@ const Register = () => {
               setError('Error requesting location. Please ensure GPS is enabled on your device.');
             }
           },
-          { enableHighAccuracy: true, timeout: 10000 }
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
         );
       } else {
         setConsentedToGps(false);
