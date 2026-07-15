@@ -226,6 +226,21 @@ const PassengerHome = () => {
     gpsLocationRef.current = gpsLocation;
   }, [gpsLocation]);
 
+  // One-time auto-population of pickup location from GPS when first acquired (Grab-style UX)
+  const hasAutoSetPickupRef = useRef(false);
+  useEffect(() => {
+    if (gpsLocation && status === 'idle' && !pickup && !hasAutoSetPickupRef.current) {
+      hasAutoSetPickupRef.current = true;
+      pickupCoordsRef.current = { lat: gpsLocation.lat, lng: gpsLocation.lng };
+      setPickup('Current GPS Location');
+      
+      // Try to resolve the actual address text in the background
+      reverseGeocode(gpsLocation.lat, gpsLocation.lng).then(label => {
+        if (label) setPickup(label);
+      }).catch(() => {});
+    }
+  }, [gpsLocation, status, pickup]);
+
   // Derived map centre: use live GPS when available, else TRENTO_CENTER
   const userCenter = gpsLocation
     ? { lat: gpsLocation.lat, lng: gpsLocation.lng }
