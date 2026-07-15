@@ -24,7 +24,8 @@ import {
   Bell,
   Share2,
   Phone,
-  Shield
+  Shield,
+  RefreshCw
 } from 'lucide-react';
 import PaymentModal from '../../components/PaymentModal';
 import RatingModal from '../../components/RatingModal';
@@ -2384,7 +2385,15 @@ const PassengerHome = () => {
         </div>
 
         {/* Floating Info */}
-        <div className="absolute top-6 right-6 flex flex-col gap-3">
+        <div className="absolute top-6 right-6 flex flex-col items-end gap-3 z-[1000]">
+          {/* Floating Refresh Button (helps PWA / full-screen users recover from connection drops) */}
+          <button
+            onClick={() => window.location.reload()}
+            className="w-10 h-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md text-slate-700 dark:text-slate-200 rounded-full shadow-lg border border-slate-100 dark:border-slate-700 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform pointer-events-auto cursor-pointer"
+            title="Refresh App"
+          >
+            <RefreshCw size={18} />
+          </button>
           <AnimatePresence>
             {proximityAlert && status === 'matched' && (
               <motion.div

@@ -28,7 +28,8 @@ import {
   Battery,
   Camera,
   MessageSquare,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -1673,6 +1674,14 @@ const DriverHome = () => {
           </div>
 
           <div className="absolute top-8 right-8 flex flex-col gap-3 z-[1000]">
+            {/* Floating Refresh Button (helps PWA / full-screen users recover from connection drops) */}
+            <button
+              onClick={() => window.location.reload()}
+              className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-slate-600 hover:text-primary transition-colors border border-slate-100 cursor-pointer"
+              title="Refresh App"
+            >
+              <RefreshCw size={20} />
+            </button>
             <button
               onClick={() => setShowSettingsModal(true)}
               className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-slate-600 hover:text-primary transition-colors border border-slate-100"
