@@ -47,6 +47,10 @@ const PublicTracking = () => {
     const fetchRide = useCallback(async () => {
         try {
             const res = await api.get(`/ride/track/${token}/`);
+            if (rideData && res.data.status !== rideData.status) {
+                setRouteCoordinates(null);
+                lastRouteFetchedRef.current = { lat: null, lng: null };
+            }
             setRideData(res.data);
             setLastUpdated(new Date());
             setLoading(false);
@@ -195,6 +199,8 @@ const PublicTracking = () => {
 
         // Sync status from WS push
         if (liveLoc?.status && liveLoc.status !== rideData.status) {
+            setRouteCoordinates(null);
+            lastRouteFetchedRef.current = { lat: null, lng: null };
             setRideData(prev => ({ ...prev, status: liveLoc.status }));
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps

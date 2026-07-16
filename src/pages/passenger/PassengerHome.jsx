@@ -258,10 +258,8 @@ const PassengerHome = () => {
       const others = prev.filter(m => m.id !== 'you_are_here');
       const isFirst = !prev.find(m => m.id === 'you_are_here');
 
-      // Hide you_are_here marker when ride is ongoing
-      if (status === 'ongoing') {
-        return others;
-      }
+      // Keep the "you_are_here" blue dot visible at all times (including during ongoing ride)
+      // so the passenger can see their phone's actual GPS location relative to the tricycle.
 
       return [
         {
@@ -282,7 +280,8 @@ const PassengerHome = () => {
   // Clean up markers when status transitions to ongoing
   useEffect(() => {
     if (status === 'ongoing') {
-      setMarkers(prev => prev.filter(m => m.id !== 'pickup' && m.id !== 'you_are_here'));
+      // Remove pickup pin (as pickup is complete) but keep you_are_here for live passenger tracking
+      setMarkers(prev => prev.filter(m => m.id !== 'pickup'));
     }
   }, [status]);
 
@@ -1169,6 +1168,10 @@ const PassengerHome = () => {
   // Handle status transitions for Grab-style camera fitBounds & secondary routes
   useEffect(() => {
     if (status === 'matched') {
+      // Clear the old preview route and reset OSRM rate limits to trigger immediate re-routing
+      setRouteCoordinates(null);
+      lastRouteFetchedCoordsRef.current = { lat: 0, lng: 0 };
+
       // Preserve pickup -> dest route as secondary dashed route (shown as dashed preview line)
       if (routeCoordinates && !secondaryRouteCoordinates) {
         setSecondaryRouteCoordinates(routeCoordinates);
@@ -1186,6 +1189,10 @@ const PassengerHome = () => {
       ]);
       setFitBoundsKey(prev => prev + 1);
     } else if (status === 'ongoing') {
+      // Clear the old driver -> pickup route and reset OSRM rate limits to trigger immediate re-routing
+      setRouteCoordinates(null);
+      lastRouteFetchedCoordsRef.current = { lat: 0, lng: 0 };
+
       setSecondaryRouteCoordinates(null);
       // Reset auto-focus flag so ongoing state can also trigger a one-time fit
       hasAutoFocusedOnMatchRef.current = false;
