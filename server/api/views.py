@@ -36,6 +36,7 @@ from .models import TransactionPIN
 
 import os
 import requests
+from datetime import timedelta
 from django.conf import settings
 import logging
 
@@ -2070,10 +2071,13 @@ class IncidentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'admin':
-            unresolved = Incident.objects.filter(status__in=['pending', 'active'])
-            resolved = Incident.objects.filter(status__in=['resolved', 'dismissed']).order_by('-created_at')[:50]
-            all_ids = list(unresolved.values_list('id', flat=True)) + list(resolved.values_list('id', flat=True))
-            return Incident.objects.filter(id__in=all_ids).select_related('user').order_by('-created_at')
+            # All open/active incidents + resolved/dismissed from the last 30 days
+            # No hard :50 cap — the count must reflect real removals
+            last_30d = timezone.now() - timedelta(days=30)
+            return Incident.objects.filter(
+                models.Q(status__in=['pending', 'active']) |
+                models.Q(status__in=['resolved', 'dismissed'], updated_at__gte=last_30d)
+            ).select_related('user').order_by('-created_at')
         return Incident.objects.filter(user=user).select_related('user').order_by('-created_at')
 
     def perform_update(self, serializer):
@@ -2231,10 +2235,13 @@ class ComplaintViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.role == 'admin':
-            open_complaints = Complaint.objects.filter(status__in=['pending', 'investigation'])
-            closed_complaints = Complaint.objects.filter(status='closed').order_by('-created_at')[:50]
-            all_ids = list(open_complaints.values_list('id', flat=True)) + list(closed_complaints.values_list('id', flat=True))
-            return Complaint.objects.filter(id__in=all_ids).select_related('user').order_by('-created_at')
+            # All open complaints + closed ones from the last 30 days
+            # No hard :50 cap — the count must reflect real removals
+            last_30d = timezone.now() - timedelta(days=30)
+            return Complaint.objects.filter(
+                models.Q(status__in=['pending', 'investigation']) |
+                models.Q(status='closed', updated_at__gte=last_30d)
+            ).select_related('user').order_by('-created_at')
         return Complaint.objects.filter(user=self.request.user).select_related('user').order_by('-created_at')
 
     def perform_create(self, serializer):

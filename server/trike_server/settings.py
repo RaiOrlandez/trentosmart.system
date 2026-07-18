@@ -177,6 +177,8 @@ _cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if _cors_allowed:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_allowed.split(',') if origin.strip()]
 
+CORS_EXPOSE_HEADERS = ['X-Resolved-Today-Count', 'X-Closed-Today-Count']
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'api.auth.JWTDeviceSessionAuthentication',

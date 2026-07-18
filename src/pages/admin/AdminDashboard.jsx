@@ -2333,7 +2333,8 @@ const SafetyHubTab = ({ onSosCountChange }) => {
   const handleDeleteCase = async (type, id) => {
     if (!window.confirm(`Are you sure you want to permanently delete this ${type === 'incident' ? 'Incident Alert' : 'Complaint'} case? All related records will be lost.`)) return;
     setDeletingId(`${type}-${id}`);
-    // ✅ Optimistic UI update — remove from local state IMMEDIATELY so list updates at once
+    setSelectedCase(null);
+    // ✅ Optimistic UI update — remove from local state IMMEDIATELY for instant feedback
     if (type === 'incident') {
       setIncidents(prev => {
         const updated = prev.filter(i => i.id !== id);
@@ -2343,24 +2344,39 @@ const SafetyHubTab = ({ onSosCountChange }) => {
     } else {
       setComplaints(prev => prev.filter(c => c.id !== id));
     }
-    setSelectedCase(null);
     try {
       if (type === 'incident') {
         await api.delete(`/incidents/${id}/`);
       } else {
         await api.delete(`/complaints/${id}/`);
       }
-      // Refresh from server to ensure consistency
-      await fetchData();
+      // ✅ No fetchData() on success — the optimistic state is already correct.
+      // A background sync happens every 10 seconds via the polling interval.
     } catch (err) {
       console.error('Delete failed:', err);
       alert("Failed to delete record: " + (err.response?.data?.detail || err.message));
-      // ✅ Rollback on error — refetch to restore deleted item
+      // ❌ Rollback on error — refetch to restore the item that wasn't actually deleted
       await fetchData();
     } finally {
       setDeletingId(null);
     }
   };
+
+  // Compute today's resolved count using updated_at so it reflects
+  // when the status was actually changed, not when the case was created.
+  const todayStr = new Date().toDateString();
+  const resolvedToday = (
+    incidents.filter(i =>
+      (i.status === 'resolved' || i.status === 'dismissed') &&
+      i.updated_at &&
+      new Date(i.updated_at).toDateString() === todayStr
+    ).length +
+    complaints.filter(c =>
+      c.status === 'closed' &&
+      c.updated_at &&
+      new Date(c.updated_at).toDateString() === todayStr
+    ).length
+  );
 
   const allCases = [
     ...(Array.isArray(incidents) ? incidents : []).map(i => ({ ...i, type: 'incident', title: 'SOS EMERGENCY' })),
@@ -2398,7 +2414,7 @@ const SafetyHubTab = ({ onSosCountChange }) => {
             {loading ? (
               <span className="inline-block w-8 h-8 rounded bg-white/20 animate-pulse" />
             ) : (
-              incidents.filter(i => i.status === 'resolved').length + complaints.filter(c => c.status === 'closed').length
+              resolvedToday
             )}
           </h3>
           <p className="text-xs font-bold mt-2">Safe Public Utility Status</p>

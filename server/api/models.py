@@ -177,9 +177,10 @@ class Incident(models.Model):
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     description = models.TextField(blank=True)
-    status = models.CharField(max_length=20, default='pending') # pending, active, resolved, dismissed
+    status = models.CharField(max_length=20, default='pending', db_index=True) # pending, active, resolved, dismissed
     admin_notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
     def __str__(self):
         return f"Incident {self.id} by {self.user}"
@@ -244,9 +245,10 @@ class Complaint(models.Model):
     ride = models.ForeignKey(Ride, on_delete=models.CASCADE, related_name='complaints', null=True, blank=True)
     subject = models.CharField(max_length=255)
     description = models.TextField()
-    status = models.CharField(max_length=20, default='pending') # pending, investigation, closed
+    status = models.CharField(max_length=20, default='pending', db_index=True) # pending, investigation, closed
     admin_notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
     def __str__(self):
         return f"Complaint {self.id} - {self.user.username}"
