@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken } from "firebase/messaging";
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 
-// TODO: Replace with your actual Firebase config from the Firebase Console Let
+// Firebase configuration for TrentoSmart system
 const firebaseConfig = {
   apiKey: "AIzaSyCEdKp5Ta7grB7tHEUpG9vj1Y2HtFgDmK8",
   authDomain: "trentosmart-22f0d.firebaseapp.com",

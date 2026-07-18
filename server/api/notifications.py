@@ -34,12 +34,9 @@ def send_sms(to_phone, message):
             logger.error(f"❌ SMS Integration Error: {str(e)}")
             
     # Fallback to simulation 
-    print("\n" + "="*50)
-    print(f"📱 [SMS ALERT] TO: {to_phone}")
-    print(f"💬 MESSAGE: {message}")
+    logger.info(f"[SMS SIMULATION] TO: {to_phone} | MESSAGE: {message}")
     if not semaphore_apikey:
-        print("💡 NOTE: Set SEMAPHORE_API_KEY to send real text messages.")
-    print("="*50 + "\n")
+        logger.info("[SMS] Set SEMAPHORE_API_KEY to send real text messages.")
     
     logger.info(f"Simulated SMS sent to {to_phone}")
     return True
@@ -48,11 +45,5 @@ def send_push_notification(user, title, body):
     """
     Simulates sending a push notification via Firebase Cloud Messaging (FCM).
     """
-    print("\n" + "*"*50)
-    print(f"🔔 [PUSH NOTIFICATION] USER: {user.username}")
-    print(f"📌 TITLE: {title}")
-    print(f"📄 BODY: {body}")
-    print("*"*50 + "\n")
-    
-    logger.info(f"Push notification simulation sent to {user.username}")
+    logger.info(f"[PUSH SIMULATION] USER: {user.username} | TITLE: {title} | BODY: {body}")
     return True

@@ -37,6 +37,9 @@ from .models import TransactionPIN
 import os
 import requests
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 def log_activity(user, action, details, request=None):
     ip_address = None
@@ -54,7 +57,7 @@ def log_activity(user, action, details, request=None):
             ip_address=ip_address
         )
     except Exception as e:
-        print(f"Failed to log activity: {e}")
+        logger.error(f"Failed to log activity: {e}")
 
 
 def send_brevo_email(recipient_email, recipient_name, subject, html_content):
@@ -96,14 +99,14 @@ def send_brevo_email(recipient_email, recipient_name, subject, html_content):
                 timeout=15,
             )
             if resp.status_code in (200, 201):
-                print(f"[Email] Success: Brevo API sent email to {recipient_email}")
+                logger.info(f"[Email] Success: Brevo API sent email to {recipient_email}")
                 return True, "Email sent successfully via Brevo API"
             else:
                 err = resp.text
-                print(f"[Email] Warning: Brevo API returned {resp.status_code} for {recipient_email}: {err}")
+                logger.warning(f"[Email] Warning: Brevo API returned {resp.status_code} for {recipient_email}: {err}")
                 # Fall through to SMTP fallback
         except Exception as e:
-            print(f"[Email] Warning: Brevo API exception for {recipient_email}: {e}")
+            logger.warning(f"[Email] Warning: Brevo API exception for {recipient_email}: {e}")
             # Fall through to SMTP fallback
 
     # ── Strategy 2: Django SMTP fallback (local dev / servers with open ports) ─
@@ -122,15 +125,15 @@ def send_brevo_email(recipient_email, recipient_name, subject, html_content):
             )
             msg.attach_alternative(html_content, "text/html")
             msg.send(fail_silently=False)
-            print(f"[Email] Success: SMTP sent email to {recipient_email}")
+            logger.info(f"[Email] Success: SMTP sent email to {recipient_email}")
             return True, "Email sent successfully via Gmail SMTP"
         except Exception as e:
-            print(f"[Email] Error: SMTP Email FAILED for {recipient_email}: {e}")
+            logger.error(f"[Email] Error: SMTP Email FAILED for {recipient_email}: {e}")
             return False, str(e)
 
     # ── Neither method configured ─────────────────────────────────────────────
     err_msg = "No email provider configured. Set BREVO_API_KEY or EMAIL_HOST_USER in your environment."
-    print(f"[Email] Error: {err_msg}")
+    logger.error(f"[Email] Error: {err_msg}")
     return False, err_msg
 
 
@@ -246,7 +249,7 @@ class RegisterView(APIView):
         user.email_otp = otp
         user.email_otp_created_at = tz.now()
         user.save(update_fields=['email_otp', 'email_otp_created_at'])
-        print(f"👉 [DEMO/LOG] Generated initial OTP for {user.email}: {otp}")
+        logger.info(f"[DEMO/LOG] Generated initial OTP for {user.email}: {otp}")
 
         # ── Fire all post-registration notifications in the background ────────
         # This ensures the API returns immediately (< 200ms) without waiting
@@ -283,11 +286,11 @@ class RegisterView(APIView):
                     """
                     success, response = send_brevo_email(admin_email, "Admin", f'🆕 New {role.capitalize()} Registered — {username}', html_msg)
                     if success:
-                        print(f"[Email] ✅ Admin notification sent to {admin_email}")
+                        logger.info(f"[Email] Admin notification sent to {admin_email}")
                     else:
-                        print(f"[Email] ❌ Admin notification FAILED: {response}")
+                        logger.warning(f"[Email] Admin notification FAILED: {response}")
             except Exception as e:
-                print(f"[Email] ❌ Admin notification Exception: {e}")
+                logger.error(f"[Email] Admin notification Exception: {e}")
 
             # WebSocket Broadcast
             try:
@@ -304,7 +307,7 @@ class RegisterView(APIView):
                     }
                 )
             except Exception as ws_err:
-                print(f"[WebSocket] Broadcast failed (non-critical): {ws_err}")
+                logger.warning(f"[WebSocket] Broadcast failed (non-critical): {ws_err}")
 
             # Push Notification to all Admin users when a driver registers
             if role == 'driver':
@@ -318,7 +321,7 @@ class RegisterView(APIView):
                             f"{username} just registered as a driver and is awaiting verification."
                         )
                 except Exception as push_err:
-                    print(f"[Push] Admin notification failed (non-critical): {push_err}")
+                    logger.warning(f"[Push] Admin notification failed (non-critical): {push_err}")
 
         # Send OTP email and admin notification in PARALLEL threads for max speed
         def send_otp_email(username, email, otp_code):
@@ -346,11 +349,11 @@ class RegisterView(APIView):
                 """
                 success, response = send_brevo_email(email, username, 'Verify Your Trento Smart Account 🛺', html_msg)
                 if success:
-                    print(f"[Email] ✅ Verification OTP sent to {email}")
+                    logger.info(f"[Email] Verification OTP sent to {email}")
                 else:
-                    print(f"[Email] ❌ OTP email FAILED for {email}: {response}")
+                    logger.warning(f"[Email] OTP email FAILED for {email}: {response}")
             except Exception as e:
-                print(f"[Email] ❌ OTP email Exception: {e}")
+                logger.error(f"[Email] OTP email Exception: {e}")
 
         thread_otp = threading.Thread(
             target=send_otp_email,
@@ -456,7 +459,7 @@ class GoogleLoginView(APIView):
                 if not user.is_email_verified:
                     user.is_email_verified = True
                     user.save(update_fields=['is_email_verified'])
-                    print(f"[Google Auth] ✅ Auto-verified email for existing user: {user.username}")
+                    logger.info(f"[Google Auth] Auto-verified email for existing user: {user.username}")
             else:
                 # New user — create account automatically
                 # Generate a unique username from the email prefix
@@ -477,7 +480,7 @@ class GoogleLoginView(APIView):
                 user.set_unusable_password()
                 user.save()
 
-                print(f"[Google Auth] 🆕 Created new user via Google: {username} ({google_email})")
+                logger.info(f"[Google Auth] Created new user via Google: {username} ({google_email})")
 
                 # Send admin notification in background (non-blocking)
                 import threading
@@ -500,13 +503,13 @@ class GoogleLoginView(APIView):
                             """
                             send_brevo_email(admin_email, "Admin", f'🆕 New Google Sign-Up — {uname}', html_msg)
                     except Exception as e:
-                        print(f"[Google Auth] Admin notification failed (non-critical): {e}")
+                        logger.warning(f"[Google Auth] Admin notification failed (non-critical): {e}")
 
                 threading.Thread(target=_notify_admin_google_signup, args=(username, google_email), daemon=True).start()
 
         except Exception as e:
             import traceback
-            print(f"[Google Auth] CRITICAL ERROR finding/creating user:\n{traceback.format_exc()}")
+            logger.error(f"[Google Auth] CRITICAL ERROR finding/creating user", exc_info=True)
             return Response(
                 {'detail': f'Error creating user account: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -555,7 +558,7 @@ class ProfileView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        print("Profile Update Error:", serializer.errors)
+        logger.warning(f"Profile Update Error: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -585,7 +588,7 @@ class ChangePasswordView(APIView):
 
         request.user.set_password(new_password)
         request.user.save(update_fields=['password'])
-        print(f"[Security] ✅ Password changed for {request.user.username}")
+        logger.info(f"[Security] Password changed for {request.user.username}")
         return Response({'detail': 'Password changed successfully! Please log in again with your new password.'}, status=status.HTTP_200_OK)
 
 
@@ -616,7 +619,7 @@ class ChangeEmailView(APIView):
         otp = ''.join(random.choices(string.digits, k=6))
         request.user.email_otp = otp
         request.user.save(update_fields=['email_otp'])
-        print(f"👉 [DEMO/LOG] Email change OTP for {request.user.username} -> {new_email}: {otp}")
+        logger.info(f"[DEMO/LOG] Email change OTP for {request.user.username} -> {new_email}: {otp}")
 
         # Send OTP to the NEW email
         import threading
@@ -637,9 +640,9 @@ class ChangeEmailView(APIView):
             """
             success, response = send_brevo_email(target_email, username, 'Confirm Your New Email — Trento Smart 🛺', html_msg)
             if success:
-                print(f"[Email] ✅ Email change OTP sent to {target_email}")
+                logger.info(f"[Email] Email change OTP sent to {target_email}")
             else:
-                print(f"[Email] ❌ Email change OTP FAILED: {response}")
+                logger.warning(f"[Email] Email change OTP FAILED: {response}")
 
         thread = threading.Thread(target=_send_change_email_otp, args=(request.user.username, new_email, otp), daemon=True)
         thread.start()
@@ -663,7 +666,7 @@ class ConfirmEmailChangeView(APIView):
             request.user.email = new_email
             request.user.email_otp = None
             request.user.save(update_fields=['email', 'email_otp'])
-            print(f"[Security] ✅ Email changed for {request.user.username}: {old_email} -> {new_email}")
+            logger.info(f"[Security] Email changed for {request.user.username}: {old_email} -> {new_email}")
             return Response({'detail': 'Email updated successfully!'}, status=status.HTTP_200_OK)
         else:
             return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -700,7 +703,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_object()
-            print(f"Delete request from {request.user.username} (Role: {request.user.role}) for user {instance.username}")
+            logger.info(f"Delete request from {request.user.username} (Role: {request.user.role}) for user {instance.username}")
 
             if request.user.role == 'admin':
                 ok, err = check_admin_pin(request)
@@ -715,47 +718,46 @@ class UserViewSet(viewsets.ModelViewSet):
             if request.user.role == 'admin' and request.user.id == instance.id:
                  # Check if there are other admins? For now, just warn or allow with caution
                  # Allowing self-delete for admins is dangerous, maybe block it?
-                 print("Admin attempting to delete themselves - WARNING")
+                 logger.warning("Admin attempting to delete themselves - WARNING")
                  # Uncomment to block: return Response({'detail': 'Cannot delete your own admin account.'}, status=status.HTTP_400_BAD_REQUEST)
 
             self.perform_destroy(instance)
-            print(f"User {instance.username} deleted successfully")
+            logger.info(f"User {instance.username} deleted successfully")
             return Response(status=status.HTTP_204_NO_CONTENT)
             
         except Http404:
             raise
         except Exception as e:
-            print(f"Error deleting user: {e}")
+            logger.error(f"Error deleting user: {e}")
             import traceback
             tb = traceback.format_exc()
             traceback.print_exc()
+            logger.error(f"Error deleting user: {e}", exc_info=True)
             return Response({
-                'detail': f'Failed to delete user: {str(e)}',
-                'traceback': tb,
-                'error': str(e)
+                'detail': 'Failed to delete user. Please try again later.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve_driver(self, request, pk=None):
         try:
-            print(f"Driver approval request from admin: {request.user.username} for user ID: {pk}")
+            logger.info(f"Driver approval request from admin: {request.user.username} for user ID: {pk}")
             
             if request.user.role != 'admin':
-                print(f"Permission denied: {request.user.username} is not an admin")
+                logger.warning(f"Permission denied: {request.user.username} is not an admin")
                 return Response({'detail': 'Forbidden - Admin access required'}, status=status.HTTP_403_FORBIDDEN)
             
             user = self.get_object()
-            print(f"Approving driver: {user.username} (ID: {user.id})")
+            logger.info(f"Approving driver: {user.username} (ID: {user.id})")
             
             if user.role != 'driver':
-                print(f"User {user.username} is not a driver, role: {user.role}")
+                logger.warning(f"User {user.username} is not a driver, role: {user.role}")
                 return Response({'detail': 'User is not a driver'}, status=status.HTTP_400_BAD_REQUEST)
             
             user.is_verified_driver = True
             user.verification_status = 'approved'
             user.save()
             log_activity(request.user, "Driver Approved", f"Approved driver: {user.username} (ID: {user.id})", request)
-            print(f"Driver {user.username} verified successfully")
+            logger.info(f"Driver {user.username} verified successfully")
 
             # Broadcast event to system (non-blocking)
             try:
@@ -773,7 +775,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     }
                 )
             except Exception as broadcast_err:
-                print(f"Broadcast failed (non-critical): {broadcast_err}")
+                logger.warning(f"Broadcast failed (non-critical): {broadcast_err}")
             
             # Send notification (non-blocking)
             try:
@@ -783,7 +785,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     "Congratulations! You are now authorized to accept rides."
                 )
             except Exception as notif_err:
-                print(f"Notification failed (non-critical): {notif_err}")
+                logger.warning(f"Notification failed (non-critical): {notif_err}")
             
             return Response({
                 'status': 'verified',
@@ -792,7 +794,7 @@ class UserViewSet(viewsets.ModelViewSet):
             })
             
         except Exception as e:
-            print(f"Error approving driver: {e}")
+            logger.error(f"Error approving driver: {e}", exc_info=True)
             import traceback
             traceback.print_exc()
             return Response({
@@ -1035,7 +1037,7 @@ class RideViewSet(viewsets.ModelViewSet):
             # Most likely cause: unapplied migration (missing column in DB).
             # Run `python manage.py migrate` on the server to fix this.
             error_msg = str(db_err)
-            print(f"[RideViewSet] DB DatabaseError during ride creation: {error_msg}")
+            logger.error(f"[RideViewSet] DB DatabaseError during ride creation: {error_msg}")
             raise serializers.ValidationError({
                 "detail": "Ride creation failed due to a database or server configuration issue. Please ensure all database migrations are applied.",
                 "server_error": error_msg
@@ -1049,7 +1051,7 @@ class RideViewSet(viewsets.ModelViewSet):
         try:
             if targeted_driver:
                 # TARGETED DISPATCH: Notify the chosen driver and log status
-                print(f"DEBUG: Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
+                logger.debug(f"Targeted Dispatch for Ride #{ride.id} to {targeted_driver.username} (Online: {targeted_driver.is_online})")
                 
                 if channel_layer:
                     async_to_sync(channel_layer.group_send)(
@@ -1072,7 +1074,7 @@ class RideViewSet(viewsets.ModelViewSet):
                             }
                         }
                     )
-                print(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
+                logger.info(f"Targeted Dispatch: Notified Driver {targeted_driver.username} for Ride #{ride.id}")
             else:
                 # Auto-cleanup: mark drivers offline if no location ping in last 2 minutes
                 stale_cutoff = timezone.now() - timezone.timedelta(minutes=2)
@@ -1126,9 +1128,9 @@ class RideViewSet(viewsets.ModelViewSet):
                                 'ride': RideSerializer(ride).data
                             }
                         )
-                print(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
+                logger.info(f"Smart Dispatch: Notified {len(recipients)} online drivers for Ride #{ride.id}")
         except Exception as dispatch_err:
-            print(f"WebSocket dispatch failed but ride was created successfully: {dispatch_err}")
+            logger.warning(f"WebSocket dispatch failed but ride was created successfully: {dispatch_err}")
 
     def perform_update(self, serializer):
         # Fetch original instance to compare status
@@ -1449,7 +1451,7 @@ def driver_reject(request, ride_id):
                     }
                 )
             except Exception as e:
-                print(f"WebSocket dispatch error in driver_reject: {e}")
+                logger.warning(f"WebSocket dispatch error in driver_reject: {e}")
         
     return Response({'status': 'rejected'})
 
@@ -1502,7 +1504,7 @@ def driver_accept(request, ride_id):
                 }
             )
         except Exception as e:
-            print(f"WebSocket dispatch error in driver_accept: {e}")
+            logger.warning(f"WebSocket dispatch error in driver_accept: {e}")
             
     return Response(RideSerializer(ride).data)
 
@@ -1702,9 +1704,9 @@ class DriverVerificationView(APIView):
             if request.user.role != 'driver':
                 return Response({'detail': 'Only drivers can submit verification documents.'}, status=status.HTTP_403_FORBIDDEN)
             
-            print(f"Driver Verification Request from: {request.user.username}")
-            print(f"Request Data: {request.data}")
-            print(f"Request Files: {request.FILES}")
+            logger.info(f"Driver Verification Request from: {request.user.username}")
+            logger.debug(f"Driver verification request data: {request.data}")
+            logger.debug(f"Driver verification uploaded files: {list(request.FILES.keys())}")
             
             # Merge files explicitly — guarantees uploads are processed
             # regardless of how the multipart boundary is parsed
@@ -1721,7 +1723,7 @@ class DriverVerificationView(APIView):
                     user.verification_status = 'pending'
                     user.save()
                     
-                    print(f"Verification documents saved for {user.username}")
+                    logger.info(f"Verification documents saved for {user.username}")
                     
                     # Try to send notification, but don't fail if it doesn't work
                     try:
@@ -1731,33 +1733,33 @@ class DriverVerificationView(APIView):
                             "Your documents have been received. Please wait for admin re-approval."
                         )
                     except Exception as notif_err:
-                        print(f"Notification failed (non-critical): {notif_err}")
+                        logger.warning(f"Notification failed (non-critical): {notif_err}")
                     
                     return Response({
                         'detail': 'Documents submitted successfully. Waiting for admin approval.',
                         'status': 'success'
                     })
                 except Exception as save_err:
-                    print(f"Error saving verification data: {save_err}")
+                    logger.error(f"Error saving verification data: {save_err}")
                     import traceback
                     tb_str = traceback.format_exc()
-                    print(tb_str)
+                    logger.error("Driver verification error traceback", exc_info=True)
                     return Response({
                         'detail': f'Failed to save documents: {str(save_err)}',
                         'errors': {'save_error': str(save_err), 'traceback': tb_str}
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
-            print(f"Validation Errors: {serializer.errors}")
+            logger.warning(f"Driver verification validation errors: {serializer.errors}")
             return Response({
                 'detail': 'Validation failed. Please check your inputs.',
                 'errors': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
-            print(f"Unexpected error in DriverVerificationView: {e}")
+            logger.error(f"Unexpected error in DriverVerificationView: {e}", exc_info=True)
             import traceback
             tb_str = traceback.format_exc()
-            print(tb_str)
+            logger.error("Driver verification error traceback", exc_info=True)
             return Response({
                 'detail': f'Server error: {str(e)}',
                 'errors': {'server_error': str(e), 'traceback': tb_str}
@@ -1968,8 +1970,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.role == 'admin':
-            return Withdrawal.objects.all().order_by('-created_at')
-        return Withdrawal.objects.filter(user=self.request.user).order_by('-created_at')
+            return Withdrawal.objects.select_related('user').all().order_by('-created_at')
+        return Withdrawal.objects.select_related('user').filter(user=self.request.user).order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -2114,7 +2116,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     }
                 )
         except Exception as ws_err:
-            print(f"[WebSocket] SOS group broadcast failed: {ws_err}")
+            logger.error(f"[WebSocket] SOS group broadcast failed: {ws_err}")
         
         # 2. Dispatch SMS and Email alerts in background (non-blocking)
         # Both send_sms() calls have a 5-second gateway timeout each.
@@ -2141,7 +2143,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     )
                     send_sms(sos_alert_phone, dispatcher_msg)
             except Exception as sms_err:
-                print(f"[SOS SMS] Background send failed: {sms_err}")
+                logger.error(f"[SOS SMS] Background send failed: {sms_err}")
 
             # Email to global LGU dispatcher
             if sos_alert_email:
@@ -2175,11 +2177,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 try:
                     success, response = send_brevo_email(sos_alert_email, "Trento Emergency Dispatch", f"🚨 EMERGENCY SOS - User {incident.user.username} 🚨", html_msg)
                     if success:
-                        print(f"[Email] ✅ SOS notification email sent to {sos_alert_email}")
+                        logger.info(f"[Email] SOS notification email sent to {sos_alert_email}")
                     else:
-                        print(f"[Email] ❌ SOS notification email FAILED: {response}")
+                        logger.warning(f"[Email] SOS notification email FAILED: {response}")
                 except Exception as email_send_err:
-                    print(f"[Email] Exception during send: {email_send_err}")
+                    logger.error(f"[Email] Exception during SOS email send: {email_send_err}")
 
         try:
             import threading
@@ -2196,7 +2198,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 daemon=True
             ).start()
         except Exception as alert_err:
-            print(f"[SOS Notification Backend] Setup failed: {alert_err}")
+            logger.error(f"[SOS Notification Backend] Setup failed: {alert_err}")
 
         # 3. Log to audit trails safely
         try:
@@ -2207,7 +2209,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 request=self.request
             )
         except Exception as log_err:
-            print(f"[ActivityLog] SOS activity log failed: {log_err}")
+            logger.warning(f"[ActivityLog] SOS activity log failed: {log_err}")
 
         # 4. Push FCM notification safely
         try:
@@ -2220,7 +2222,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     f"{incident.user.username} triggered a distress signal. Open the dashboard immediately!"
                 )
         except Exception as push_err:
-            print(f"[Push] SOS admin notification failed (non-critical): {push_err}")
+            logger.warning(f"[Push] SOS admin notification failed (non-critical): {push_err}")
 
 
 class ComplaintViewSet(viewsets.ModelViewSet):
@@ -2283,9 +2285,9 @@ class ReviewViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == 'admin':
-            return Review.objects.all().order_by('-created_at')
+            return Review.objects.select_related('reviewer', 'reviewee', 'ride').all().order_by('-created_at')
         # Users see reviews they received
-        return Review.objects.filter(reviewee=user).order_by('-created_at')
+        return Review.objects.select_related('reviewer', 'reviewee', 'ride').filter(reviewee=user).order_by('-created_at')
 
     def perform_create(self, serializer):
         # Get the ride
@@ -2540,7 +2542,7 @@ class LocationUpdateView(APIView):
                             }
                         )
                     except Exception as e:
-                        print(f"Failed to broadcast route anomaly: {e}")
+                        logger.warning(f"Failed to broadcast route anomaly: {e}")
 
         # For drivers: push real-time update to WebSocket channel so the
         # admin live map and passenger tracking panels refresh immediately.
@@ -2562,7 +2564,7 @@ class LocationUpdateView(APIView):
                 )
             except Exception as ws_err:
                 # Non-critical – log only
-                print(f"[location/update] WebSocket broadcast failed: {ws_err}")
+                logger.warning(f"[location/update] WebSocket broadcast failed: {ws_err}")
 
         return Response({
             'status': 'ok',
@@ -2729,7 +2731,7 @@ class ResendOTPView(APIView):
         user.email_otp = new_otp
         user.email_otp_created_at = tz.now()
         user.save(update_fields=['email_otp', 'email_otp_created_at'])
-        print(f"👉 [DEMO/LOG] Generated new OTP for {email}: {new_otp}")
+        logger.info(f"[DEMO/LOG] Generated new OTP for {email}: {new_otp}")
 
         # Send the new OTP via email
         import threading
@@ -2753,11 +2755,11 @@ class ResendOTPView(APIView):
                 """
                 success, response = send_brevo_email(email_addr, username, 'Your New Trento Smart Verification Code 🛺', html_msg)
                 if success:
-                    print(f"[Email] ✅ Resend OTP sent to {email_addr}")
+                    logger.info(f"[Email] Resend OTP sent to {email_addr}")
                 else:
-                    print(f"[Email] ❌ Resend OTP FAILED for {email_addr}: {response}")
+                    logger.warning(f"[Email] Resend OTP FAILED for {email_addr}: {response}")
             except Exception as e:
-                print(f"[Email] ❌ Resend OTP Exception: {e}")
+                logger.error(f"[Email] Resend OTP Exception: {e}")
 
         thread = threading.Thread(
             target=_send_resend_email,
@@ -2831,11 +2833,11 @@ class PasswordResetRequestView(APIView):
                     """
                     success, resp = send_brevo_email(email_addr, username, 'Trento Smart Password Reset', html_msg)
                     if success:
-                        print(f"[Email] ✅ Password reset sent to {email_addr}")
+                        logger.info(f"[Email] Password reset sent to {email_addr}")
                     else:
-                        print(f"[Email] ❌ Password reset FAILED for {email_addr}: {resp}")
+                        logger.warning(f"[Email] Password reset FAILED for {email_addr}: {resp}")
                 except Exception as e:
-                    print(f"[Email] ❌ Password reset Exception: {e}")
+                    logger.error(f"[Email] Password reset Exception: {e}")
 
             thread = threading.Thread(
                 target=_send_reset_email,
@@ -2943,7 +2945,7 @@ class ScheduledRideViewSet(viewsets.ModelViewSet):
             )
         except DatabaseError as db_err:
             error_msg = str(db_err)
-            print(f"[ScheduledRideViewSet] DB DatabaseError during scheduled ride creation: {error_msg}")
+            logger.error(f"[ScheduledRideViewSet] DB DatabaseError during scheduled ride creation: {error_msg}")
             raise serializers.ValidationError({
                 "detail": "Scheduled ride creation failed due to a database or server configuration issue. Please ensure all database migrations are applied.",
                 "server_error": error_msg
