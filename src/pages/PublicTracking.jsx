@@ -11,17 +11,25 @@ const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
 
 const fetchOsrmRoute = async (fromLng, fromLat, toLng, toLat) => {
     try {
+        // iOS Compatibility Fix: AbortSignal.timeout is not supported in iOS < 16 or WKWebView/Messenger in-app browsers
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
         const res = await fetch(
             `${OSRM_BASE}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`,
-            { signal: AbortSignal.timeout(6000) }
+            { signal: controller.signal }
         );
+        clearTimeout(timeoutId);
+
         const data = await res.json();
         if (data.code === 'Ok' && data.routes?.length > 0) {
             const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
             const durationMins = Math.ceil(data.routes[0].duration / 60);
             return { coords, durationMins };
         }
-    } catch { /* network error or timeout — swallow */ }
+    } catch (err) { 
+        console.warn("[OSRM Route] Failed or timed out", err);
+    }
     return null;
 };
 
