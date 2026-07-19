@@ -2057,6 +2057,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     'type': 'system_event',
                     'event': {
                         'type': 'withdrawal_update',
+                        'user_id': withdrawal.user.id,
+                        'status': new_status,
+                        'amount': str(withdrawal.amount),
                         'message': f"Withdrawal for {withdrawal.user.username} {new_status.upper()}",
                         'timestamp': timezone.now().isoformat()
                     }

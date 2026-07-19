@@ -77,9 +77,21 @@ const useSystemEvents = () => {
                     setNewSignup(data.user);
                 } else if (data.type === 'emergency_alert') {
                     setEmergencyAlert(data);
-                } else if (data.type === 'system_event') {
+                } else if ([
+                    'system_event',
+                    'config_update',
+                    'withdrawal_request',
+                    'withdrawal_update',
+                    'safety_alert',
+                    'safety_update',
+                    'review_posted',
+                    'ride_activity',
+                    'driver_verified',
+                    'new_broadcast'
+                ].includes(data.type)) {
                     setSystemEvent(data);
                 }
+
                 // ignore 'pong' / unknown types silently
             } catch (err) {
                 console.warn('[SystemEvents] Failed to parse WS message', err);

@@ -220,8 +220,14 @@ const DriverHome = () => {
           setShowBroadcastModal(true);
         }
       }
+      if (systemEvent.type === 'withdrawal_update' && systemEvent.user_id === user?.id) {
+        const statusUpper = systemEvent.status?.toUpperCase();
+        alert(`Withdrawal Update: Your request to withdraw ₱${parseFloat(systemEvent.amount).toFixed(2)} has been ${statusUpper}.`);
+        if (getProfile) getProfile();
+        if (fetchAnalytics) fetchAnalytics();
+      }
     }
-  }, [systemEvent, user?.id]);
+  }, [systemEvent, user?.id, getProfile, fetchAnalytics]);
 
   // WebSocket Tracking
   const { sendLocation, sendMessage, messages, connected, location: passengerLivePos } = useRideTracking(activeRide?.id, true);
