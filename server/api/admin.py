@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.db.models import Sum
-from .models import User, Ride, Payment, Incident, FraudAlert, LGURevenue, ActivityLog
+from .models import User, Ride, Payment, Incident, FraudAlert, LGURevenue, ActivityLog, Withdrawal
+
 
 class TrikeAdminSite(admin.AdminSite):
     site_header = "TRENTO SMART TRICYCLE ADMIN"
@@ -248,5 +249,74 @@ class ActivityLogAdmin(admin.ModelAdmin):
             return format_html('<i style="color: #64748b;">System</i>')
         return format_html('<a href="../user/{}/change/">{}</a>', obj.user.id, obj.user.username)
     user_link.short_description = 'User'
+
+
+@admin.register(Withdrawal, site=admin_site)
+class WithdrawalAdmin(admin.ModelAdmin):
+    list_display = ('id', 'driver_link', 'amount_display', 'method', 'account_number', 'account_name', 'status_badge', 'created_at')
+    list_filter = ('status', 'method', 'created_at')
+    search_fields = ('user__username', 'account_number', 'account_name', 'reference_id')
+    readonly_fields = ('created_at', 'updated_at')
+    actions = ['approve_withdrawals', 'reject_withdrawals']
+
+    class Media:
+        css = {
+            'all': ('css/admin_custom.css',)
+        }
+
+    def driver_link(self, obj):
+        return format_html('<a href="../user/{}/change/"><b>{}</b></a>', obj.user.id, obj.user.username)
+    driver_link.short_description = 'Driver'
+
+    def amount_display(self, obj):
+        return format_html('<span style="font-weight: bold; color: #b91c1c;">₱{:.2f}</span>', obj.amount)
+    amount_display.short_description = 'Amount'
+
+    def status_badge(self, obj):
+        colors = {
+            'pending': '#f59e0b',    # Orange
+            'processing': '#3b82f6', # Blue
+            'completed': '#10b981',  # Green
+            'rejected': '#ef4444',   # Red
+        }
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase;">{}</span>',
+            colors.get(obj.status, '#64748b'),
+            obj.get_status_display()
+        )
+    status_badge.short_description = 'Status'
+
+    @admin.action(description='Approve and mark selected withdrawals as completed')
+    def approve_withdrawals(self, request, queryset):
+        # We update the status to completed
+        updated = 0
+        for withdrawal in queryset.filter(status__in=['pending', 'processing']):
+            withdrawal.status = 'completed'
+            withdrawal.save()
+            updated += 1
+        self.message_user(request, f"{updated} withdrawal requests were successfully approved.")
+
+    @admin.action(description='Reject selected withdrawals')
+    def reject_withdrawals(self, request, queryset):
+        updated = 0
+        for withdrawal in queryset.filter(status__in=['pending', 'processing']):
+            # Refund the balance to user
+            user = withdrawal.user
+            user.wallet_balance += withdrawal.amount
+            user.save()
+            
+            # Log refund transaction
+            WalletTransaction.objects.create(
+                user=user,
+                amount=withdrawal.amount,
+                transaction_type='refund',
+                description=f"Refund from rejected withdrawal #{withdrawal.id}"
+            )
+            
+            withdrawal.status = 'rejected'
+            withdrawal.save()
+            updated += 1
+        self.message_user(request, f"{updated} withdrawal requests were rejected and refunded.")
+
 
 
