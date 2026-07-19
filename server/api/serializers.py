@@ -226,7 +226,8 @@ class WithdrawalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Withdrawal
         fields = '__all__'
-        read_only_fields = ('user', 'status', 'reference_id', 'created_at', 'updated_at')
+        read_only_fields = ('user', 'reference_id', 'created_at', 'updated_at')
+
 
 
 class ComplaintSerializer(serializers.ModelSerializer):

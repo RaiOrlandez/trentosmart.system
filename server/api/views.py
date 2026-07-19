@@ -2063,6 +2063,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 }
             )
 
+            # Send push notification to the driver about their payout status
+            driver_user = withdrawal.user
+            if new_status == 'completed':
+                title = "Withdrawal Approved ✅"
+                message = f"Your request to withdraw ₱{withdrawal.amount} has been approved and sent via GCash."
+            elif new_status == 'rejected':
+                title = "Withdrawal Rejected ❌"
+                reason = withdrawal.admin_notes or "Invalid account details."
+                message = f"Your request to withdraw ₱{withdrawal.amount} was rejected. Reason: {reason}. The amount has been refunded to your wallet."
+            else:
+                title = f"Withdrawal Status: {new_status.upper()}"
+                message = f"Your withdrawal request status has changed to {new_status}."
+
+            send_push_notification(driver_user, title, message)
+
+
 
 class IncidentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
