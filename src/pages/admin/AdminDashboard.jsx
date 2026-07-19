@@ -1643,7 +1643,7 @@ const AdminDashboard = () => {
       }
 
       {activeTab === 'safety' && <SafetyHubTab onSosCountChange={setSosBadgeCount} />}
-      {activeTab === 'economy' && <FinanceTab stats={stats} />}
+      {activeTab === 'economy' && <FinanceTab stats={stats} fetchStats={fetchStats} />}
       {activeTab === 'broadcast' && <BroadcastTab setPinModalConfig={setPinModalConfig} />}
       {activeTab === 'audit' && <AuditLogTab alerts={liveAlerts} />}
       {activeTab === 'fares' && <FareControlTab />}
@@ -1921,9 +1921,14 @@ const BroadcastTab = ({ setPinModalConfig }) => {
   );
 };
 
-const FinanceTab = ({ stats }) => {
+const FinanceTab = ({ stats, fetchStats }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [loadingWithdrawals, setLoadingWithdrawals] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [processingId, setProcessingId] = useState(null);
 
   const financeData = [
     { name: 'Mon', revenue: 4500, commission: 450 },
@@ -1937,20 +1942,75 @@ const FinanceTab = ({ stats }) => {
 
   const [isMounted, setIsMounted] = useState(false);
 
+  const fetchFinanceData = useCallback(async () => {
+    try {
+      const res = await api.get('/wallet/');
+      setTransactions(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to fetch finance data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchWithdrawals = useCallback(async () => {
+    try {
+      setLoadingWithdrawals(true);
+      const res = await api.get('/withdrawals/');
+      setWithdrawals(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to fetch withdrawals", err);
+    } finally {
+      setLoadingWithdrawals(false);
+    }
+  }, []);
+
   useEffect(() => {
     setIsMounted(true);
-    const fetchFinanceData = async () => {
-      try {
-        const res = await api.get('/wallet/');
-        setTransactions(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        console.error("Failed to fetch finance data", err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchFinanceData();
-  }, []);
+    fetchWithdrawals();
+  }, [fetchFinanceData, fetchWithdrawals]);
+
+  const handleApproveWithdrawal = async (id) => {
+    if (!window.confirm("Are you sure you want to approve this withdrawal request? Make sure you have transferred the funds to the driver's GCash account.")) return;
+    setProcessingId(id);
+    try {
+      await api.patch(`/withdrawals/${id}/`, { status: 'completed' });
+      alert("Withdrawal marked as COMPLETED successfully.");
+      fetchWithdrawals();
+      if (fetchStats) fetchStats();
+      fetchFinanceData();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to approve withdrawal.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectWithdrawal = async (id) => {
+    const reason = window.prompt("Enter reason for rejection (this will refund the funds to the driver's wallet):", "Incorrect details");
+    if (reason === null) return; // cancelled
+    setProcessingId(id);
+    try {
+      await api.patch(`/withdrawals/${id}/`, { status: 'rejected', admin_notes: reason });
+      alert("Withdrawal REJECTED and funds refunded to driver.");
+      fetchWithdrawals();
+      if (fetchStats) fetchStats();
+      fetchFinanceData();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Failed to reject withdrawal.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const filteredWithdrawals = withdrawals.filter(w => {
+    const matchesStatus = statusFilter === 'all' || w.status === statusFilter;
+    const matchesSearch = w.user?.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          w.account_number?.includes(searchQuery) ||
+                          w.account_name?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -2045,9 +2105,125 @@ const FinanceTab = ({ stats }) => {
           </div>
         </div>
       </div>
+
+      {/* ── Driver Withdrawal Management Section ── */}
+      <div className="glass-card p-10 rounded-[3rem] space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-2xl font-black text-secondary italic uppercase tracking-tighter">Driver Withdrawal Requests</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Verify and approve driver cashout payouts (24-Hour Review)</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search driver/account..."
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white/5 rounded-full px-5 py-2 pl-10 text-xs font-bold focus:outline-none focus:border-primary w-48 text-secondary dark:text-white"
+              />
+              <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
+
+            {/* Status Filter Buttons */}
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-full flex gap-1">
+              {['all', 'pending', 'completed', 'rejected'].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all ${
+                    statusFilter === status
+                      ? 'bg-secondary text-white shadow-md'
+                      : 'text-slate-400 hover:text-secondary'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {loadingWithdrawals ? (
+            <div className="py-12 text-center opacity-30 font-black uppercase italic tracking-widest text-secondary dark:text-white">Syncing payouts...</div>
+          ) : filteredWithdrawals.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">No withdrawal requests found</div>
+          ) : (
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-white/5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="py-4 px-3">Driver</th>
+                  <th className="py-4 px-3">Amount</th>
+                  <th className="py-4 px-3">Payout Details (GCash)</th>
+                  <th className="py-4 px-3">Requested At</th>
+                  <th className="py-4 px-3">Status</th>
+                  <th className="py-4 px-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                {filteredWithdrawals.map((w) => (
+                  <tr key={w.id} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-all text-xs font-bold text-secondary dark:text-slate-200">
+                    <td className="py-4 px-3">
+                      <span className="font-black text-secondary dark:text-white">{w.user?.username || 'Unknown'}</span>
+                    </td>
+                    <td className="py-4 px-3 text-sm font-black italic text-red-500">
+                      ₱{parseFloat(w.amount).toFixed(2)}
+                    </td>
+                    <td className="py-4 px-3">
+                      <div className="space-y-0.5">
+                        <p className="text-secondary dark:text-white font-black">{w.account_name}</p>
+                        <p className="text-[10px] text-slate-400">{w.account_number} ({w.method})</p>
+                      </div>
+                    </td>
+                    <td className="py-4 px-3 text-slate-400">
+                      {new Date(w.created_at).toLocaleString()}
+                    </td>
+                    <td className="py-4 px-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                        w.status === 'pending' ? 'bg-amber-100 text-amber-600 border border-amber-200' :
+                        w.status === 'completed' ? 'bg-green-100 text-green-600 border border-green-200' :
+                        'bg-red-100 text-red-600 border border-red-200'
+                      }`}>
+                        {w.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-3 text-right">
+                      {w.status === 'pending' && (
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleApproveWithdrawal(w.id)}
+                            disabled={processingId !== null}
+                            className="bg-green-500 hover:bg-green-600 text-white px-3.5 py-1.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectWithdrawal(w.id)}
+                            disabled={processingId !== null}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3.5 py-1.5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {w.status !== 'pending' && w.admin_notes && (
+                        <span className="text-[10px] text-slate-400 italic">Notes: {w.admin_notes}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
 
 const FareSimulator = ({ configs }) => {
   const [distance, setDistance] = useState(5);
