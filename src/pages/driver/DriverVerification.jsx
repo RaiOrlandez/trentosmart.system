@@ -142,7 +142,6 @@ const DriverVerification = () => {
                 compressedLicenseImg,
                 compressedPermitImg,
                 compressedNbiClearanceImg,
-                compressedBarangayResidencyImg,
                 compressedSelfieWithLicenseImg,
                 compressedVehicleOrcrImg,
                 compressedTricyclePhotoImg
@@ -150,7 +149,6 @@ const DriverVerification = () => {
                 licenseImg ? compressImage(licenseImg) : Promise.resolve(null),
                 permitImg ? compressImage(permitImg) : Promise.resolve(null),
                 nbiClearanceImg ? compressImage(nbiClearanceImg) : Promise.resolve(null),
-                barangayResidencyImg ? compressImage(barangayResidencyImg) : Promise.resolve(null),
                 selfieWithLicenseImg ? compressImage(selfieWithLicenseImg) : Promise.resolve(null),
                 vehicleOrcrImg ? compressImage(vehicleOrcrImg) : Promise.resolve(null),
                 tricyclePhotoImg ? compressImage(tricyclePhotoImg) : Promise.resolve(null)
@@ -169,7 +167,6 @@ const DriverVerification = () => {
             if (compressedLicenseImg) formData.append('license_image', compressedLicenseImg);
             if (compressedPermitImg) formData.append('permit_image', compressedPermitImg);
             if (compressedNbiClearanceImg) formData.append('nbi_clearance_image', compressedNbiClearanceImg);
-            if (compressedBarangayResidencyImg) formData.append('barangay_residency_image', compressedBarangayResidencyImg);
             if (compressedSelfieWithLicenseImg) formData.append('selfie_with_license', compressedSelfieWithLicenseImg);
             if (compressedVehicleOrcrImg) formData.append('vehicle_orcr_image', compressedVehicleOrcrImg);
             if (compressedTricyclePhotoImg) formData.append('tricycle_photo', compressedTricyclePhotoImg);
@@ -198,18 +195,17 @@ const DriverVerification = () => {
         }
     };
 
-    // Calculate progress
+    // Calculate progress (6 required items instead of 7)
     const items = [
         { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && licenseExpiryDate },
         { ready: permitNum.length > 3 && (permitImg || existingPermitImg) },
         { ready: (nbiClearanceImg || existingNbiClearanceImg) },
-        { ready: (barangayResidencyImg || existingBarangayResidencyImg) },
         { ready: (vehicleOrcrImg || existingVehicleOrcrImg) },
         { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && vehiclePlate.length > 0 && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
-    const progressPercent = (completedCount / 7) * 100;
+    const progressPercent = (completedCount / 6) * 100;
 
     if (status === 'loading') {
         return (
@@ -305,7 +301,7 @@ const DriverVerification = () => {
                                         <AlertCircle size={14} /> Action Required
                                     </div>
                                     <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Almost there!</h2>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm">You need to complete {7 - completedCount} more task{7 - completedCount !== 1 ? 's' : ''} before you can submit your profile.</p>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm">You need to complete {6 - completedCount} more task{6 - completedCount !== 1 ? 's' : ''} before you can submit your profile.</p>
                                 </>
                             )}
                         </div>
@@ -426,12 +422,12 @@ const DriverVerification = () => {
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${(items[2].ready && items[3].ready) ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                        {(items[2].ready && items[3].ready) ? <Check size={20} /> : <span className="font-black">3</span>}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[2].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {items[2].ready ? <Check size={20} /> : <span className="font-black">3</span>}
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-slate-800 dark:text-white text-lg">Safety Clearances</h3>
-                                        <p className="text-slate-500 text-xs">NBI & Barangay Certifications</p>
+                                        <p className="text-slate-500 text-xs">Police or NBI Certifications</p>
                                     </div>
                                 </div>
                                 <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'clearances' ? 'rotate-90' : ''}`} />
@@ -441,14 +437,10 @@ const DriverVerification = () => {
                                 {activeSection === 'clearances' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                                         <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                                            <div className="grid grid-cols-1 gap-4 mt-4">
                                                 <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">NBI Clearance</label>
-                                                    <DocumentUploadField id="upload-nbi" label="NBI" file={nbiClearanceImg} existingUrl={existingNbiClearanceImg} setFile={setNbiClearanceImg} />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Barangay Clearance</label>
-                                                    <DocumentUploadField id="upload-brgy" label="Brgy ID" file={barangayResidencyImg} existingUrl={existingBarangayResidencyImg} setFile={setBarangayResidencyImg} />
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Police or NBI Clearance</label>
+                                                    <DocumentUploadField id="upload-nbi" label="Clearance" file={nbiClearanceImg} existingUrl={existingNbiClearanceImg} setFile={setNbiClearanceImg} />
                                                 </div>
                                             </div>
                                         </div>
@@ -464,8 +456,8 @@ const DriverVerification = () => {
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${(items[4].ready && items[5].ready) ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                        {(items[4].ready && items[5].ready) ? <Check size={20} /> : <span className="font-black">4</span>}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${(items[3].ready && items[4].ready) ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {(items[3].ready && items[4].ready) ? <Check size={20} /> : <span className="font-black">4</span>}
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-slate-800 dark:text-white text-lg">Vehicle Registration & Photo</h3>
@@ -539,8 +531,8 @@ const DriverVerification = () => {
                                 className="w-full flex items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[6].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
-                                        {items[6].ready ? <Check size={20} /> : <span className="font-black">5</span>}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${items[5].ready ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
+                                        {items[5].ready ? <Check size={20} /> : <span className="font-black">5</span>}
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-slate-800 dark:text-white text-lg">Identity Verification</h3>
@@ -580,7 +572,7 @@ const DriverVerification = () => {
                             <div className="pt-6">
                                 <button
                                     type="submit"
-                                    disabled={status === 'uploading' || completedCount < 7}
+                                    disabled={status === 'uploading' || completedCount < 6}
                                     className="w-full bg-secondary dark:bg-primary text-white dark:text-secondary font-black py-5 rounded-3xl hover:opacity-90 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
                                     {status === 'uploading' ? (
