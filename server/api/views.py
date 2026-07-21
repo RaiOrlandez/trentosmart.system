@@ -1720,14 +1720,59 @@ class DriverVerificationView(APIView):
                 try:
                     user = serializer.save()
                     
-                    # SYSTEM AUTO-VERIFICATION (AI OCR & FACE MATCH SIMULATION)
-                    # We compute consistent mock metrics based on user's ID
-                    import random
+                    # SYSTEM AUTO-VERIFICATION (REALISTIC AI OCR & FACE MATCH SIMULATION)
+                    import re
                     import json
-                    random.seed(user.id)
-                    face_score = round(random.uniform(89.5, 98.2), 1)
-                    ocr_license = "PASSED"
-                    ocr_orcr = "PASSED"
+                    import random
+                    
+                    license_num = user.license_number or ""
+                    vehicle_plate = user.vehicle_plate or ""
+                    
+                    # 1. Validate Philippine LTO Driver's License Format
+                    # Standard PH Format: A99-99-999999 (1 letter, 2 digits, hyphen, 2 digits, hyphen, 6 digits)
+                    license_regex = r'^[A-Z]\d{2}-\d{2}-\d{6}$'
+                    is_valid_license_format = bool(re.match(license_regex, license_num.strip().upper()))
+                    
+                    # 2. Validate Vehicle Plate Format
+                    # Standard PH plates: ABC 1234, AB 12345, or Local unit numbers
+                    # Minimum 4 characters, maximum 10, alphanumeric and spaces/hyphens
+                    plate_regex = r'^[A-Z0-9\s-]{4,10}$'
+                    is_valid_plate_format = bool(re.match(plate_regex, vehicle_plate.strip().upper()))
+                    
+                    # 3. Validate uploaded images for potential placeholders/fakes
+                    # If file size is less than 20KB, it's likely a blank placeholder, tiny icon, or dummy file.
+                    has_fake_images = False
+                    
+                    # Check file sizes
+                    if user.license_image and user.license_image.size < 20000:
+                        has_fake_images = True
+                    if user.selfie_with_license and user.selfie_with_license.size < 20000:
+                        has_fake_images = True
+                        
+                    # Check if filenames contain dummy keywords
+                    for img_field in [user.license_image, user.selfie_with_license]:
+                        if img_field and img_field.name:
+                            name_lower = img_field.name.lower()
+                            if any(k in name_lower for k in ["placeholder", "dummy", "test", "example", "blank", "fake"]):
+                                has_fake_images = True
+                    
+                    # Determine OCR status
+                    ocr_license = "PASSED" if is_valid_license_format else "FAILED"
+                    ocr_orcr = "PASSED" if is_valid_plate_format else "FAILED"
+                    
+                    # Determine Face Match Similarity
+                    if has_fake_images:
+                        # Fail face recognition (low confidence, no face detected, or placeholder detected)
+                        random.seed(user.id)
+                        face_score = round(random.uniform(22.0, 48.5), 1)
+                    elif not is_valid_license_format:
+                        # Slightly lower face score if details look suspicious
+                        random.seed(user.id)
+                        face_score = round(random.uniform(50.0, 68.4), 1)
+                    else:
+                        # Good quality match
+                        random.seed(user.id)
+                        face_score = round(random.uniform(89.5, 98.2), 1)
                     
                     ai_metadata = {
                         "ai_verified": True,
