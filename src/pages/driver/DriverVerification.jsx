@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check } from 'lucide-react';
+import { CheckCircle, AlertCircle, Camera, ChevronRight, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {
@@ -19,7 +19,6 @@ const DriverVerification = () => {
     const [licenseImg, setLicenseImg] = useState(null);
     const [permitImg, setPermitImg] = useState(null);
     const [nbiClearanceImg, setNbiClearanceImg] = useState(null);
-    const [barangayResidencyImg, setBarangayResidencyImg] = useState(null);
     const [selfieWithLicenseImg, setSelfieWithLicenseImg] = useState(null);
     const [vehicleOrcrImg, setVehicleOrcrImg] = useState(null);
     const [tricyclePhotoImg, setTricyclePhotoImg] = useState(null);
@@ -28,13 +27,11 @@ const DriverVerification = () => {
     const [existingLicenseImg, setExistingLicenseImg] = useState(null);
     const [existingPermitImg, setExistingPermitImg] = useState(null);
     const [existingNbiClearanceImg, setExistingNbiClearanceImg] = useState(null);
-    const [existingBarangayResidencyImg, setExistingBarangayResidencyImg] = useState(null);
     const [existingSelfieWithLicenseImg, setExistingSelfieWithLicenseImg] = useState(null);
     const [existingVehicleOrcrImg, setExistingVehicleOrcrImg] = useState(null);
     const [existingTricyclePhotoImg, setExistingTricyclePhotoImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
-    const [verificationStatus, setVerificationStatus] = useState(null);
     const [msg, setMsg] = useState('');
     const [isEditing, setIsEditing] = useState(true);
 
@@ -60,13 +57,11 @@ const DriverVerification = () => {
             setExistingLicenseImg(data.license_image_url || data.license_image);
             setExistingPermitImg(data.permit_image_url || data.permit_image);
             setExistingNbiClearanceImg(data.nbi_clearance_image_url || data.nbi_clearance_image);
-            setExistingBarangayResidencyImg(data.barangay_residency_image_url || data.barangay_residency_image);
             setExistingSelfieWithLicenseImg(data.selfie_with_license_url || data.selfie_with_license);
             setExistingVehicleOrcrImg(data.vehicle_orcr_image_url || data.vehicle_orcr_image);
             setExistingTricyclePhotoImg(data.tricycle_photo_url || data.tricycle_photo);
 
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
-            setVerificationStatus(isApproved);
             setIsEditing(!isApproved);
             setStatus('idle');
         } catch (err) {
@@ -175,7 +170,6 @@ const DriverVerification = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setStatus('success');
-            setVerificationStatus(false);
             setMsg(response.data.detail || 'Your documents have been submitted for review.');
             setTimeout(() => fetchData(), 1500);
         } catch (err) {
@@ -205,7 +199,6 @@ const DriverVerification = () => {
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
-    const progressPercent = (completedCount / 6) * 100;
 
     if (status === 'loading') {
         return (
