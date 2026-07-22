@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star, Cpu, 
-    CheckCircle2, AlertTriangle, XCircle, RefreshCw, ChevronDown, 
+    CheckCircle2, AlertTriangle, RefreshCw, 
     MapPin, Clock, Calendar, Navigation, AlertOctagon, ShieldAlert, 
     ExternalLink
 } from 'lucide-react';
@@ -77,70 +77,46 @@ const GeocodeInline = ({ lat, lng }) => {
     );
 };
 
-// ─── Reusable AI Audit Card with Collapsible Explanation ─────────
-const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail, failDetail, accentColor }) => {
-    const [expanded, setExpanded] = useState(false);
+// ─── Reusable AI Audit Card with Sleek Inspection Trigger ─────────
+const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail, failDetail, accentColor, onInspect }) => {
     const accent = isPassed ? accentColor : 'text-red-400';
     const detailText = isPassed ? passDetail : failDetail;
 
     return (
-        <div className={`border p-4 rounded-2xl flex flex-col gap-2 transition-all ${
+        <div className={`border p-4 rounded-2xl flex flex-col justify-between gap-2.5 transition-all shadow-sm hover:shadow-md h-full ${
             isPassed 
-                ? 'bg-slate-900/60 border-white/10 hover:border-white/20' 
-                : 'bg-red-950/30 border-red-500/20 hover:border-red-500/30'
+                ? 'bg-slate-900/80 border-white/10 hover:border-indigo-500/30' 
+                : 'bg-red-950/40 border-red-500/30 hover:border-red-500/50'
         }`}>
-            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{label}</span>
-            {value && <span className={`text-base font-black truncate block ${accent}`}>{value}</span>}
-            <div className="flex items-center justify-between gap-2 mt-1">
-                <span className={`text-[10px] font-bold uppercase flex items-center gap-1.5 ${accent}`}>
-                    {isPassed
-                        ? <><CheckCircle2 size={12} /> {passStatus}</>  
-                        : <><XCircle size={12} /> {failStatus}</>  
-                    }
+            <div className="space-y-1">
+                <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest truncate">{label}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider shrink-0 ${
+                        isPassed ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                    }`}>
+                        {isPassed ? 'PASSED ✅' : 'FAILED ❌'}
+                    </span>
+                </div>
+                {value && <span className={`text-sm font-black truncate block font-mono ${accent}`}>{value}</span>}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5 mt-auto">
+                <span className={`text-[10px] font-bold uppercase truncate ${accent}`}>
+                    {isPassed ? passStatus : failStatus}
                 </span>
                 {detailText && (
                     <button
-                        onClick={() => setExpanded(prev => !prev)}
-                        className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border transition-all shadow-sm ${
-                            expanded
-                                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
-                                : isPassed
-                                    ? 'bg-indigo-500/20 text-indigo-200 border-indigo-400/30 hover:bg-indigo-500/30'
-                                    : 'bg-red-500/20 text-red-200 border-red-400/30 hover:bg-red-500/30'
+                        onClick={() => onInspect && onInspect({ label, value, isPassed, passStatus, failStatus, detailText })}
+                        className={`shrink-0 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border transition-all ${
+                            isPassed
+                                ? 'bg-indigo-500/20 text-indigo-200 border-indigo-400/30 hover:bg-indigo-500/40'
+                                : 'bg-red-500/20 text-red-200 border-red-400/30 hover:bg-red-500/40'
                         }`}
                     >
-                        {expanded ? 'Hide' : 'Why?'}
-                        <ChevronDown size={10} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                        Why? <ExternalLink size={9} />
                     </button>
                 )}
             </div>
-            <AnimatePresence>
-                {expanded && detailText && (
-                    <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden mt-1"
-                    >
-                        <div className={`p-2 px-2.5 rounded-lg border text-[10px] sm:text-[11px] leading-snug font-medium shadow-inner ${
-                            isPassed 
-                                ? 'bg-slate-950/90 border-indigo-500/30 text-slate-200' 
-                                : 'bg-red-950/90 border-red-500/40 text-red-100'
-                        }`}>
-                            <div className="flex items-start gap-1.5">
-                                <span className="text-[10px] shrink-0 mt-0.5">💡</span>
-                                <div className="min-w-0">
-                                    <span className={`inline-block font-black text-[9px] uppercase tracking-wider mr-1.5 ${isPassed ? 'text-indigo-300' : 'text-red-300'}`}>
-                                        {isPassed ? 'AI Note:' : 'Issue:'}
-                                    </span>
-                                    <span>{detailText}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };
@@ -156,6 +132,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [activeTab, setActiveTab] = useState(user?.role === 'driver' ? 'profile' : 'rides'); // 'profile' | 'rides' | 'sos'
     const [historyData, setHistoryData] = useState(null);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [inspectingDoc, setInspectingDoc] = useState(null);
 
     // Reset activeTab whenever selected user changes
     useEffect(() => {
@@ -500,100 +477,106 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
 
                                                                      {/* 1. Solo Selfie Face Match */}
-                                                                     <AuditCard
-                                                                         label="1. Solo Selfie Face Match"
-                                                                         value={`${aiReport.face_similarity_score}% similarity`}
-                                                                         isPassed={isFacePassed}
-                                                                         passStatus="Face Biometrics Verified ✅"
-                                                                         failStatus={liveFaceResult?.statusText || 'Face Mismatch ❌'}
-                                                                         accentColor="text-green-400"
-                                                                         passDetail={`The AI biometrics system detected a human face in both the License photo and the Solo Selfie. The facial pixel patterns match with ${aiReport.face_similarity_score}% similarity, confirming the same person.`}
-                                                                         failDetail={
-                                                                             liveFaceResult?.statusText?.includes('Screenshot') || liveFaceResult?.statusText?.includes('Document')
-                                                                                 ? 'The uploaded image appears to be a screenshot or a text document — not a real face photo. The AI detected mostly black/white pixels (>60%) with no human skin tone. Please re-upload a clear solo face photo taken with the camera.'
-                                                                                 : liveFaceResult?.statusText?.includes('No Face')
-                                                                                 ? 'No human face was detected in this photo. The system requires skin-tone pixels concentrated in the center oval region of the image. Ensure the photo shows a clear frontal face with proper lighting.'
-                                                                                 : `The facial pixel patterns between the License photo and the Solo Selfie do not match sufficiently (${aiReport.face_similarity_score}% — minimum required is 80%). The system detected different facial structures, suggesting the photos may be of different people.`
-                                                                         }
-                                                                     />
+                                                                      <AuditCard
+                                                                          label="1. Solo Selfie Face Match"
+                                                                          value={`${aiReport.face_similarity_score}% similarity`}
+                                                                          isPassed={isFacePassed}
+                                                                          passStatus="Face Biometrics Verified ✅"
+                                                                          failStatus={liveFaceResult?.statusText || 'Face Mismatch ❌'}
+                                                                          accentColor="text-green-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail={`The AI biometrics system detected a human face in both the License photo and the Solo Selfie. The facial pixel patterns match with ${aiReport.face_similarity_score}% similarity, confirming the same person.`}
+                                                                          failDetail={
+                                                                              liveFaceResult?.statusText?.includes('Screenshot') || liveFaceResult?.statusText?.includes('Document')
+                                                                                  ? 'The uploaded image appears to be a screenshot or a text document — not a real face photo. The AI detected mostly black/white pixels (>60%) with no human skin tone. Please re-upload a clear solo face photo taken with the camera.'
+                                                                                  : liveFaceResult?.statusText?.includes('No Face')
+                                                                                  ? 'No human face was detected in this photo. The system requires skin-tone pixels concentrated in the center oval region of the image. Ensure the photo shows a clear frontal face with proper lighting.'
+                                                                                  : `The facial pixel patterns between the License photo and the Solo Selfie do not match sufficiently (${aiReport.face_similarity_score}% — minimum required is 80%). The system detected different facial structures, suggesting the photos may be of different people.`
+                                                                          }
+                                                                      />
 
-                                                                     {/* 2. Driver's License OCR */}
-                                                                     <AuditCard
-                                                                         label="2. Driver's License OCR"
-                                                                         value={user.license_number || 'No License # Entered'}
-                                                                         isPassed={isLicensePassed}
-                                                                         passStatus="LTO Format Verified ✅"
-                                                                         failStatus="Invalid LTO Format ❌"
-                                                                         accentColor="text-blue-400"
-                                                                         passDetail="The entered license number matches the standard LTO format (A99-99-999999) and a license card image has been uploaded successfully."
-                                                                         failDetail={
-                                                                             !user.license_number
-                                                                                 ? 'No license number was entered. The driver must provide their LTO license number in the format A99-99-999999 (e.g., D12-34-567890).'
-                                                                                 : !user.license_image_url
-                                                                                 ? "A license number was entered but no license card image was uploaded. Please upload a clear photo of the physical LTO Driver's License."
-                                                                                 : `The entered license number "${user.license_number}" does not match the standard LTO format (A99-99-999999). Verify that the license number is typed correctly without extra spaces or symbols.`
-                                                                         }
-                                                                     />
+                                                                      {/* 2. Driver's License OCR */}
+                                                                      <AuditCard
+                                                                          label="2. Driver's License OCR"
+                                                                          value={user.license_number || 'No License # Entered'}
+                                                                          isPassed={isLicensePassed}
+                                                                          passStatus="LTO Format Verified ✅"
+                                                                          failStatus="Invalid LTO Format ❌"
+                                                                          accentColor="text-blue-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail="The entered license number matches the standard LTO format (A99-99-999999) and a license card image has been uploaded successfully."
+                                                                          failDetail={
+                                                                              !user.license_number
+                                                                                  ? 'No license number was entered. The driver must provide their LTO license number in the format A99-99-999999 (e.g., D12-34-567890).'
+                                                                                  : !user.license_image_url
+                                                                                  ? "A license number was entered but no license card image was uploaded. Please upload a clear photo of the physical LTO Driver's License."
+                                                                                  : `The entered license number "${user.license_number}" does not match the standard LTO format (A99-99-999999). Verify that the license number is typed correctly without extra spaces or symbols.`
+                                                                          }
+                                                                      />
 
-                                                                     {/* 3. Vehicle OR/CR OCR */}
-                                                                     <AuditCard
-                                                                         label="3. Vehicle OR/CR Plate OCR"
-                                                                         value={user.vehicle_plate || 'No Plate # Entered'}
-                                                                         isPassed={isPlatePassed}
-                                                                         passStatus="Plate Registration Valid ✅"
-                                                                         failStatus="Invalid Plate / Missing OR/CR ❌"
-                                                                         accentColor="text-emerald-400"
-                                                                         passDetail="The plate number matches a valid LTO plate format and the OR/CR document image has been uploaded. The vehicle is registered for operation."
-                                                                         failDetail={
-                                                                             !user.vehicle_plate
-                                                                                 ? 'No vehicle plate number was entered. The driver must provide their LTO-issued plate number.'
-                                                                                 : !user.vehicle_orcr_image_url
-                                                                                 ? 'A plate number was entered but no OR/CR document image was uploaded. Please upload a clear photo of the Official Receipt and Certificate of Registration.'
-                                                                                 : `The plate number "${user.vehicle_plate}" does not match a valid LTO plate format (4–10 alphanumeric characters). Check for typos or invalid characters.`
-                                                                         }
-                                                                     />
+                                                                      {/* 3. Vehicle OR/CR OCR */}
+                                                                      <AuditCard
+                                                                          label="3. Vehicle OR/CR Plate OCR"
+                                                                          value={user.vehicle_plate || 'No Plate # Entered'}
+                                                                          isPassed={isPlatePassed}
+                                                                          passStatus="Plate Registration Valid ✅"
+                                                                          failStatus="Invalid Plate / Missing OR/CR ❌"
+                                                                          accentColor="text-emerald-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail="The plate number matches a valid LTO plate format and the OR/CR document image has been uploaded. The vehicle is registered for operation."
+                                                                          failDetail={
+                                                                              !user.vehicle_plate
+                                                                                  ? 'No vehicle plate number was entered. The driver must provide their LTO-issued plate number.'
+                                                                                  : !user.vehicle_orcr_image_url
+                                                                                  ? 'A plate number was entered but no OR/CR document image was uploaded. Please upload a clear photo of the Official Receipt and Certificate of Registration.'
+                                                                                  : `The plate number "${user.vehicle_plate}" does not match a valid LTO plate format (4–10 alphanumeric characters). Check for typos or invalid characters.`
+                                                                          }
+                                                                      />
 
-                                                                     {/* 4. LGU Franchise Permit */}
-                                                                     <AuditCard
-                                                                         label="4. LGU Franchise Permit"
-                                                                         value={user.permit_number || 'No Permit # Entered'}
-                                                                         isPassed={isPermitPassed}
-                                                                         passStatus="MTOP Franchise Valid ✅"
-                                                                         failStatus="Missing or Invalid Permit ❌"
-                                                                         accentColor="text-amber-400"
-                                                                         passDetail="An LGU Franchise Permit (MTOP) number has been entered and the permit document image is uploaded. The driver is authorized to operate within Trento, Agusan del Sur."
-                                                                         failDetail={
-                                                                             !user.permit_number
-                                                                                 ? "No LGU Franchise Permit number was entered. The driver must provide their Trento LGU-issued MTOP (Motorized Tricycle Operator's Permit) number."
-                                                                                 : !user.permit_image_url
-                                                                                 ? 'A permit number was entered but no permit document image was uploaded. Please upload a photo of the LGU Franchise Permit.'
-                                                                                 : 'The permit number entered is too short or invalid. Please verify the MTOP number from the physical permit document.'
-                                                                         }
-                                                                     />
+                                                                      {/* 4. LGU Franchise Permit */}
+                                                                      <AuditCard
+                                                                          label="4. LGU Franchise Permit"
+                                                                          value={user.permit_number || 'No Permit # Entered'}
+                                                                          isPassed={isPermitPassed}
+                                                                          passStatus="MTOP Franchise Valid ✅"
+                                                                          failStatus="Missing or Invalid Permit ❌"
+                                                                          accentColor="text-amber-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail="An LGU Franchise Permit (MTOP) number has been entered and the permit document image is uploaded. The driver is authorized to operate within Trento, Agusan del Sur."
+                                                                          failDetail={
+                                                                              !user.permit_number
+                                                                                  ? "No LGU Franchise Permit number was entered. The driver must provide their Trento LGU-issued MTOP (Motorized Tricycle Operator's Permit) number."
+                                                                                  : !user.permit_image_url
+                                                                                  ? 'A permit number was entered but no permit document image was uploaded. Please upload a photo of the LGU Franchise Permit.'
+                                                                                  : 'The permit number entered is too short or invalid. Please verify the MTOP number from the physical permit document.'
+                                                                          }
+                                                                      />
 
-                                                                     {/* 5. Police / NBI Clearance */}
-                                                                     <AuditCard
-                                                                         label="5. Police/NBI Clearance"
-                                                                         value={isClearancePassed ? 'NO DEROGATORY RECORD' : 'MISSING'}
-                                                                         isPassed={isClearancePassed}
-                                                                         passStatus="Clearance Uploaded ✅"
-                                                                         failStatus="Missing Clearance Document ❌"
-                                                                         accentColor="text-purple-400"
-                                                                         passDetail="A Police Clearance or NBI Clearance document image has been successfully uploaded, confirming the driver has no known derogatory criminal record on file."
-                                                                         failDetail="No Police Clearance or NBI Clearance image has been uploaded. This document is required to confirm the driver has no criminal record. The driver must upload a valid and unexpired clearance certificate."
-                                                                     />
+                                                                      {/* 5. Police / NBI Clearance */}
+                                                                      <AuditCard
+                                                                          label="5. Police/NBI Clearance"
+                                                                          value={isClearancePassed ? 'NO DEROGATORY RECORD' : 'MISSING'}
+                                                                          isPassed={isClearancePassed}
+                                                                          passStatus="Clearance Uploaded ✅"
+                                                                          failStatus="Missing Clearance Document ❌"
+                                                                          accentColor="text-purple-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail="A Police Clearance or NBI Clearance document image has been successfully uploaded, confirming the driver has no known derogatory criminal record on file."
+                                                                          failDetail="No Police Clearance or NBI Clearance image has been uploaded. This document is required to confirm the driver has no criminal record. The driver must upload a valid and unexpired clearance certificate."
+                                                                      />
 
-                                                                     {/* 6. Tricycle Vehicle Inspection */}
-                                                                     <AuditCard
-                                                                         label="6. Tricycle Photo Inspection"
-                                                                         value={user.body_number ? `Unit #${user.body_number}` : 'Missing Vehicle Photo'}
-                                                                         isPassed={isTrikePhotoPassed}
-                                                                         passStatus="Vehicle Photo Valid ✅"
-                                                                         failStatus="Missing Tricycle Photo ❌"
-                                                                         accentColor="text-cyan-400"
-                                                                         passDetail="A clear photo of the tricycle unit has been uploaded. The LGU body/unit number is recorded and the vehicle is visually on file for reference during road operations."
-                                                                         failDetail="No tricycle vehicle photo has been uploaded. A clear photo of the registered tricycle unit (showing the sidecar and body number) is required for visual identification and LGU compliance records."
-                                                                     />
+                                                                      {/* 6. Tricycle Vehicle Inspection */}
+                                                                      <AuditCard
+                                                                          label="6. Tricycle Photo Inspection"
+                                                                          value={user.body_number ? `Unit #${user.body_number}` : 'Missing Vehicle Photo'}
+                                                                          isPassed={isTrikePhotoPassed}
+                                                                          passStatus="Vehicle Photo Valid ✅"
+                                                                          failStatus="Missing Tricycle Photo ❌"
+                                                                          accentColor="text-cyan-400"
+                                                                          onInspect={setInspectingDoc}
+                                                                          passDetail="A clear photo of the tricycle unit has been uploaded. The LGU body/unit number is recorded and the vehicle is visually on file for reference during road operations."
+                                                                          failDetail="No tricycle vehicle photo has been uploaded. A clear photo of the registered tricycle unit (showing the sidecar and body number) is required for visual identification and LGU compliance records."
+                                                                      />
 
                                                                  </div>
                                                              </div>
@@ -1183,6 +1166,84 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                         className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     />
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* ── AI Audit Document Inspection Modal ── */}
+        <AnimatePresence>
+            {inspectingDoc && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+                    onClick={() => setInspectingDoc(null)}
+                >
+                    <motion.div
+                        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        className={`w-full max-w-lg p-6 md:p-8 rounded-3xl border shadow-2xl space-y-5 text-white relative ${
+                            inspectingDoc.isPassed
+                                ? 'bg-slate-900 border-indigo-500/40'
+                                : 'bg-slate-900 border-red-500/50'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2.5 rounded-2xl ${inspectingDoc.isPassed ? 'bg-indigo-500/20 text-indigo-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    <Cpu size={20} className="animate-pulse" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-sm uppercase tracking-wider text-white">{inspectingDoc.label}</h4>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">AI Inspection & Compliance Diagnostics</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setInspectingDoc(null)}
+                                className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                            <div className="flex items-center justify-between bg-black/50 p-3.5 rounded-2xl border border-white/5">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recorded Parameter / Value</span>
+                                <span className="text-sm font-black font-mono text-amber-300">{inspectingDoc.value}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between bg-black/50 p-3.5 rounded-2xl border border-white/5">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Audit Outcome</span>
+                                <span className={`text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                                    inspectingDoc.isPassed ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                }`}>
+                                    {inspectingDoc.isPassed ? inspectingDoc.passStatus : inspectingDoc.failStatus}
+                                </span>
+                            </div>
+
+                            <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${
+                                inspectingDoc.isPassed
+                                    ? 'bg-indigo-950/40 border-indigo-500/30 text-indigo-100'
+                                    : 'bg-red-950/40 border-red-500/30 text-red-100'
+                            }`}>
+                                <strong className="block font-black text-[10px] uppercase tracking-widest mb-1.5 opacity-90 text-amber-300 flex items-center gap-1.5">
+                                    💡 {inspectingDoc.isPassed ? 'AI System Compliance Note:' : '⚠️ Detailed Defect & Solution:'}
+                                </strong>
+                                <p className="font-medium text-[11px] leading-relaxed">{inspectingDoc.detailText}</p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setInspectingDoc(null)}
+                            className="w-full py-3 bg-gradient-to-r from-primary to-amber-400 text-secondary font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg hover:brightness-110 active:scale-[0.98]"
+                        >
+                            Close Inspection Log
+                        </button>
+                    </motion.div>
                 </motion.div>
             )}
         </AnimatePresence>
