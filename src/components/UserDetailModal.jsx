@@ -4,7 +4,7 @@ import {
     X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star, Cpu, 
     CheckCircle2, AlertTriangle, XCircle, RefreshCw, ChevronDown, 
     MapPin, Clock, Calendar, Navigation, AlertOctagon, ShieldAlert, 
-    ExternalLink, Activity, Sparkles, UserCheck
+    ExternalLink
 } from 'lucide-react';
 import api from '../api/axios';
 import { ensureImageUrl } from '../utils/url';
