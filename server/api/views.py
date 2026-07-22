@@ -923,6 +923,110 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.error(f"[passenger_history] Exception: {e}")
             return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def driver_history(self, request, pk=None):
+        """
+        Returns full route history and SOS emergency alert history for a driver.
+        Used by Admin View to audit driver trips, earnings breakdown (95% driver / 5% LGU), passenger info, and emergencies.
+        """
+        try:
+            user = self.get_object()
+            
+            # Fetch all rides driven by this user
+            rides = Ride.objects.filter(driver=user).select_related('passenger').order_by('-requested_at')
+            rides_data = []
+            total_earnings = 0.0
+            total_commission = 0.0
+            
+            for r in rides:
+                passenger_data = None
+                if r.passenger:
+                    passenger_data = {
+                        'id': r.passenger.id,
+                        'username': r.passenger.username,
+                        'phone_number': r.passenger.phone_number,
+                        'email': r.passenger.email,
+                        'profile_picture': request.build_absolute_uri(r.passenger.profile_picture.url) if r.passenger.profile_picture else None,
+                    }
+                fare_val = float(r.fare) if r.fare else 0.00
+                driver_net = round(fare_val * 0.95, 2)
+                lgu_comm = round(fare_val * 0.05, 2)
+                if r.status == 'completed':
+                    total_earnings += driver_net
+                    total_commission += lgu_comm
+                    
+                rides_data.append({
+                    'id': r.id,
+                    'pickup_address': r.pickup_address,
+                    'dest_address': r.dest_address,
+                    'pickup_lat': float(r.pickup_lat) if r.pickup_lat else None,
+                    'pickup_lng': float(r.pickup_lng) if r.pickup_lng else None,
+                    'dest_lat': float(r.dest_lat) if r.dest_lat else None,
+                    'dest_lng': float(r.dest_lng) if r.dest_lng else None,
+                    'status': r.status,
+                    'fare': fare_val,
+                    'driver_earnings': driver_net,
+                    'lgu_commission': lgu_comm,
+                    'passenger_count': r.passenger_count,
+                    'nearest_landmark': r.nearest_landmark,
+                    'requested_at': r.requested_at.isoformat() if r.requested_at else None,
+                    'completed_at': r.completed_at.isoformat() if r.completed_at else None,
+                    'cancellation_reason': r.cancellation_reason,
+                    'passenger': passenger_data,
+                })
+            
+            # Fetch all SOS incidents associated with this driver (triggered by driver OR during driver's trip)
+            incidents = Incident.objects.filter(
+                models.Q(user=user) | models.Q(ride__driver=user)
+            ).distinct().select_related('user', 'ride', 'ride__passenger').order_by('-created_at')
+            
+            incidents_data = []
+            for inc in incidents:
+                passenger_info = None
+                if inc.ride and inc.ride.passenger:
+                    passenger_info = {
+                        'id': inc.ride.passenger.id,
+                        'username': inc.ride.passenger.username,
+                        'phone_number': inc.ride.passenger.phone_number,
+                    }
+                incidents_data.append({
+                    'id': inc.id,
+                    'description': inc.description or 'SOS Panic Emergency Activated',
+                    'status': inc.status,
+                    'lat': float(inc.lat) if inc.lat else None,
+                    'lng': float(inc.lng) if inc.lng else None,
+                    'created_at': inc.created_at.isoformat() if inc.created_at else None,
+                    'updated_at': inc.updated_at.isoformat() if inc.updated_at else None,
+                    'admin_notes': inc.admin_notes,
+                    'reporter_username': inc.user.username if inc.user else 'Unknown',
+                    'reporter_phone': inc.user.phone_number if inc.user else 'N/A',
+                    'reporter_role': inc.user.role if inc.user else 'user',
+                    'ride_id': inc.ride.id if inc.ride else None,
+                    'pickup_address': inc.ride.pickup_address if inc.ride else None,
+                    'dest_address': inc.ride.dest_address if inc.ride else None,
+                    'passenger': passenger_info,
+                })
+                
+            return Response({
+                'driver': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'phone_number': user.phone_number,
+                    'body_number': user.body_number,
+                    'vehicle_plate': user.vehicle_plate,
+                    'total_rides': len(rides_data),
+                    'total_earnings': round(total_earnings, 2),
+                    'total_lgu_commission': round(total_commission, 2),
+                    'total_sos_alerts': len(incidents_data),
+                },
+                'rides': rides_data,
+                'sos_alerts': incidents_data,
+            })
+        except Exception as e:
+            logger.error(f"[driver_history] Exception: {e}")
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def update_location(self, request):
         if request.user.role != 'driver':
