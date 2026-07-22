@@ -238,7 +238,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                             <DocumentViewer label="Driver's License" imageUrl={user.license_image_url} />
                                             <DocumentViewer label="Permit" imageUrl={user.permit_image_url} />
                                             <DocumentViewer label="Police/NBI Clearance" imageUrl={user.nbi_clearance_image_url} />
-                                            <DocumentViewer label="Selfie w/ ID" imageUrl={user.selfie_with_license_url} />
+                                            <DocumentViewer label="Solo Selfie" imageUrl={user.selfie_with_license_url} />
                                             <DocumentViewer label="Vehicle OR/CR" imageUrl={user.vehicle_orcr_image_url} />
                                             <DocumentViewer label="Tricycle Photo" imageUrl={user.tricycle_photo_url} />
                                         </div>

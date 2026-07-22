@@ -536,7 +536,7 @@ const DriverVerification = () => {
                                     </div>
                                     <div>
                                         <h3 className="font-bold text-slate-800 dark:text-white text-lg">Identity Verification</h3>
-                                        <p className="text-slate-500 text-xs">Selfie holding Driver's License</p>
+                                        <p className="text-slate-500 text-xs">Solo Driver Face Photo (Biometrics)</p>
                                     </div>
                                 </div>
                                 <ChevronRight size={20} className={`text-slate-400 transition-transform ${activeSection === 'liveness' ? 'rotate-90' : ''}`} />
@@ -547,10 +547,10 @@ const DriverVerification = () => {
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
                                         <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
                                             <div className="space-y-4 mt-4">
-                                                <p className="text-xs text-slate-400 ml-2 italic">Hold your license next to your face and take a clear photo showing both your face and the license text.</p>
+                                                <p className="text-xs text-slate-400 ml-2 italic">Take a clear, well-lit photo of your face facing forward. Ensure your face is centered and clearly visible for AI biometrics.</p>
                                                 <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Selfie with License</label>
-                                                    <DocumentUploadField id="upload-selfie" label="Selfie" file={selfieWithLicenseImg} existingUrl={existingSelfieWithLicenseImg} setFile={setSelfieWithLicenseImg} />
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Solo Driver Selfie</label>
+                                                    <DocumentUploadField id="upload-selfie" label="Solo Selfie" file={selfieWithLicenseImg} existingUrl={existingSelfieWithLicenseImg} setFile={setSelfieWithLicenseImg} />
                                                 </div>
                                             </div>
                                         </div>
