@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star, Cpu, CheckCircle2, AlertTriangle, XCircle, RefreshCw, ChevronDown } from 'lucide-react';
+import { 
+    X, User, Phone, Mail, Shield, Car, FileText, Wallet, Star, Cpu, 
+    CheckCircle2, AlertTriangle, XCircle, RefreshCw, ChevronDown, 
+    MapPin, Clock, Calendar, Navigation, AlertOctagon, ShieldAlert, 
+    ExternalLink, Activity, Sparkles, UserCheck
+} from 'lucide-react';
 import api from '../api/axios';
 import { ensureImageUrl } from '../utils/url';
 import MaskedData from './MaskedData';
@@ -81,20 +86,39 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [liveFaceResult, setLiveFaceResult] = useState(null);
     const [isAnalyzingFace, setIsAnalyzingFace] = useState(false);
 
-    // Run 100% Client-Side Browser Canvas Biometric Comparison when modal opens
-    useEffect(() => {
-        if (isOpen && user && user.role === 'driver' && (user.license_image_url || user.license_image) && (user.selfie_with_license_url || user.selfie_with_license)) {
-            const licenseSrc = ensureImageUrl(user.license_image_url || user.license_image, user.username);
-            const selfieSrc = ensureImageUrl(user.selfie_with_license_url || user.selfie_with_license, user.username);
+    // Passenger Audit & History State
+    const [passengerTab, setPassengerTab] = useState('rides'); // 'rides' | 'sos' | 'profile'
+    const [historyData, setHistoryData] = useState(null);
+    const [loadingHistory, setLoadingHistory] = useState(false);
 
-            setIsAnalyzingFace(true);
-            compareFaces(licenseSrc, selfieSrc).then(res => {
-                setLiveFaceResult(res);
-                setIsAnalyzingFace(false);
-            }).catch(err => {
-                console.error("Browser face matching failed", err);
-                setIsAnalyzingFace(false);
-            });
+    // Fetch full passenger history (rides + SOS emergencies) whenever modal opens
+    useEffect(() => {
+        if (isOpen && user) {
+            setLoadingHistory(true);
+            api.get(`/users/${user.id}/passenger_history/`)
+                .then(res => {
+                    setHistoryData(res.data);
+                    setLoadingHistory(false);
+                })
+                .catch(err => {
+                    console.error("Failed to load passenger history", err);
+                    setLoadingHistory(false);
+                });
+
+            // Run face biometrics for drivers
+            if (user.role === 'driver' && (user.license_image_url || user.license_image) && (user.selfie_with_license_url || user.selfie_with_license)) {
+                const licenseSrc = ensureImageUrl(user.license_image_url || user.license_image, user.username);
+                const selfieSrc = ensureImageUrl(user.selfie_with_license_url || user.selfie_with_license, user.username);
+
+                setIsAnalyzingFace(true);
+                compareFaces(licenseSrc, selfieSrc).then(res => {
+                    setLiveFaceResult(res);
+                    setIsAnalyzingFace(false);
+                }).catch(err => {
+                    console.error("Browser face matching failed", err);
+                    setIsAnalyzingFace(false);
+                });
+            }
         }
     }, [isOpen, user]);
 
@@ -486,19 +510,289 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-8">
-                                    <div className="p-12 bg-slate-50 dark:bg-white/5 rounded-[3rem] text-center">
-                                        <User size={48} className="mx-auto text-slate-200 mb-4" />
-                                        <p className="text-slate-400 font-medium italic">Standard passenger profile. No vehicle or professional credentials on file.</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 p-6 rounded-3xl shadow-xl shadow-slate-200/50">
-                                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Emergency Contact Relationship</h4>
-                                            <p className="text-xs font-black text-secondary dark:text-white uppercase mb-1">{user.emergency_contact_name || 'N/A'}</p>
-                                            <MaskedData value={user.emergency_contact_phone} type="phone" fallback="None provided" className="text-sm font-bold text-primary" />
+                                <div className="space-y-6">
+                                    {/* Passenger Audit Navigation Tabs */}
+                                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-4">
+                                        <div className="flex items-center gap-2 overflow-x-auto">
+                                            <button
+                                                onClick={() => setPassengerTab('rides')}
+                                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+                                                    passengerTab === 'rides'
+                                                        ? 'bg-secondary text-white shadow-lg dark:bg-primary dark:text-secondary'
+                                                        : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                <Car size={14} /> Trip History ({historyData?.rides?.length || 0})
+                                            </button>
+                                            <button
+                                                onClick={() => setPassengerTab('sos')}
+                                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+                                                    passengerTab === 'sos'
+                                                        ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
+                                                        : (historyData?.sos_alerts?.length || 0) > 0
+                                                            ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
+                                                            : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                <ShieldAlert size={14} /> SOS Emergencies ({historyData?.sos_alerts?.length || 0})
+                                            </button>
+                                            <button
+                                                onClick={() => setPassengerTab('profile')}
+                                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${
+                                                    passengerTab === 'profile'
+                                                        ? 'bg-secondary text-white shadow-lg dark:bg-primary dark:text-secondary'
+                                                        : 'bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                <User size={14} /> Profile & Verification
+                                            </button>
                                         </div>
                                     </div>
+
+                                    {/* Loading Indicator */}
+                                    {loadingHistory ? (
+                                        <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
+                                            <RefreshCw size={24} className="animate-spin text-primary" />
+                                            <span className="text-xs font-bold uppercase tracking-wider">Fetching Passenger Activity Log...</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* ── TAB 1: TRIP HISTORY ── */}
+                                            {passengerTab === 'rides' && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                            <Clock size={14} className="text-primary" /> Ride History Audit Trail ({historyData?.rides?.length || 0} Total Trips)
+                                                        </h4>
+                                                        <span className="text-[10px] font-bold text-slate-400">
+                                                            Total Spent: ₱{historyData?.rides?.reduce((acc, r) => acc + (r.fare || 0), 0).toFixed(2) || '0.00'}
+                                                        </span>
+                                                    </div>
+
+                                                    {(!historyData?.rides || historyData.rides.length === 0) ? (
+                                                        <div className="p-10 bg-slate-50 dark:bg-white/5 rounded-3xl text-center border border-slate-100 dark:border-white/5">
+                                                            <Car size={36} className="mx-auto text-slate-300 mb-2" />
+                                                            <p className="text-xs font-bold text-slate-400 uppercase">No ride history recorded for this passenger yet.</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+                                                            {historyData.rides.map(ride => (
+                                                                <div key={ride.id} className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-white/10 flex flex-col gap-3 shadow-sm hover:border-primary/40 transition-all">
+                                                                    <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/5 pb-2">
+                                                                        <div className="flex items-center gap-2 text-xs font-black text-secondary dark:text-white">
+                                                                            <Calendar size={13} className="text-primary" />
+                                                                            <span>{ride.requested_at ? new Date(ride.requested_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}</span>
+                                                                        </div>
+                                                                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                                            ride.status === 'completed' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                                                            ride.status === 'cancelled' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                                                            ride.status === 'on_route' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                                                                            'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                                        }`}>
+                                                                            {ride.status}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {/* Route details */}
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                                        <div className="flex items-start gap-2 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
+                                                                            <MapPin size={14} className="text-green-500 shrink-0 mt-0.5" />
+                                                                            <div>
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Pickup Location</span>
+                                                                                <p className="font-bold text-secondary dark:text-white leading-tight">{ride.pickup_address || 'Current GPS Location'}</p>
+                                                                                {ride.pickup_lat && ride.pickup_lng && (
+                                                                                    <span className="text-[9px] text-slate-400 font-mono">GPS: {ride.pickup_lat.toFixed(5)}, {ride.pickup_lng.toFixed(5)}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-start gap-2 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
+                                                                            <Navigation size={14} className="text-red-500 shrink-0 mt-0.5" />
+                                                                            <div>
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Destination</span>
+                                                                                <p className="font-bold text-secondary dark:text-white leading-tight">{ride.dest_address || 'Unspecified Destination'}</p>
+                                                                                {ride.dest_lat && ride.dest_lng && (
+                                                                                    <span className="text-[9px] text-slate-400 font-mono">GPS: {ride.dest_lat.toFixed(5)}, {ride.dest_lng.toFixed(5)}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Driver & Fare Footer */}
+                                                                    <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-white/5 text-xs">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-6 h-6 rounded-full bg-primary/20 text-primary-dark flex items-center justify-center font-bold text-[10px]">
+                                                                                {ride.driver?.username?.charAt(0)?.toUpperCase() || 'D'}
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="font-bold text-secondary dark:text-white block text-[11px]">
+                                                                                    {ride.driver ? `Driver: ${ride.driver.username}` : 'No Assigned Driver'}
+                                                                                </span>
+                                                                                {ride.driver && (
+                                                                                    <span className="text-[9px] text-slate-400 font-mono">
+                                                                                        Unit #{ride.driver.body_number || 'N/A'} • Plate: {ride.driver.vehicle_plate || 'N/A'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className="text-sm font-black text-green-500 block">₱{ride.fare || '0.00'}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {ride.cancellation_reason && (
+                                                                        <p className="text-[10px] text-red-400 italic bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                                                                            Cancelled: {ride.cancellation_reason}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* ── TAB 2: SOS EMERGENCY HISTORY ── */}
+                                            {passengerTab === 'sos' && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center justify-between bg-red-950/40 border border-red-500/30 p-4 rounded-2xl text-red-200">
+                                                        <div className="flex items-center gap-2">
+                                                            <AlertOctagon size={20} className="text-red-400 animate-pulse" />
+                                                            <div>
+                                                                <h4 className="text-xs font-black uppercase tracking-wider text-red-300">SOS Emergency Response History</h4>
+                                                                <p className="text-[10px] text-red-200/80">Audit log of all panic button activations triggered by this passenger.</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-xs font-black bg-red-500 text-white px-3 py-1 rounded-full">
+                                                            {historyData?.sos_alerts?.length || 0} ALERTS
+                                                        </span>
+                                                    </div>
+
+                                                    {(!historyData?.sos_alerts || historyData.sos_alerts.length === 0) ? (
+                                                        <div className="p-10 bg-slate-50 dark:bg-white/5 rounded-3xl text-center border border-slate-100 dark:border-white/5">
+                                                            <CheckCircle2 size={36} className="mx-auto text-green-500 mb-2" />
+                                                            <p className="text-xs font-bold text-slate-400 uppercase">No SOS emergency incidents recorded for this passenger. Account is clean. ✅</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-3 max-h-[450px] overflow-y-auto pr-1">
+                                                            {historyData.sos_alerts.map(sos => (
+                                                                <div key={sos.id} className="p-5 bg-gradient-to-br from-red-950/60 via-slate-900 to-slate-900 rounded-2xl border border-red-500/30 text-white flex flex-col gap-3 shadow-xl">
+                                                                    <div className="flex items-center justify-between border-b border-red-500/20 pb-2">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <ShieldAlert size={16} className="text-red-400" />
+                                                                            <span className="text-xs font-black uppercase tracking-wider text-red-300">EMERGENCY ALERT #{sos.id}</span>
+                                                                        </div>
+                                                                        <span className={`px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                                                            sos.status === 'resolved' ? 'bg-green-500/20 text-green-300 border border-green-500/40' :
+                                                                            sos.status === 'dismissed' ? 'bg-slate-500/20 text-slate-300 border border-slate-500/40' :
+                                                                            'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
+                                                                        }`}>
+                                                                            {sos.status === 'pending' ? 'ACTIVE SOS 🚨' : sos.status}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                                                        {/* Date & Time */}
+                                                                        <div className="bg-black/30 p-3 rounded-xl border border-white/5 space-y-1">
+                                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Triggered Date & Time</span>
+                                                                            <p className="font-bold text-slate-200">
+                                                                                {sos.created_at ? new Date(sos.created_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'medium' }) : 'N/A'}
+                                                                            </p>
+                                                                        </div>
+
+                                                                        {/* Exact GPS Location */}
+                                                                        <div className="bg-black/30 p-3 rounded-xl border border-white/5 space-y-1">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Exact GPS Location</span>
+                                                                                {sos.lat && sos.lng && (
+                                                                                    <a
+                                                                                        href={`https://www.google.com/maps?q=${sos.lat},${sos.lng}`}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="text-[9px] font-black uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
+                                                                                    >
+                                                                                        Open Map <ExternalLink size={9} />
+                                                                                    </a>
+                                                                                )}
+                                                                            </div>
+                                                                            <p className="font-bold text-red-300 font-mono text-[11px]">
+                                                                                {sos.lat && sos.lng ? `Lat: ${sos.lat.toFixed(6)}, Lng: ${sos.lng.toFixed(6)}` : 'Location Coordinates N/A'}
+                                                                            </p>
+                                                                            {sos.pickup_address && (
+                                                                                <p className="text-[10px] text-slate-300 truncate">Near: {sos.pickup_address}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Assigned Driver at Time of SOS */}
+                                                                    <div className="bg-black/40 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Car size={16} className="text-amber-400" />
+                                                                            <div>
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Driver at Scene</span>
+                                                                                <p className="font-bold text-white">
+                                                                                    {sos.driver ? `Driver: ${sos.driver.username}` : 'No Driver Assigned'}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                        {sos.driver && (
+                                                                            <div className="text-right text-[10px] font-mono text-slate-300">
+                                                                                <p>Plate: {sos.driver.vehicle_plate || 'N/A'}</p>
+                                                                                <p>Unit #{sos.driver.body_number || 'N/A'}</p>
+                                                                                <p>Phone: {sos.driver.phone_number || 'N/A'}</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {sos.admin_notes && (
+                                                                        <div className="bg-slate-900/90 p-2.5 rounded-xl border border-white/10 text-[10px]">
+                                                                            <strong className="text-indigo-300 block uppercase tracking-wider text-[9px] mb-0.5">Admin Resolution Log:</strong>
+                                                                            <p className="text-slate-300 italic">{sos.admin_notes}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* ── TAB 3: PASSENGER PROFILE & VERIFICATION ── */}
+                                            {passengerTab === 'profile' && (
+                                                <div className="space-y-6">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-3xl space-y-4">
+                                                            <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
+                                                                <User size={16} className="text-primary" /> Personal Credentials
+                                                            </h4>
+                                                            <DetailItem label="Full Username" value={user.username} />
+                                                            <DetailItem label="Email Address" value={user.email} />
+                                                            <DetailItem label="Phone Contact" value={user.phone_number} />
+                                                            <DetailItem label="Home Address" value={user.address} />
+                                                            <DetailItem label="Date of Birth" value={user.date_of_birth} />
+                                                            <DetailItem label="Gender" value={user.gender} />
+                                                        </div>
+
+                                                        <div className="bg-slate-50 dark:bg-white/5 p-6 rounded-3xl space-y-4">
+                                                            <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-xs flex items-center gap-2">
+                                                                <Shield size={16} className="text-primary" /> Emergency Contact Info
+                                                            </h4>
+                                                            <DetailItem label="Contact Name" value={user.emergency_contact_name || 'Not Provided'} highlighted />
+                                                            <DetailItem label="Contact Phone" value={user.emergency_contact_phone || 'Not Provided'} />
+                                                            <DetailItem label="Date Joined" value={user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'} />
+                                                            <DetailItem label="Wallet Balance" value={`₱${user.wallet_balance || '0.00'}`} />
+                                                        </div>
+                                                    </div>
+
+                                                    {user.government_id_image_url && (
+                                                        <div className="space-y-2">
+                                                            <h4 className="font-black text-secondary dark:text-white uppercase tracking-widest text-xs">Passenger Government ID Document</h4>
+                                                            <DocumentViewer label="Government ID" imageUrl={user.government_id_image_url} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>
