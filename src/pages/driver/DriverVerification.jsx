@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, Camera, ChevronRight, Check } from 'lucide-react';
+import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {
@@ -32,6 +32,7 @@ const DriverVerification = () => {
     const [existingTricyclePhotoImg, setExistingTricyclePhotoImg] = useState(null);
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
+    const [verificationStatus, setVerificationStatus] = useState(null);
     const [msg, setMsg] = useState('');
     const [isEditing, setIsEditing] = useState(true);
 
@@ -62,6 +63,7 @@ const DriverVerification = () => {
             setExistingTricyclePhotoImg(data.tricycle_photo_url || data.tricycle_photo);
 
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
+            setVerificationStatus(isApproved);
             setIsEditing(!isApproved);
             setStatus('idle');
         } catch (err) {
@@ -170,6 +172,7 @@ const DriverVerification = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             setStatus('success');
+            setVerificationStatus(false);
             setMsg(response.data.detail || 'Your documents have been submitted for review.');
             setTimeout(() => fetchData(), 1500);
         } catch (err) {
@@ -199,6 +202,7 @@ const DriverVerification = () => {
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
+    const progressPercent = (completedCount / 6) * 100;
 
     if (status === 'loading') {
         return (
@@ -266,7 +270,7 @@ const DriverVerification = () => {
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-3xl font-black text-secondary dark:text-white">{completedCount}</span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">of 7</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">of 6</span>
                             </div>
                         </div>
 
@@ -280,7 +284,7 @@ const DriverVerification = () => {
                                     <p className="text-slate-500 dark:text-slate-400 text-sm">Your documents have been verified by Trento LGU. Stay safe on the road.</p>
                                     <button onClick={() => setIsEditing(true)} className="mt-4 text-primary font-bold text-sm hover:underline">Update Documents?</button>
                                 </>
-                            ) : completedCount === 7 ? (
+                            ) : completedCount === 6 ? (
                                 <>
                                     <div className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3">
                                         <ShieldCheck size={14} /> Ready to Submit
