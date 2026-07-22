@@ -52,17 +52,17 @@ const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail,
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden mt-1"
                     >
-                        <div className={`p-3 rounded-xl border text-xs leading-relaxed font-normal shadow-inner ${
+                        <div className={`p-2 px-2.5 rounded-lg border text-[10px] sm:text-[11px] leading-snug font-medium shadow-inner ${
                             isPassed 
-                                ? 'bg-slate-950/80 border-indigo-500/30 text-slate-100' 
+                                ? 'bg-slate-950/90 border-indigo-500/30 text-slate-200' 
                                 : 'bg-red-950/90 border-red-500/40 text-red-100'
                         }`}>
-                            <div className="flex items-start gap-2">
-                                <span className={`text-xs ${isPassed ? 'text-indigo-400' : 'text-red-400'}`}>💡</span>
-                                <div>
-                                    <strong className={`block mb-0.5 text-[10px] uppercase tracking-wider ${isPassed ? 'text-indigo-300' : 'text-red-300'}`}>
-                                        {isPassed ? 'AI Audit Verification Detail:' : 'Reason for Rejection / Issue:'}
-                                    </strong>
+                            <div className="flex items-start gap-1.5">
+                                <span className="text-[10px] shrink-0 mt-0.5">💡</span>
+                                <div className="min-w-0">
+                                    <span className={`inline-block font-black text-[9px] uppercase tracking-wider mr-1.5 ${isPassed ? 'text-indigo-300' : 'text-red-300'}`}>
+                                        {isPassed ? 'AI Note:' : 'Issue:'}
+                                    </span>
                                     <span>{detailText}</span>
                                 </div>
                             </div>
