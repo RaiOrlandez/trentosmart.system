@@ -25,6 +25,7 @@ import {
   ClipboardList,
   Star,
   Download,
+  Calculator,
   X
 } from 'lucide-react';
 import {
@@ -2012,31 +2013,75 @@ const FinanceTab = ({ stats, fetchStats }) => {
     return matchesStatus && matchesSearch;
   });
 
+  const totalRev = parseFloat(stats?.totalRevenue || 0);
+  const lguComm = totalRev * 0.05;
+  const driverPayouts = totalRev * 0.95;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+      {/* ── Thesis & Audit Formula Banner ── */}
+      <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shrink-0 border border-primary/30 shadow-lg">
+            <Calculator size={28} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">LGU Trento Ordinance</span>
+              <span className="text-[10px] font-bold text-slate-400">Automated 5% Revenue Ledger Formula</span>
+            </div>
+            <h4 className="text-xl font-black text-white italic tracking-tight">
+              LGU Commission (5%) = Total Platform Volume × 0.05
+            </h4>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              Driver Net Take-Home Pay (95%) = Total Platform Volume × 0.95
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 bg-slate-800/90 px-6 py-4 rounded-2xl border border-slate-700/60 shrink-0 text-xs w-full lg:w-auto justify-between lg:justify-start">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Volume</p>
+            <p className="font-black text-white text-base">₱{totalRev.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="text-slate-500 font-bold">➔</div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-green-400">LGU Share (5%)</p>
+            <p className="font-black text-green-400 text-base">₱{lguComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="text-slate-500 font-bold">+</div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest text-primary">Driver Net (95%)</p>
+            <p className="font-black text-primary text-base">₱{driverPayouts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* ── Summary Financial Cards ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-secondary text-white p-8 rounded-[3rem] shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16" />
           <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Total Platform Volume</p>
-          <h2 className="text-5xl font-black italic tracking-tighter">₱{stats.totalRevenue.toLocaleString()}</h2>
+          <h2 className="text-5xl font-black italic tracking-tighter">₱{totalRev.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 text-primary font-bold text-xs">
             <TrendingUp size={14} />
             <span>+18.5% FROM LAST MONTH</span>
           </div>
         </motion.div>
 
-        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 dark:bg-slate-900 dark:border-white/5">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">LGU Commission (5%)</p>
-          <h2 className="text-5xl font-black italic tracking-tighter text-secondary">₱{stats.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
+          <h2 className="text-5xl font-black italic tracking-tighter text-secondary dark:text-white">₱{lguComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 text-green-500 font-bold text-xs uppercase">
             <CheckCircle2 size={14} />
-            <span>Funds Secured</span>
+            <span>Funds Secured (5% Remitted)</span>
           </div>
         </motion.div>
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-primary text-secondary p-8 rounded-[3rem] shadow-xl">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Payouts to Drivers</p>
-          <h2 className="text-5xl font-black italic tracking-tighter">₱{(stats.totalRevenue - stats.commission).toLocaleString()}</h2>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Payouts to Drivers (95%)</p>
+          <h2 className="text-5xl font-black italic tracking-tighter">₱{driverPayouts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 font-black text-xs uppercase tracking-widest">
             <Clock size={14} />
             <span>Next Settlement: Friday</span>

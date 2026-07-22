@@ -345,6 +345,9 @@ def get_admin_dashboard_stats(request):
         'commission': float(
             Ride.objects.filter(status='completed')
             .aggregate(total=Sum('lgu_commission'))['total'] or 0
+        ) or float(
+            round((Ride.objects.filter(status='completed')
+            .aggregate(total=Sum('fare'))['total'] or 0) * 0.05, 2)
         ),
         'revenueToday': float(
             Ride.objects.filter(status='completed', completed_at__gte=today_start)
