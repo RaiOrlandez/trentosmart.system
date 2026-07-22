@@ -1,86 +1,149 @@
 /**
  * reverseGeocode.js
- * Converts GPS coordinates (lat, lng) into a human-readable Philippine address
- * using the FREE OpenStreetMap Nominatim API (no API key required).
- *
- * Output format (example):
- *   "Purok 5, Brgy. Poblacion, Trento, Agusan del Sur"
- *
- * Rate limit: Nominatim allows ~1 request/second. We cache results in a
- * module-level Map to avoid repeated calls within the same session.
+ * Multi-tiered Reverse Geocoding Utility
+ * 
+ * Strategy:
+ * 1. Esri World Geocoding API (Free, high accuracy for Philippines, CORS enabled)
+ * 2. BigDataCloud Reverse Geocoding Client API (Free fallback, CORS enabled)
+ * 3. Trento Local Barangay Boundary & Landmark Lookup (Offline / Network failure fallback)
  */
 
 const cache = new Map();
 
-/**
- * Convert lat/lng → human-readable address string
- * @param {number} lat
- * @param {number} lng
- * @returns {Promise<string>} e.g. "Brgy. Poblacion, Trento, Agusan del Sur"
- */
+// Local Trento & Agusan del Sur Known Barangay & Landmark Geofences
+const TRENTO_LOCATIONS = [
+    { name: 'Brgy. Poblacion', road: 'Agusan-Davao National Highway', lat: 8.0355, lng: 126.0643 },
+    { name: 'Brgy. Basa', road: 'Trento-Basa Road', lat: 8.0750, lng: 126.0420 },
+    { name: 'Brgy. Cuevas', road: 'Cuevas-Bislig Road', lat: 8.1150, lng: 126.0850 },
+    { name: 'Brgy. Kapatagan', road: 'Kapatagan Local Road', lat: 8.0120, lng: 126.1100 },
+    { name: 'Brgy. Pulang-lupa', road: 'Pulang-lupa Highway', lat: 8.0550, lng: 126.0200 },
+    { name: 'Brgy. Salvacion', road: 'Salvacion Barangay Road', lat: 8.0900, lng: 126.0100 },
+    { name: 'Brgy. San Ignacio', road: 'San Ignacio Local Road', lat: 8.0050, lng: 126.0350 },
+    { name: 'Brgy. San Isidro', road: 'San Isidro Road', lat: 8.0600, lng: 126.1200 },
+    { name: 'Brgy. San Roque', road: 'San Roque Access Road', lat: 8.0400, lng: 126.0900 },
+    { name: 'Brgy. Santa Maria', road: 'Santa Maria Barangay Road', lat: 8.1400, lng: 126.0500 },
+    { name: 'Brgy. Tagbuaya', road: 'Tagbuaya Local Road', lat: 8.0200, lng: 125.9900 },
+    { name: 'Brgy. New Visayas', road: 'New Visayas Road', lat: 8.0800, lng: 126.1500 },
+    { name: 'Brgy. Manat', road: 'Manat Provincial Road', lat: 7.9700, lng: 126.0500 },
+    { name: 'Brgy. Cebolin', road: 'Cebolin Local Road', lat: 8.1500, lng: 126.0200 },
+    { name: 'Brgy. Langkilaan', road: 'Langkilaan Barangay Road', lat: 8.0100, lng: 125.9600 },
+];
+
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function getLocalTrentoFallback(lat, lng) {
+    let closest = null;
+    let minDistance = Infinity;
+
+    for (const loc of TRENTO_LOCATIONS) {
+        const dist = getDistanceKm(lat, lng, loc.lat, loc.lng);
+        if (dist < minDistance) {
+            minDistance = dist;
+            closest = loc;
+        }
+    }
+
+    if (closest && minDistance <= 15) {
+        return {
+            display: `${closest.name}, Trento, Agusan del Sur`,
+            road: closest.road,
+            full: `${closest.name}, ${closest.road}, Trento, Agusan del Sur, Philippines`,
+        };
+    }
+
+    return {
+        display: `Trento / Agusan del Sur Area (${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)})`,
+        road: 'Agusan-Davao National Highway',
+        full: `GPS Location (${lat}, ${lng})`,
+    };
+}
+
 export async function reverseGeocode(lat, lng) {
     if (lat == null || lng == null) return null;
+    const numLat = parseFloat(lat);
+    const numLng = parseFloat(lng);
+    if (isNaN(numLat) || isNaN(numLng)) return null;
 
-    const key = `${parseFloat(lat).toFixed(5)},${parseFloat(lng).toFixed(5)}`;
+    const key = `${numLat.toFixed(5)},${numLng.toFixed(5)}`;
     if (cache.has(key)) return cache.get(key);
 
+    // ── Strategy 1: Esri World Geocoding API (High Accuracy Philippines) ─────
     try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-            {
-                headers: {
-                    // Nominatim requires a User-Agent describing your app
-                    'Accept-Language': 'en',
-                    'User-Agent': 'TrentoSmartTricycleSystem/1.0 (capstone-lgu@trento.gov.ph)',
-                },
+        const esriUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${numLng},${numLat}&f=pjson`;
+        const res = await fetch(esriUrl);
+        if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            
+            const barangay = addr.Neighborhood || addr.District || addr.Block || null;
+            const road = addr.Address || addr.ShortLabel || addr.Match_addr || null;
+            const city = addr.City || addr.Subregion || 'Agusan del Sur';
+            const province = addr.Subregion || addr.Region || 'Caraga';
+
+            const parts = [];
+            if (barangay) parts.push(barangay.startsWith('Brgy') ? barangay : `Brgy. ${barangay}`);
+            if (city) parts.push(city);
+            if (province && province !== city) parts.push(province);
+
+            const display = parts.length > 0 ? parts.join(', ') : (addr.Match_addr || null);
+
+            if (display) {
+                const result = {
+                    display: display,
+                    road: road !== display ? road : null,
+                    full: addr.LongLabel || addr.Match_addr || display,
+                };
+                cache.set(key, result);
+                return result;
             }
-        );
-
-        if (!res.ok) {
-            cache.set(key, null);
-            return null;
         }
-
-        const data = await res.json();
-        const addr = data.address || {};
-
-        // Build a clean Philippine-style address string
-        const parts = [];
-
-        // Sub-village / hamlet / suburb (Purok level)
-        if (addr.hamlet)    parts.push(addr.hamlet);
-        else if (addr.suburb) parts.push(addr.suburb);
-
-        // Barangay / village
-        if (addr.village)   parts.push(`Brgy. ${addr.village}`);
-        else if (addr.residential) parts.push(`Brgy. ${addr.residential}`);
-        else if (addr.neighbourhood) parts.push(addr.neighbourhood);
-
-        // City / municipality
-        if (addr.city)      parts.push(addr.city);
-        else if (addr.town)  parts.push(addr.town);
-        else if (addr.municipality) parts.push(addr.municipality);
-
-        // Province / state
-        if (addr.province)  parts.push(addr.province);
-        else if (addr.state) parts.push(addr.state);
-
-        // Nearest road/highway (for highway names)
-        const road = addr.road || addr.pedestrian || addr.path || null;
-
-        const displayAddress = parts.length > 0 ? parts.join(', ') : (data.display_name || null);
-        const result = {
-            display: displayAddress,
-            road: road,
-            full: data.display_name,
-            raw: addr,
-        };
-
-        cache.set(key, result);
-        return result;
     } catch (e) {
-        console.warn('[reverseGeocode] Failed:', e.message);
-        cache.set(key, null);
-        return null;
+        console.warn('[reverseGeocode] Esri failed, trying BigDataCloud:', e.message);
     }
+
+    // ── Strategy 2: BigDataCloud Reverse Geocoding Client API ─────────
+    try {
+        const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${numLat}&longitude=${numLng}&localityLanguage=en`;
+        const res = await fetch(bdcUrl);
+        if (res.ok) {
+            const data = await res.json();
+            const city = data.city || data.locality || null;
+            const province = data.principalSubdivision || null;
+
+            const adminArr = data.localityInfo?.administrative || [];
+            const barangayItem = adminArr.find(a => a.adminLevel === 7 || a.adminLevel === 8 || a.description?.toLowerCase().includes('village'));
+            const barangay = barangayItem ? barangayItem.name : null;
+
+            const parts = [];
+            if (barangay) parts.push(barangay.startsWith('Brgy') ? barangay : `Brgy. ${barangay}`);
+            if (city) parts.push(city);
+            if (province) parts.push(province);
+
+            if (parts.length > 0) {
+                const result = {
+                    display: parts.join(', '),
+                    road: null,
+                    full: parts.join(', '),
+                };
+                cache.set(key, result);
+                return result;
+            }
+        }
+    } catch (e) {
+        console.warn('[reverseGeocode] BigDataCloud failed, falling back to local database:', e.message);
+    }
+
+    // ── Strategy 3: Trento Local Geofence Fallback ───────────────────
+    const fallback = getLocalTrentoFallback(numLat, numLng);
+    cache.set(key, fallback);
+    return fallback;
 }

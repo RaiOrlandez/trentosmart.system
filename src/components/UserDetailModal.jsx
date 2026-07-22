@@ -28,7 +28,9 @@ const ReverseGeocodeLabel = ({ lat, lng }) => {
     if (lat == null || lng == null) return null;
 
     if (loading) return (
-        <span className="text-[9px] text-slate-400 italic animate-pulse">Resolving address...</span>
+        <span className="text-[9px] text-amber-400 italic animate-pulse flex items-center gap-1">
+            <RefreshCw size={10} className="animate-spin" /> Identifying Barangay & Street...
+        </span>
     );
 
     if (!address) return (
@@ -36,13 +38,16 @@ const ReverseGeocodeLabel = ({ lat, lng }) => {
     );
 
     return (
-        <span className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-bold text-slate-100">{address.display}</span>
+        <div className="flex flex-col gap-1 mt-1 bg-black/40 p-2 rounded-lg border border-amber-500/20">
+            <div className="flex items-center gap-1.5 text-xs font-black text-amber-300">
+                <MapPin size={13} className="text-amber-400 shrink-0" />
+                <span>{address.display}</span>
+            </div>
             {address.road && (
-                <span className="text-[9px] text-slate-400">🛣️ Near: {address.road}</span>
+                <span className="text-[10px] text-slate-200 font-medium pl-4">🛣️ Near: {address.road}</span>
             )}
-            <span className="text-[9px] text-slate-500 font-mono">GPS: {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</span>
-        </span>
+            <span className="text-[9px] text-slate-400 font-mono pl-4">GPS: {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</span>
+        </div>
     );
 };
 
@@ -61,12 +66,14 @@ const GeocodeInline = ({ lat, lng }) => {
 
     if (lat == null || lng == null) return null;
 
-    if (loading) return <span className="text-[9px] text-slate-400 italic animate-pulse">Locating...</span>;
+    if (loading) return <span className="text-[9px] text-slate-400 italic animate-pulse">Locating address...</span>;
 
     return (
-        <span className="text-[9px] text-slate-400 block">
-            {address?.display || `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`}
-        </span>
+        <div className="mt-0.5">
+            <span className="text-[10px] font-bold text-slate-300 block">📍 {address?.display}</span>
+            {address?.road && <span className="text-[9px] text-slate-400 block">🛣️ {address.road}</span>}
+            <span className="text-[8px] text-slate-500 font-mono block">GPS: {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</span>
+        </div>
     );
 };
 
