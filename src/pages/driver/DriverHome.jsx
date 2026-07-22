@@ -2224,15 +2224,44 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const streamRef = React.useRef(null);
+  const fallbackTimerRef = React.useRef(null);
 
   const [phase, setPhase] = useState('preview'); // 'preview' | 'captured' | 'confirming' | 'error'
   const [capturedImage, setCapturedImage] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
 
+  // ── Called by React video element events (onCanPlay, onLoadedMetadata, onPlaying)
+  // These are ALWAYS attached to the DOM because the video is never conditionally unmounted.
+  const handleVideoReady = React.useCallback(() => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+    setCameraReady(true);
+  }, []);
+
   // Start camera when modal opens
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      // Stop stream and reset state when modal closes
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+      setCameraReady(false);
+      setPhase('preview');
+      setCapturedImage(null);
+      setErrorMsg('');
+      return;
+    }
 
     setPhase('preview');
     setCapturedImage(null);
@@ -2241,50 +2270,42 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
     const startCamera = async () => {
       try {
+        // Stop any existing stream first
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
           audio: false,
         });
+
         streamRef.current = stream;
 
+        // videoRef is always available here because the <video> element
+        // is rendered unconditionally (hidden when modal is closed via CSS/opacity)
         if (videoRef.current) {
-          const video = videoRef.current;
-
-          // ✅ FIX: Attach listener BEFORE setting srcObject so we never
-          // miss the event on fast devices where it fires immediately.
-          // Also listen to 'canplay' as a cross-browser fallback
-          // (some Android browsers skip 'loadedmetadata' for stream sources).
-          let resolved = false;
-          const onReady = () => {
-            if (resolved) return;
-            resolved = true;
-            video.removeEventListener('loadedmetadata', onReady);
-            video.removeEventListener('canplay', onReady);
-            video.play().catch(() => {}); // silent catch — autoPlay may have already started it
-            setCameraReady(true);
-          };
-
-          video.addEventListener('loadedmetadata', onReady);
-          video.addEventListener('canplay', onReady);
-
-          // Safety net: if neither event fires within 4 s, force-ready anyway
-          const fallbackTimer = setTimeout(() => {
-            if (!resolved) {
-              resolved = true;
-              video.removeEventListener('loadedmetadata', onReady);
-              video.removeEventListener('canplay', onReady);
-              video.play().catch(() => {});
-              setCameraReady(true);
-            }
-          }, 4000);
-
-          video.srcObject = stream;
-
-          // Clear the fallback timer if component unmounts first
-          return () => clearTimeout(fallbackTimer);
+          videoRef.current.srcObject = stream;
+          // Manually call play() — React's autoPlay can be ignored by some browsers
+          // when srcObject is set programmatically after mount
+          videoRef.current.play().catch(() => {});
         }
+
+        // 2-second fallback: poll readyState in case events don't fire
+        fallbackTimerRef.current = setTimeout(() => {
+          const v = videoRef.current;
+          if (v && v.readyState >= 2) {
+            setCameraReady(true);
+          } else if (v && v.srcObject) {
+            // Force-ready if we have a stream but events never fired
+            setCameraReady(true);
+          }
+          fallbackTimerRef.current = null;
+        }, 2000);
+
       } catch (err) {
-        console.error('Camera access denied:', err);
+        console.error('Camera error:', err);
         if (err.name === 'NotAllowedError') {
           setErrorMsg('Camera access was denied. Please allow camera access in your browser settings and try again.');
         } else if (err.name === 'NotFoundError') {
@@ -2298,22 +2319,25 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
     startCamera();
 
-    // Cleanup: stop camera tracks when modal closes
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
     };
   }, [isOpen]);
 
   const handleCapture = () => {
-    if (!videoRef.current || !canvasRef.current || !cameraReady) return;
+    if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
 
     // Mirror the image so it looks natural (front camera)
@@ -2334,8 +2358,8 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
   const handleRetake = async () => {
     setCapturedImage(null);
-    setPhase('preview');
     setCameraReady(false);
+    setPhase('preview');
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -2345,34 +2369,19 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
       streamRef.current = stream;
 
       if (videoRef.current) {
-        const video = videoRef.current;
-
-        // ✅ Same fix applied to retake — attach before srcObject
-        let resolved = false;
-        const onReady = () => {
-          if (resolved) return;
-          resolved = true;
-          video.removeEventListener('loadedmetadata', onReady);
-          video.removeEventListener('canplay', onReady);
-          video.play().catch(() => {});
-          setCameraReady(true);
-        };
-
-        video.addEventListener('loadedmetadata', onReady);
-        video.addEventListener('canplay', onReady);
-
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true;
-            video.removeEventListener('loadedmetadata', onReady);
-            video.removeEventListener('canplay', onReady);
-            video.play().catch(() => {});
-            setCameraReady(true);
-          }
-        }, 4000);
-
-        video.srcObject = stream;
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
       }
+
+      // 2-second fallback for retake
+      fallbackTimerRef.current = setTimeout(() => {
+        const v = videoRef.current;
+        if (v && (v.readyState >= 2 || v.srcObject)) {
+          setCameraReady(true);
+        }
+        fallbackTimerRef.current = null;
+      }, 2000);
+
     } catch (err) {
       setErrorMsg('Failed to restart camera. Please close and try again.');
       setPhase('error');
@@ -2381,13 +2390,16 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
   const handleConfirm = () => {
     setPhase('confirming');
-    // Small delay for UX feedback before proceeding
-    setTimeout(() => {
-      onVerify();
-    }, 800);
+    setTimeout(() => { onVerify(); }, 800);
   };
 
-  if (!isOpen) return null;
+  // ── Do NOT return null — keep the video element always in the DOM
+  // so that the ref is always valid when startCamera() runs.
+  // Use AnimatePresence + pointer-events-none to hide when closed.
+
+
+
+
 
   return (
     <AnimatePresence>
@@ -2441,12 +2453,15 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
               <>
                 {/* Camera Viewport */}
                 <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden bg-slate-900 mb-6 shadow-inner border-4 border-slate-100">
-                  {/* Live video (shown in preview phase) */}
+                  {/* Live video — always mounted so videoRef is NEVER null when startCamera runs */}
                   <video
                     ref={videoRef}
                     playsInline
                     muted
                     autoPlay
+                    onCanPlay={handleVideoReady}
+                    onLoadedMetadata={handleVideoReady}
+                    onPlaying={handleVideoReady}
                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${phase === 'preview' ? (cameraReady ? 'opacity-100' : 'opacity-0') : 'opacity-0'
                       }`}
                     style={{ transform: 'scaleX(-1)' }} /* Mirror video for natural selfie feel */
