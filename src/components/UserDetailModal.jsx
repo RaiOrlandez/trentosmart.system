@@ -13,42 +13,61 @@ const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail,
     const detailText = isPassed ? passDetail : failDetail;
 
     return (
-        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-            {value && <span className={`text-sm font-black truncate block ${accent}`}>{value}</span>}
-            <div className="flex items-center justify-between gap-2">
-                <span className={`text-[8px] font-black uppercase flex items-center gap-1 ${accent}`}>
+        <div className={`border p-4 rounded-2xl flex flex-col gap-2 transition-all ${
+            isPassed 
+                ? 'bg-slate-900/60 border-white/10 hover:border-white/20' 
+                : 'bg-red-950/30 border-red-500/20 hover:border-red-500/30'
+        }`}>
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{label}</span>
+            {value && <span className={`text-base font-black truncate block ${accent}`}>{value}</span>}
+            <div className="flex items-center justify-between gap-2 mt-1">
+                <span className={`text-[10px] font-bold uppercase flex items-center gap-1.5 ${accent}`}>
                     {isPassed
-                        ? <><CheckCircle2 size={10} /> {passStatus}</>  
-                        : <><XCircle size={10} /> {failStatus}</>  
+                        ? <><CheckCircle2 size={12} /> {passStatus}</>  
+                        : <><XCircle size={12} /> {failStatus}</>  
                     }
                 </span>
                 {detailText && (
                     <button
                         onClick={() => setExpanded(prev => !prev)}
-                        className={`flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border transition-all ${
+                        className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border transition-all shadow-sm ${
                             expanded
-                                ? 'bg-white/10 border-white/20 text-white'
-                                : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300'
+                                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/20'
+                                : isPassed
+                                    ? 'bg-indigo-500/20 text-indigo-200 border-indigo-400/30 hover:bg-indigo-500/30'
+                                    : 'bg-red-500/20 text-red-200 border-red-400/30 hover:bg-red-500/30'
                         }`}
                     >
                         {expanded ? 'Hide' : 'Why?'}
-                        <ChevronDown size={8} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                        <ChevronDown size={10} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
                     </button>
                 )}
             </div>
             <AnimatePresence>
                 {expanded && detailText && (
-                    <motion.p
+                    <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className={`text-[9px] leading-relaxed overflow-hidden ${
-                            isPassed ? 'text-slate-400' : 'text-red-300/70'
-                        }`}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden mt-1"
                     >
-                        {detailText}
-                    </motion.p>
+                        <div className={`p-3 rounded-xl border text-xs leading-relaxed font-normal shadow-inner ${
+                            isPassed 
+                                ? 'bg-slate-950/80 border-indigo-500/30 text-slate-100' 
+                                : 'bg-red-950/90 border-red-500/40 text-red-100'
+                        }`}>
+                            <div className="flex items-start gap-2">
+                                <span className={`text-xs ${isPassed ? 'text-indigo-400' : 'text-red-400'}`}>💡</span>
+                                <div>
+                                    <strong className={`block mb-0.5 text-[10px] uppercase tracking-wider ${isPassed ? 'text-indigo-300' : 'text-red-300'}`}>
+                                        {isPassed ? 'AI Audit Verification Detail:' : 'Reason for Rejection / Issue:'}
+                                    </strong>
+                                    <span>{detailText}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
