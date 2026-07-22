@@ -2246,12 +2246,42 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
           audio: false,
         });
         streamRef.current = stream;
+
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current.play();
+          const video = videoRef.current;
+
+          // ✅ FIX: Attach listener BEFORE setting srcObject so we never
+          // miss the event on fast devices where it fires immediately.
+          // Also listen to 'canplay' as a cross-browser fallback
+          // (some Android browsers skip 'loadedmetadata' for stream sources).
+          let resolved = false;
+          const onReady = () => {
+            if (resolved) return;
+            resolved = true;
+            video.removeEventListener('loadedmetadata', onReady);
+            video.removeEventListener('canplay', onReady);
+            video.play().catch(() => {}); // silent catch — autoPlay may have already started it
             setCameraReady(true);
           };
+
+          video.addEventListener('loadedmetadata', onReady);
+          video.addEventListener('canplay', onReady);
+
+          // Safety net: if neither event fires within 4 s, force-ready anyway
+          const fallbackTimer = setTimeout(() => {
+            if (!resolved) {
+              resolved = true;
+              video.removeEventListener('loadedmetadata', onReady);
+              video.removeEventListener('canplay', onReady);
+              video.play().catch(() => {});
+              setCameraReady(true);
+            }
+          }, 4000);
+
+          video.srcObject = stream;
+
+          // Clear the fallback timer if component unmounts first
+          return () => clearTimeout(fallbackTimer);
         }
       } catch (err) {
         console.error('Camera access denied:', err);
@@ -2313,15 +2343,38 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
         audio: false,
       });
       streamRef.current = stream;
+
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play();
+        const video = videoRef.current;
+
+        // ✅ Same fix applied to retake — attach before srcObject
+        let resolved = false;
+        const onReady = () => {
+          if (resolved) return;
+          resolved = true;
+          video.removeEventListener('loadedmetadata', onReady);
+          video.removeEventListener('canplay', onReady);
+          video.play().catch(() => {});
           setCameraReady(true);
         };
+
+        video.addEventListener('loadedmetadata', onReady);
+        video.addEventListener('canplay', onReady);
+
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            video.removeEventListener('loadedmetadata', onReady);
+            video.removeEventListener('canplay', onReady);
+            video.play().catch(() => {});
+            setCameraReady(true);
+          }
+        }, 4000);
+
+        video.srcObject = stream;
       }
     } catch (err) {
-      setErrorMsg('Failed to restart camera.');
+      setErrorMsg('Failed to restart camera. Please close and try again.');
       setPhase('error');
     }
   };
