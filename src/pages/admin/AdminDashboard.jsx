@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../../api/axios';
 import Map from '../../components/Map';
 import { ensureImageUrl } from '../../utils/url';
+import { reverseGeocode } from '../../utils/reverseGeocode';
 import {
   Map as MapIcon,
   TrendingUp,
@@ -26,6 +27,7 @@ import {
   Star,
   Download,
   Calculator,
+  ExternalLink,
   X
 } from 'lucide-react';
 import {
@@ -2741,113 +2743,225 @@ const SafetyHubTab = ({ onSosCountChange }) => {
 const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletingId }) => {
   const [notes, setNotes] = useState('');
   const [statusTab, setStatusTab] = useState('');
+  const [geoAddress, setGeoAddress] = useState(null);
+  const [loadingGeo, setLoadingGeo] = useState(false);
 
   useEffect(() => {
     if (data) {
       setNotes(data.admin_notes || '');
       setStatusTab(data.status);
+
+      if (data.lat && data.lng) {
+        setLoadingGeo(true);
+        reverseGeocode(data.lat, data.lng)
+          .then(res => setGeoAddress(res?.display || null))
+          .catch(() => setGeoAddress(null))
+          .finally(() => setLoadingGeo(false));
+      } else {
+        setGeoAddress(null);
+        setLoadingGeo(false);
+      }
     }
   }, [data]);
 
   if (!data) return null;
 
+  const createdDateStr = data.created_at
+    ? new Date(data.created_at).toLocaleString('en-US', {
+        dateStyle: 'full',
+        timeStyle: 'medium'
+      })
+    : 'N/A';
+
+  const userPhone = data.user_phone || data.user?.phone_number;
+  const driverName = data.driver_username || (typeof data.ride === 'object' ? data.ride?.driver?.username : null);
+  const driverPhone = data.driver_phone || (typeof data.ride === 'object' ? data.ride?.driver?.phone_number : null);
+  const vehiclePlate = data.driver_vehicle_plate || (typeof data.ride === 'object' ? data.ride?.driver?.vehicle_plate : null);
+  const bodyNumber = data.driver_body_number || (typeof data.ride === 'object' ? data.ride?.driver?.body_number : null);
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 bg-black/80 backdrop-blur-md"
           />
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 30 }}
-            className="relative bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800"
+            className="relative bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[2.5rem] md:rounded-[3rem] overflow-hidden shadow-2xl border-4 border-white dark:border-slate-800 my-auto z-10 max-h-[90vh] flex flex-col"
           >
-            <div className="p-10">
-              <div className="flex justify-between items-start mb-10">
+            <div className="p-6 md:p-10 overflow-y-auto space-y-6">
+              {/* Header */}
+              <div className="flex justify-between items-start">
                 <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-1 rounded">Active Investigation</span>
-                    <span className="text-[10px] font-bold text-slate-400">Case #{data.type.charAt(0).toUpperCase()}{data.id}</span>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+                      Active Investigation
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">
+                      Case #{data.type?.charAt(0).toUpperCase()}{data.id}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                      <Clock size={11} /> {createdDateStr}
+                    </span>
                   </div>
-                  <h2 className="text-3xl font-black text-secondary dark:text-white italic uppercase">{data.title}</h2>
+                  <h2 className="text-2xl md:text-3xl font-black text-secondary dark:text-white italic uppercase tracking-tight">
+                    {data.title}
+                  </h2>
                 </div>
-                <button onClick={onClose} className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors">
-                  <XCircle size={24} />
+                <button onClick={onClose} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors shrink-0">
+                  <XCircle size={22} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-8 mb-10">
-                <div className="p-6 bg-slate-50 dark:bg-white/5 rounded-3xl">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 italic">Description</p>
-                  <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">{data.description || 'No detailed description provided.'}</p>
+              {/* Exact Location Card */}
+              <div className="p-5 bg-red-950/20 border border-red-500/30 rounded-3xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-xs uppercase tracking-widest">
+                    <MapPin size={16} />
+                    <span>Exact Activation Location & Coordinates</span>
+                  </div>
+                  {data.lat && data.lng && (
+                    <a
+                      href={`https://www.google.com/maps?q=${data.lat},${data.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-black uppercase tracking-wider text-primary hover:underline flex items-center gap-1 bg-primary/10 px-3 py-1 rounded-xl"
+                    >
+                      Open in Google Maps <ExternalLink size={10} />
+                    </a>
+                  )}
                 </div>
-                <div className="space-y-4">
-                  <div className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 rounded-2xl flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary-dark">
-                      <Users size={20} />
+
+                {data.lat && data.lng ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-black text-secondary dark:text-white">
+                      📍 {loadingGeo ? 'Identifying Barangay & Street...' : (geoAddress || 'Trento Municipality Area')}
+                    </p>
+                    <p className="text-xs font-mono font-bold text-slate-400">
+                      GPS Coordinates: Latitude {parseFloat(data.lat).toFixed(6)}, Longitude {parseFloat(data.lng).toFixed(6)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 font-bold italic">GPS coordinates not recorded for this case</p>
+                )}
+              </div>
+
+              {/* Involved Parties Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Passenger / Reporter Info */}
+                <div className="p-5 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-3xl space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary-dark">
+                      <Users size={16} />
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reported By</p>
-                      <p className="text-sm font-bold text-secondary dark:text-white">{data.username || data.user?.username || 'System'}</p>
-                      {(data.user_phone || data.user?.phone_number) && (
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">📞 {data.user_phone || data.user?.phone_number}</p>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Passenger / Reporter
+                    </span>
+                  </div>
+                  <p className="text-base font-black text-secondary dark:text-white">
+                    {data.username || data.user?.username || 'System User'}
+                  </p>
+                  {userPhone ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-xs font-bold text-slate-400">📞 {userPhone}</span>
+                      <a href={`tel:${userPhone}`} className="text-[9px] font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded hover:underline">
+                        Call Passenger
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 italic">No phone number on record</p>
+                  )}
+                </div>
+
+                {/* Driver & Unit Info */}
+                <div className="p-5 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-3xl space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
+                      <Car size={16} />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Assigned Driver & Unit
+                    </span>
+                  </div>
+
+                  {driverName ? (
+                    <div className="space-y-1">
+                      <p className="text-base font-black text-secondary dark:text-white">
+                        {driverName}
+                      </p>
+                      <p className="text-xs font-bold text-slate-400">
+                        🛺 Plate: <span className="text-secondary dark:text-white font-black">{vehiclePlate || 'N/A'}</span> • Body: <span className="text-primary font-black">{bodyNumber || 'N/A'}</span>
+                      </p>
+                      {driverPhone && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-xs font-bold text-slate-400">📞 {driverPhone}</span>
+                          <a href={`tel:${driverPhone}`} className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded hover:underline">
+                            Call Driver
+                          </a>
+                        </div>
                       )}
                     </div>
-                  </div>
-                  {data.ride && (
-                    <div className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-white/5 rounded-2xl flex items-center gap-3">
-                      <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center text-accent">
-                        <Car size={20} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link Ride</p>
-                        <p className="text-sm font-bold text-secondary dark:text-white">#{data.ride}</p>
-                      </div>
+                  ) : data.ride ? (
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-secondary dark:text-white">Linked Ride #{data.ride}</p>
+                      <p className="text-[10px] text-slate-400 italic">Driver details associated with Ride #{data.ride}</p>
                     </div>
+                  ) : (
+                    <p className="text-xs font-bold text-slate-400 italic pt-1">
+                      No active ride linked (Triggered directly from app dashboard)
+                    </p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-6">
+              {/* Description Box */}
+              <div className="p-5 bg-slate-50 dark:bg-white/5 rounded-3xl">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 italic">Incident Description</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">{data.description || 'No detailed description provided.'}</p>
+              </div>
+
+              {/* Action Notes & Status */}
+              <div className="space-y-4">
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block italic">Official Admin Action Notes</label>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter investigation notes, resolution steps, or disciplinary actions..."
-                    className="w-full h-32 bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[2rem] p-6 text-sm font-medium outline-none focus:border-primary transition-all"
+                    placeholder="Enter investigation notes, resolution steps, or police dispatch details..."
+                    className="w-full h-28 bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-white/10 rounded-[2rem] p-5 text-sm font-medium outline-none focus:border-primary transition-all text-secondary dark:text-white"
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
+                  <div className="flex gap-1.5 flex-wrap">
                     {(data.type === 'incident' ? ['pending', 'active', 'resolved', 'dismissed'] : ['pending', 'investigation', 'closed']).map(s => (
                       <button
                         key={s}
                         onClick={() => setStatusTab(s)}
-                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusTab === s ? 'bg-secondary text-white' : 'bg-slate-100 text-slate-400 dark:bg-white/5'}`}
+                        className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${statusTab === s ? 'bg-secondary text-white shadow-md' : 'bg-slate-100 text-slate-400 dark:bg-white/5'}`}
                       >
                         {s}
                       </button>
                     ))}
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 w-full sm:w-auto justify-end">
                     <button
                       onClick={() => onDelete(data.type, data.id)}
                       disabled={deletingId === `${data.type}-${data.id}`}
-                      className="px-6 py-4 bg-red-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-red-800 transition-all disabled:opacity-50"
+                      className="px-5 py-3 bg-red-600 text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-red-800 transition-all disabled:opacity-50"
                     >
                       {deletingId === `${data.type}-${data.id}` ? 'Removing...' : 'Remove Record'}
                     </button>
                     <button
                       onClick={() => onUpdate(data.type, data.id, { admin_notes: notes, status: statusTab })}
-                      className="px-8 py-4 bg-primary text-secondary font-black uppercase tracking-widest rounded-2xl hover:shadow-xl hover:-translate-y-1 transition-all"
+                      className="px-6 py-3 bg-primary text-secondary font-black uppercase tracking-widest text-xs rounded-2xl hover:shadow-xl hover:-translate-y-0.5 transition-all"
                     >
                       Update Case File
                     </button>

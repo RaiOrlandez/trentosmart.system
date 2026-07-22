@@ -2248,8 +2248,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
             return Incident.objects.filter(
                 models.Q(status__in=['pending', 'active']) |
                 models.Q(status__in=['resolved', 'dismissed'], updated_at__gte=last_30d)
-            ).select_related('user').order_by('-created_at')
-        return Incident.objects.filter(user=user).select_related('user').order_by('-created_at')
+            ).select_related('user', 'ride', 'ride__driver').order_by('-created_at')
+        return Incident.objects.filter(user=user).select_related('user', 'ride', 'ride__driver').order_by('-created_at')
 
     def perform_update(self, serializer):
         instance = serializer.save()

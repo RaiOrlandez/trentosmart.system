@@ -202,6 +202,14 @@ class IncidentSerializer(serializers.ModelSerializer):
     user_phone = serializers.ReadOnlyField(source='user.phone_number')
     user_role = serializers.ReadOnlyField(source='user.role')
 
+    driver_username = serializers.ReadOnlyField(source='ride.driver.username', default=None)
+    driver_phone = serializers.ReadOnlyField(source='ride.driver.phone_number', default=None)
+    driver_vehicle_plate = serializers.ReadOnlyField(source='ride.driver.vehicle_plate', default=None)
+    driver_body_number = serializers.ReadOnlyField(source='ride.driver.body_number', default=None)
+    driver_vehicle_model = serializers.ReadOnlyField(source='ride.driver.vehicle_model', default=None)
+    pickup_address = serializers.ReadOnlyField(source='ride.pickup_address', default=None)
+    dest_address = serializers.ReadOnlyField(source='ride.dest_address', default=None)
+
     class Meta:
         model = Incident
         fields = '__all__'
