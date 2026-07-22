@@ -10,6 +10,65 @@ import api from '../api/axios';
 import { ensureImageUrl } from '../utils/url';
 import MaskedData from './MaskedData';
 import { compareFaces } from '../utils/faceMatcher';
+import { reverseGeocode } from '../utils/reverseGeocode';
+
+// ─── Reverse Geocode Label: GPS → Barangay/Municipality Name ─────────
+const ReverseGeocodeLabel = ({ lat, lng }) => {
+    const [address, setAddress] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (lat == null || lng == null) { setLoading(false); return; }
+        reverseGeocode(lat, lng).then(result => {
+            setAddress(result);
+            setLoading(false);
+        });
+    }, [lat, lng]);
+
+    if (lat == null || lng == null) return null;
+
+    if (loading) return (
+        <span className="text-[9px] text-slate-400 italic animate-pulse">Resolving address...</span>
+    );
+
+    if (!address) return (
+        <span className="text-[9px] text-slate-400 font-mono">GPS: {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</span>
+    );
+
+    return (
+        <span className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-bold text-slate-100">{address.display}</span>
+            {address.road && (
+                <span className="text-[9px] text-slate-400">🛣️ Near: {address.road}</span>
+            )}
+            <span className="text-[9px] text-slate-500 font-mono">GPS: {parseFloat(lat).toFixed(5)}, {parseFloat(lng).toFixed(5)}</span>
+        </span>
+    );
+};
+
+// ─── Compact (inline) version for Trip History cards ─────────────────
+const GeocodeInline = ({ lat, lng }) => {
+    const [address, setAddress] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (lat == null || lng == null) { setLoading(false); return; }
+        reverseGeocode(lat, lng).then(result => {
+            setAddress(result);
+            setLoading(false);
+        });
+    }, [lat, lng]);
+
+    if (lat == null || lng == null) return null;
+
+    if (loading) return <span className="text-[9px] text-slate-400 italic animate-pulse">Locating...</span>;
+
+    return (
+        <span className="text-[9px] text-slate-400 block">
+            {address?.display || `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`}
+        </span>
+    );
+};
 
 // ─── Reusable AI Audit Card with Collapsible Explanation ─────────
 const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail, failDetail, accentColor }) => {
@@ -600,9 +659,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                             <div>
                                                                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Pickup Location</span>
                                                                                 <p className="font-bold text-secondary dark:text-white leading-tight">{ride.pickup_address || 'Current GPS Location'}</p>
-                                                                                {ride.pickup_lat && ride.pickup_lng && (
-                                                                                    <span className="text-[9px] text-slate-400 font-mono">GPS: {ride.pickup_lat.toFixed(5)}, {ride.pickup_lng.toFixed(5)}</span>
-                                                                                )}
+                                                                                <GeocodeInline lat={ride.pickup_lat} lng={ride.pickup_lng} />
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex items-start gap-2 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
@@ -610,9 +667,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                             <div>
                                                                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Destination</span>
                                                                                 <p className="font-bold text-secondary dark:text-white leading-tight">{ride.dest_address || 'Unspecified Destination'}</p>
-                                                                                {ride.dest_lat && ride.dest_lng && (
-                                                                                    <span className="text-[9px] text-slate-400 font-mono">GPS: {ride.dest_lat.toFixed(5)}, {ride.dest_lng.toFixed(5)}</span>
-                                                                                )}
+                                                                                <GeocodeInline lat={ride.dest_lat} lng={ride.dest_lng} />
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -702,7 +757,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                         {/* Exact GPS Location */}
                                                                         <div className="bg-black/30 p-3 rounded-xl border border-white/5 space-y-1">
                                                                             <div className="flex items-center justify-between">
-                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Exact GPS Location</span>
+                                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Exact Emergency Location</span>
                                                                                 {sos.lat && sos.lng && (
                                                                                     <a
                                                                                         href={`https://www.google.com/maps?q=${sos.lat},${sos.lng}`}
@@ -714,12 +769,10 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                                     </a>
                                                                                 )}
                                                                             </div>
-                                                                            <p className="font-bold text-red-300 font-mono text-[11px]">
-                                                                                {sos.lat && sos.lng ? `Lat: ${sos.lat.toFixed(6)}, Lng: ${sos.lng.toFixed(6)}` : 'Location Coordinates N/A'}
-                                                                            </p>
-                                                                            {sos.pickup_address && (
-                                                                                <p className="text-[10px] text-slate-300 truncate">Near: {sos.pickup_address}</p>
-                                                                            )}
+                                                                            {sos.lat && sos.lng
+                                                                                ? <ReverseGeocodeLabel lat={sos.lat} lng={sos.lng} />
+                                                                                : <p className="text-[10px] text-slate-400">Location Coordinates N/A</p>
+                                                                            }
                                                                         </div>
                                                                     </div>
 
