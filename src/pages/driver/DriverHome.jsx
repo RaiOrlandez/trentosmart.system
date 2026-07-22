@@ -2283,26 +2283,29 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
         streamRef.current = stream;
 
-        // videoRef is always available here because the <video> element
-        // is rendered unconditionally (hidden when modal is closed via CSS/opacity)
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          // Manually call play() — React's autoPlay can be ignored by some browsers
-          // when srcObject is set programmatically after mount
+          // Manually call play() — some browsers don't autoplay until .play() is called
           videoRef.current.play().catch(() => {});
         }
 
-        // 2-second fallback: poll readyState in case events don't fire
+        // Fallback tier 1: 2-second readyState check
         fallbackTimerRef.current = setTimeout(() => {
           const v = videoRef.current;
-          if (v && v.readyState >= 2) {
-            setCameraReady(true);
-          } else if (v && v.srcObject) {
-            // Force-ready if we have a stream but events never fired
+          if (v && (v.readyState >= 2 || v.srcObject)) {
             setCameraReady(true);
           }
           fallbackTimerRef.current = null;
         }, 2000);
+
+        // Fallback tier 2 (nuclear): force-ready after 3.5 seconds regardless
+        // This guarantees the camera NEVER stays stuck on loading.
+        setTimeout(() => {
+          setCameraReady(prev => {
+            if (!prev) console.warn('[LivenessCheck] Force-ready triggered — events never fired.');
+            return true;
+          });
+        }, 3500);
 
       } catch (err) {
         console.error('Camera error:', err);
@@ -2393,28 +2396,23 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
     setTimeout(() => { onVerify(); }, 800);
   };
 
-  // ── Do NOT return null — keep the video element always in the DOM
-  // so that the ref is always valid when startCamera() runs.
-  // Use AnimatePresence + pointer-events-none to hide when closed.
-
-
-
 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"
-          onClick={phase !== 'confirming' ? onClose : undefined}
-        />
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0, y: 50 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 50 }}
-          className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20"
-        >
+      {isOpen && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-secondary/95 backdrop-blur-2xl"
+            onClick={phase !== 'confirming' ? onClose : undefined}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 50 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 50 }}
+            className="w-full max-w-sm bg-white rounded-[3rem] overflow-hidden relative z-10 shadow-[0_32px_80px_rgba(0,0,0,0.5)] border border-white/20"
+          >
           {/* Header */}
           <div className="px-8 pt-8 pb-4 text-center relative">
             {phase !== 'confirming' && (
@@ -2557,8 +2555,9 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
               </>
             )}
           </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };
