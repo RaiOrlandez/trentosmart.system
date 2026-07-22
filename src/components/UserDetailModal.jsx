@@ -283,83 +283,135 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                  </div>
                                                  
                                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+
                                                      {/* 1. Solo Selfie Face Match */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">1. Solo Selfie Face Match</span>
-                                                         <div className="my-2 flex items-baseline gap-1">
+                                                         <div className="flex items-baseline gap-1">
                                                              <span className={`text-2xl font-black ${isFacePassed ? 'text-green-400' : 'text-red-400'}`}>{aiReport.face_similarity_score}%</span>
+                                                             <span className="text-[9px] text-slate-500">similarity</span>
                                                          </div>
                                                          {isFacePassed ? (
-                                                             <span className="text-[8px] font-black text-green-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Face Biometrics Valid ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-green-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Face Biometrics Verified ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">The AI biometrics system detected a human face in both the License photo and the Solo Selfie. The facial pixel patterns match with <strong className="text-green-400">{aiReport.face_similarity_score}% similarity</strong>, confirming the same person.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> {liveFaceResult?.statusText || 'Face Mismatch / No Face ❌'}</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> {liveFaceResult?.statusText || 'Face Mismatch ❌'}</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">
+                                                                     {liveFaceResult?.statusText?.includes('Screenshot') || liveFaceResult?.statusText?.includes('Document')
+                                                                         ? 'The uploaded image appears to be a screenshot or a text document — not a real face photo. The AI detected mostly black/white pixels (>60%) with no human skin tone. Please re-upload a clear solo face photo taken with the camera.'
+                                                                         : liveFaceResult?.statusText?.includes('No Face')
+                                                                         ? 'No human face was detected in this photo. The system requires skin-tone pixels concentrated in the center oval region of the image. Ensure the photo shows a clear frontal face with proper lighting.'
+                                                                         : `The facial pixel patterns between the License photo and the Solo Selfie do not match sufficiently (${aiReport.face_similarity_score}% — minimum required is 80%). The system detected different facial structures, suggesting the photos may be of different people.`
+                                                                     }
+                                                                 </p>
+                                                             </>
                                                          )}
                                                      </div>
 
                                                      {/* 2. Driver's License OCR */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">2. Driver's License OCR</span>
-                                                         <div className="my-2 min-w-0">
-                                                             <span className={`text-xs font-black truncate block ${isLicensePassed ? 'text-blue-400' : 'text-red-400'}`}>{user.license_number || 'Missing License #'}</span>
+                                                         <div className="min-w-0">
+                                                             <span className={`text-sm font-black truncate block ${isLicensePassed ? 'text-blue-400' : 'text-red-400'}`}>{user.license_number || 'No License # Entered'}</span>
                                                          </div>
                                                          {isLicensePassed ? (
-                                                             <span className="text-[8px] font-black text-blue-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> LTO Format Verified ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-blue-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> LTO Format Verified ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">The entered license number matches the standard LTO format <strong className="text-blue-400">(A99-99-999999)</strong> and a license card image has been uploaded successfully.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Invalid LTO Format/Card ❌</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Invalid LTO Format ❌</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">
+                                                                     {!user.license_number ? 'No license number was entered. The driver must provide their LTO license number in the format A99-99-999999 (e.g., D12-34-567890).' : !user.license_image_url ? 'A license number was entered but no license card image was uploaded. Please upload a clear photo of the physical LTO Driver\'s License.' : `The entered license number "${user.license_number}" does not match the standard LTO format (A99-99-999999). Verify that the license number is typed correctly without extra spaces or symbols.`}
+                                                                 </p>
+                                                             </>
                                                          )}
                                                      </div>
 
                                                      {/* 3. Vehicle OR/CR OCR */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">3. Vehicle OR/CR Plate OCR</span>
-                                                         <div className="my-2 min-w-0">
-                                                             <span className={`text-xs font-black truncate block ${isPlatePassed ? 'text-emerald-400' : 'text-red-400'}`}>{user.vehicle_plate || 'Missing Plate #'}</span>
+                                                         <div className="min-w-0">
+                                                             <span className={`text-sm font-black truncate block ${isPlatePassed ? 'text-emerald-400' : 'text-red-400'}`}>{user.vehicle_plate || 'No Plate # Entered'}</span>
                                                          </div>
                                                          {isPlatePassed ? (
-                                                             <span className="text-[8px] font-black text-emerald-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Plate Registration Valid ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-emerald-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Plate Registration Valid ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">The plate number matches a valid LTO plate format and the OR/CR document image has been uploaded. The vehicle is registered for operation.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Invalid Plate/ORCR ❌</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Invalid Plate / Missing OR/CR ❌</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">
+                                                                     {!user.vehicle_plate ? 'No vehicle plate number was entered. The driver must provide their LTO-issued plate number.' : !user.vehicle_orcr_image_url ? 'A plate number was entered but no OR/CR document image was uploaded. Please upload a clear photo of the Official Receipt and Certificate of Registration.' : `The plate number "${user.vehicle_plate}" does not match a valid LTO plate format (4–10 alphanumeric characters). Check for typos or invalid characters.`}
+                                                                 </p>
+                                                             </>
                                                          )}
                                                      </div>
 
-                                                     {/* 4. LGU Franchise Permit OCR */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     {/* 4. LGU Franchise Permit */}
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">4. LGU Franchise Permit</span>
-                                                         <div className="my-2 min-w-0">
-                                                             <span className={`text-xs font-black truncate block ${isPermitPassed ? 'text-amber-400' : 'text-red-400'}`}>{user.permit_number || 'Missing Permit #'}</span>
+                                                         <div className="min-w-0">
+                                                             <span className={`text-sm font-black truncate block ${isPermitPassed ? 'text-amber-400' : 'text-red-400'}`}>{user.permit_number || 'No Permit # Entered'}</span>
                                                          </div>
                                                          {isPermitPassed ? (
-                                                             <span className="text-[8px] font-black text-amber-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> MTOP Franchise Valid ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-amber-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> MTOP Franchise Valid ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">An LGU Franchise Permit (MTOP) number has been entered and the permit document image is uploaded. The driver is authorized to operate within Trento, Agusan del Sur.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing LGU Permit Image ❌</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing or Invalid Permit ❌</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">
+                                                                     {!user.permit_number ? 'No LGU Franchise Permit number was entered. The driver must provide their Trento LGU-issued MTOP (Motorized Tricycle Operator\'s Permit) number.' : !user.permit_image_url ? 'A permit number was entered but no permit document image was uploaded. Please upload a photo of the LGU Franchise Permit.' : 'The permit number entered is too short or invalid. Please verify the MTOP number from the physical permit document.'}
+                                                                 </p>
+                                                             </>
                                                          )}
                                                      </div>
 
                                                      {/* 5. Police / NBI Clearance */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">5. Police/NBI Clearance</span>
-                                                         <div className="my-2 min-w-0">
-                                                             <span className={`text-xs font-black truncate block ${isClearancePassed ? 'text-purple-400' : 'text-red-400'}`}>{isClearancePassed ? 'NO RECORD' : 'MISSING'}</span>
+                                                         <div className="min-w-0">
+                                                             <span className={`text-sm font-black truncate block ${isClearancePassed ? 'text-purple-400' : 'text-red-400'}`}>{isClearancePassed ? 'NO DEROGATORY RECORD' : 'MISSING'}</span>
                                                          </div>
                                                          {isClearancePassed ? (
-                                                             <span className="text-[8px] font-black text-purple-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Clearance Uploaded ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-purple-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Clearance Uploaded ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">A Police Clearance or NBI Clearance document image has been successfully uploaded, confirming the driver has no known derogatory criminal record on file.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing Clearance Image ❌</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing Clearance Document ❌</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">No Police Clearance or NBI Clearance image has been uploaded. This document is required to confirm the driver has no criminal record. The driver must upload a valid and unexpired clearance certificate.</p>
+                                                             </>
                                                          )}
                                                      </div>
 
                                                      {/* 6. Tricycle Vehicle Inspection */}
-                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col justify-between">
+                                                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex flex-col gap-2">
                                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">6. Tricycle Photo Inspection</span>
-                                                         <div className="my-2 min-w-0">
-                                                             <span className={`text-xs font-black truncate block ${isTrikePhotoPassed ? 'text-cyan-400' : 'text-red-400'}`}>{user.body_number ? `Unit #${user.body_number}` : 'Missing Photo'}</span>
+                                                         <div className="min-w-0">
+                                                             <span className={`text-sm font-black truncate block ${isTrikePhotoPassed ? 'text-cyan-400' : 'text-red-400'}`}>{user.body_number ? `Unit #${user.body_number}` : 'Missing Vehicle Photo'}</span>
                                                          </div>
                                                          {isTrikePhotoPassed ? (
-                                                             <span className="text-[8px] font-black text-cyan-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Vehicle Photo Valid ✅</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-cyan-400 uppercase flex items-center gap-1"><CheckCircle2 size={10} /> Vehicle Photo Valid ✅</span>
+                                                                 <p className="text-[9px] text-slate-400 leading-snug">A clear photo of the tricycle unit has been uploaded. The LGU body/unit number is recorded and the vehicle is visually on file for reference during road operations.</p>
+                                                             </>
                                                          ) : (
-                                                             <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing Tricycle Photo ❌</span>
+                                                             <>
+                                                                 <span className="text-[8px] font-black text-red-400 uppercase flex items-center gap-1"><XCircle size={10} /> Missing Tricycle Photo ❌</span>
+                                                                 <p className="text-[9px] text-red-300/70 leading-snug">No tricycle vehicle photo has been uploaded. A clear photo of the registered tricycle unit (showing the sidecar and body number) is required for visual identification and LGU compliance records.</p>
+                                                             </>
                                                          )}
                                                      </div>
+
                                                  </div>
                                              </div>
                                         );
