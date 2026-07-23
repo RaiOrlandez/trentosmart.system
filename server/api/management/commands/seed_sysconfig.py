@@ -28,6 +28,8 @@ DEFAULTS = {
     # === SOS / Safety ===
     "sos_alert_phone":      ("",      "Emergency contact phone number for SOS notifications"),
     "sos_alert_email":      ("",      "Emergency contact email for SOS notifications"),
+    # === Finance / Commission ===
+    "lgu_commission_rate":  ("5.00",  "LGU commission rate (%) applied to every completed ride fare. Driver receives (100 - rate)%."),
 }
 
 

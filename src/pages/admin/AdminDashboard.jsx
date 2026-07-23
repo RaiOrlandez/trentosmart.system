@@ -1933,6 +1933,14 @@ const FinanceTab = ({ stats, fetchStats }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState(null);
 
+  // ── Live Commission Rate from SystemConfig ──────────────────────
+  const [commissionRate, setCommissionRate] = useState(5.0);      // display value (percent)
+  const [commissionConfigId, setCommissionConfigId] = useState(null);
+  const [editingRate, setEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState('5.0');
+  const [savingRate, setSavingRate] = useState(false);
+  const [rateSaved, setRateSaved] = useState(false);
+
   const financeData = [
     { name: 'Mon', revenue: 4500, commission: 450 },
     { name: 'Tue', revenue: 5200, commission: 520 },
@@ -2015,48 +2023,162 @@ const FinanceTab = ({ stats, fetchStats }) => {
     return matchesStatus && matchesSearch;
   });
 
+  // ── Fetch commission rate from SystemConfig on mount ────────────
+  useEffect(() => {
+    const loadCommissionRate = async () => {
+      try {
+        const res = await api.get('/system-config/');
+        const configs = Array.isArray(res.data) ? res.data : [];
+        const cfg = configs.find(c => c.key === 'lgu_commission_rate');
+        if (cfg) {
+          setCommissionRate(parseFloat(cfg.value));
+          setRateInput(cfg.value);
+          setCommissionConfigId(cfg.id);
+        }
+      } catch (err) {
+        console.error('Failed to load commission rate', err);
+      }
+    };
+    loadCommissionRate();
+  }, []);
+
+  const saveCommissionRate = async () => {
+    const newRate = parseFloat(rateInput);
+    if (isNaN(newRate) || newRate < 0 || newRate > 100) {
+      alert('Please enter a valid commission rate between 0 and 100.');
+      return;
+    }
+    setSavingRate(true);
+    try {
+      if (commissionConfigId) {
+        await api.patch(`/system-config/${commissionConfigId}/`, { value: String(newRate.toFixed(2)) });
+      } else {
+        const res = await api.post('/system-config/', {
+          key: 'lgu_commission_rate',
+          value: String(newRate.toFixed(2)),
+          description: 'LGU Commission rate percentage applied to every completed ride fare'
+        });
+        setCommissionConfigId(res.data.id);
+      }
+      setCommissionRate(newRate);
+      setEditingRate(false);
+      setRateSaved(true);
+      setTimeout(() => setRateSaved(false), 3000);
+      if (fetchStats) fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to save commission rate.');
+    } finally {
+      setSavingRate(false);
+    }
+  };
+
   const totalRev = parseFloat(stats?.totalRevenue || 0);
-  const lguComm = totalRev * 0.05;
-  const driverPayouts = totalRev * 0.95;
+  const rateDecimal = commissionRate / 100;
+  const lguComm = totalRev * rateDecimal;
+  const driverPayouts = totalRev * (1 - rateDecimal);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      {/* ── Thesis & Audit Formula Banner ── */}
-      <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative overflow-hidden">
+      {/* ── Audit Formula Banner + Live Rate Editor ── */}
+      <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-slate-900 text-white p-6 md:p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shrink-0 border border-primary/30 shadow-lg">
-            <Calculator size={28} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">LGU Trento Ordinance</span>
-              <span className="text-[10px] font-bold text-slate-400">Automated 5% Revenue Ledger Formula</span>
+
+        {/* Top row: formula text + live calculation pill */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shrink-0 border border-primary/30 shadow-lg">
+              <Calculator size={28} />
             </div>
-            <h4 className="text-xl font-black text-white italic tracking-tight">
-              LGU Commission (5%) = Total Platform Volume × 0.05
-            </h4>
-            <p className="text-xs text-slate-400 font-medium mt-1">
-              Driver Net Take-Home Pay (95%) = Total Platform Volume × 0.95
-            </p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">LGU Trento Ordinance</span>
+                <span className="text-[10px] font-bold text-slate-400">Automated Revenue Ledger Formula</span>
+              </div>
+              <h4 className="text-xl font-black text-white italic tracking-tight">
+                LGU Commission ({commissionRate}%) = Total Platform Volume × {rateDecimal.toFixed(2)}
+              </h4>
+              <p className="text-xs text-slate-400 font-medium mt-1">
+                Driver Net Take-Home Pay ({(100 - commissionRate).toFixed(2)}%) = Total Platform Volume × {(1 - rateDecimal).toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 bg-slate-800/90 px-6 py-4 rounded-2xl border border-slate-700/60 shrink-0 text-xs w-full lg:w-auto justify-between lg:justify-start">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Volume</p>
+              <p className="font-black text-white text-base">₱{totalRev.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="text-slate-500 font-bold">➔</div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-green-400">LGU Share ({commissionRate}%)</p>
+              <p className="font-black text-green-400 text-base">₱{lguComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
+            <div className="text-slate-500 font-bold">+</div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-widest text-primary">Driver Net ({(100 - commissionRate).toFixed(2)}%)</p>
+              <p className="font-black text-primary text-base">₱{driverPayouts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 bg-slate-800/90 px-6 py-4 rounded-2xl border border-slate-700/60 shrink-0 text-xs w-full lg:w-auto justify-between lg:justify-start">
+        {/* ── Commission Rate Editor Row ── */}
+        <div className="border-t border-white/10 pt-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Volume</p>
-            <p className="font-black text-white text-base">₱{totalRev.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">LGU Commission Rate</p>
+            <p className="text-xs text-slate-500 font-medium">Adjust the platform commission % applied to every completed ride fare. Takes effect on all new completed rides.</p>
           </div>
-          <div className="text-slate-500 font-bold">➔</div>
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-green-400">LGU Share (5%)</p>
-            <p className="font-black text-green-400 text-base">₱{lguComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-          <div className="text-slate-500 font-bold">+</div>
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-primary">Driver Net (95%)</p>
-            <p className="font-black text-primary text-base">₱{driverPayouts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
+
+          {editingRate ? (
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="relative">
+                <input
+                  id="commission-rate-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={rateInput}
+                  onChange={e => setRateInput(e.target.value)}
+                  className="w-32 bg-slate-800 border border-primary/50 text-white font-black text-lg text-center rounded-2xl px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 transition-all"
+                  autoFocus
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-primary font-black text-sm">%</span>
+              </div>
+              <button
+                onClick={saveCommissionRate}
+                disabled={savingRate}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-secondary font-black text-xs uppercase tracking-widest rounded-2xl hover:brightness-110 transition-all disabled:opacity-60 shadow-lg"
+              >
+                {savingRate ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                {savingRate ? 'Saving...' : 'Save Rate'}
+              </button>
+              <button
+                onClick={() => { setEditingRate(false); setRateInput(String(commissionRate)); }}
+                className="px-4 py-2.5 bg-slate-700 text-slate-300 font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-600 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 shrink-0">
+              {rateSaved && (
+                <span className="flex items-center gap-1.5 text-green-400 text-xs font-black uppercase tracking-widest animate-pulse">
+                  <CheckCircle2 size={14} /> Rate Saved!
+                </span>
+              )}
+              <div className="flex items-center gap-2 bg-primary/15 border border-primary/30 px-5 py-2.5 rounded-2xl">
+                <span className="text-3xl font-black text-primary">{commissionRate}%</span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-tight">Current<br/>Rate</span>
+              </div>
+              <button
+                id="edit-commission-rate-btn"
+                onClick={() => { setEditingRate(true); setRateInput(String(commissionRate)); }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 border border-white/10 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-slate-700 hover:border-primary/40 transition-all"
+              >
+                <Settings size={14} /> Adjust Rate
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -2073,16 +2195,16 @@ const FinanceTab = ({ stats, fetchStats }) => {
         </motion.div>
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 dark:bg-slate-900 dark:border-white/5">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">LGU Commission (5%)</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">LGU Commission ({commissionRate}%)</p>
           <h2 className="text-5xl font-black italic tracking-tighter text-secondary dark:text-white">₱{lguComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 text-green-500 font-bold text-xs uppercase">
             <CheckCircle2 size={14} />
-            <span>Funds Secured (5% Remitted)</span>
+            <span>Funds Secured ({commissionRate}% Remitted)</span>
           </div>
         </motion.div>
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-primary text-secondary p-8 rounded-[3rem] shadow-xl">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Payouts to Drivers (95%)</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-2">Payouts to Drivers ({(100 - commissionRate).toFixed(2)}%)</p>
           <h2 className="text-5xl font-black italic tracking-tighter">₱{driverPayouts.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
           <div className="mt-6 flex items-center gap-2 font-black text-xs uppercase tracking-widest">
             <Clock size={14} />
