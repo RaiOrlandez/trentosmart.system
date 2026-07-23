@@ -1990,6 +1990,15 @@ class DriverVerificationView(APIView):
                     
                     fingerprint = hashlib.sha256(f"{user.id}-{license_num}-{vehicle_plate}-{license_size}-{selfie_size}".encode()).hexdigest()[:16]
                     
+                    # Preserve any existing admin_notes before overwriting verification_notes
+                    existing_admin_notes = ""
+                    try:
+                        if user.verification_notes and user.verification_notes.strip().startswith('{'):
+                            existing_parsed = json.loads(user.verification_notes)
+                            existing_admin_notes = existing_parsed.get("admin_notes", "")
+                    except Exception:
+                        pass  # If old notes were plain text (not JSON), discard them safely
+
                     ai_metadata = {
                         "ai_verified": True,
                         "face_similarity_score": face_score,
@@ -1997,7 +2006,8 @@ class DriverVerificationView(APIView):
                         "license_ocr_status": ocr_license,
                         "orcr_ocr_status": ocr_orcr,
                         "timestamp": timezone.now().isoformat(),
-                        "submission_fingerprint": fingerprint
+                        "submission_fingerprint": fingerprint,
+                        "admin_notes": existing_admin_notes  # Carry forward admin remarks
                     }
                     user.verification_notes = json.dumps(ai_metadata)
                     

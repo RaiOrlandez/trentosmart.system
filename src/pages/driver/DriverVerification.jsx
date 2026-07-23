@@ -72,11 +72,14 @@ const DriverVerification = () => {
                 if (data.verification_notes.trim().startsWith('{')) {
                     try {
                         const parsed = JSON.parse(data.verification_notes);
+                        // admin_notes is now a key inside the unified JSON
+                        setAdminNotes(parsed.admin_notes || '');
                         setAiDiagnostics(parsed);
                     } catch (e) {
                         setAdminNotes(data.verification_notes);
                     }
                 } else {
+                    // Legacy plain-text notes (before the unified JSON format)
                     setAdminNotes(data.verification_notes);
                 }
             }

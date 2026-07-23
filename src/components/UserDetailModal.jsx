@@ -122,7 +122,18 @@ const AuditCard = ({ label, value, isPassed, passStatus, failStatus, passDetail,
 };
 
 const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
-    const [notes, setNotes] = useState(user?.verification_notes || '');
+    // Extract admin_notes from JSON verification_notes (or use plain text as fallback)
+    const parseAdminNotes = (rawNotes) => {
+        if (!rawNotes) return '';
+        try {
+            if (rawNotes.trim().startsWith('{')) {
+                const parsed = JSON.parse(rawNotes);
+                return parsed.admin_notes || '';
+            }
+        } catch (e) { /* not JSON */ }
+        return rawNotes; // legacy plain text
+    };
+    const [notes, setNotes] = useState(parseAdminNotes(user?.verification_notes));
     const [saving, setSaving] = useState(false);
     const [showAvatarViewer, setShowAvatarViewer] = useState(false);
     const [liveFaceResult, setLiveFaceResult] = useState(null);
@@ -134,10 +145,11 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [inspectingDoc, setInspectingDoc] = useState(null);
 
-    // Reset activeTab whenever selected user changes
+    // Reset activeTab and notes whenever selected user changes
     useEffect(() => {
         if (user) {
             setActiveTab(user.role === 'driver' ? 'profile' : 'rides');
+            setNotes(parseAdminNotes(user.verification_notes));
         }
     }, [user]);
 
@@ -244,9 +256,18 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
     const handleSaveNotes = async () => {
         setSaving(true);
         try {
-            await api.patch(`/users/${user.id}/`, { verification_notes: notes });
+            // Merge admin_notes into existing JSON verification_notes to preserve AI scan data
+            let updatedNotes = notes;
+            try {
+                if (user.verification_notes && user.verification_notes.trim().startsWith('{')) {
+                    const existing = JSON.parse(user.verification_notes);
+                    existing.admin_notes = notes;
+                    updatedNotes = JSON.stringify(existing);
+                }
+            } catch (e) { /* fallback: save plain text */ }
+
+            await api.patch(`/users/${user.id}/`, { verification_notes: updatedNotes });
             onRefresh();
-            alert("Verification notes updated!");
         } catch (err) {
             alert("Failed to update notes");
         } finally {
