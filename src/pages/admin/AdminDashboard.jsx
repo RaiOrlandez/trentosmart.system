@@ -236,17 +236,35 @@ const AdminDashboard = () => {
           isFirstSosFetch.current = false;
         }
 
+        const dName = latestSos.driver_username || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.username : null);
+        const dPhone = latestSos.driver_phone || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.phone_number : null);
+        const dPlate = latestSos.driver_vehicle_plate || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.vehicle_plate : null);
+        const dBody = latestSos.driver_body_number || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.body_number : null);
+        const dModel = latestSos.driver_vehicle_model || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.vehicle_model : null);
+        const uPhone = latestSos.user_phone || (typeof latestSos.user === 'object' ? latestSos.user?.phone_number : null);
+        const victimName = latestSos.username || (typeof latestSos.user === 'object' ? latestSos.user?.username : `User #${latestSos.user}`);
+
         setActiveSOS({
           id: latestSos.id,
-          user: latestSos.username || `User #${latestSos.user}`,
+          user: victimName,
+          userPhone: uPhone,
           lat: latestSos.lat,
           lng: latestSos.lng,
-          description: latestSos.description
+          description: latestSos.description,
+          driverUsername: dName,
+          driverPhone: dPhone,
+          driverVehiclePlate: dPlate,
+          driverBodyNumber: dBody,
+          driverVehicleModel: dModel,
+          pickupAddress: latestSos.pickup_address,
+          destAddress: latestSos.dest_address,
+          rawCase: latestSos
         });
         setShowSOSBanner(true);
 
         // Pre-inject SOS marker immediately so "View on Map" is instant with no delay
         if (latestSos.lat && latestSos.lng) {
+          const driverStr = dName ? `\nAssigned Driver: ${dName}\nDriver Phone: ${dPhone || 'N/A'}\nTricycle Plate: ${dPlate || 'N/A'} (Body #${dBody || 'N/A'})` : '\nDriver: No active ride attached';
           setLiveMarkers(prev => {
             const others = prev.filter(m => m.id !== `sos_${latestSos.id}`);
             return [
@@ -255,8 +273,8 @@ const AdminDashboard = () => {
                 id: `sos_${latestSos.id}`,
                 lat: parseFloat(latestSos.lat),
                 lng: parseFloat(latestSos.lng),
-                title: `🚨 SOS: ${latestSos.username || `User #${latestSos.user}`}`,
-                info: `🚨 EMERGENCY SOS!\nUser: ${latestSos.username || `User #${latestSos.user}`}\nDetails: ${latestSos.description || 'Distress signal'}\nCoordinates: ${latestSos.lat}, ${latestSos.lng}`,
+                title: `🚨 SOS: ${victimName}`,
+                info: `🚨 EMERGENCY SOS ALERT!\nVictim: ${victimName}\nVictim Phone: ${uPhone || 'N/A'}${driverStr}\nDetails: ${latestSos.description || 'Distress signal'}\nGPS: ${latestSos.lat}, ${latestSos.lng}`,
                 isDestination: true,
                 forceFocus: Date.now()
               }
@@ -371,11 +389,32 @@ const AdminDashboard = () => {
         msg: msg,
         urgent: true
       }, ...prev].slice(0, 50));
-      setActiveSOS(emergencyAlert);
+      setActiveSOS({
+        id: emergencyAlert.id,
+        user: emergencyAlert.user,
+        userPhone: emergencyAlert.user_phone,
+        lat: emergencyAlert.lat,
+        lng: emergencyAlert.lng,
+        description: emergencyAlert.description,
+        driverUsername: emergencyAlert.driver_username,
+        driverPhone: emergencyAlert.driver_phone,
+        driverVehiclePlate: emergencyAlert.driver_vehicle_plate,
+        driverBodyNumber: emergencyAlert.driver_body_number,
+        driverVehicleModel: emergencyAlert.driver_vehicle_model,
+        pickupAddress: emergencyAlert.pickup_address,
+        destAddress: emergencyAlert.dest_address,
+        rawCase: emergencyAlert
+      });
       setShowSOSBanner(true);
 
       // Pre-inject the SOS marker immediately to avoid map loading delay
       if (emergencyAlert.lat && emergencyAlert.lng) {
+        const dName = emergencyAlert.driver_username;
+        const dPhone = emergencyAlert.driver_phone;
+        const dPlate = emergencyAlert.driver_vehicle_plate;
+        const dBody = emergencyAlert.driver_body_number;
+        const driverStr = dName ? `\nAssigned Driver: ${dName}\nDriver Phone: ${dPhone || 'N/A'}\nTricycle Plate: ${dPlate || 'N/A'} (Body #${dBody || 'N/A'})` : '\nDriver: No active ride attached';
+
         setLiveMarkers(prev => {
           const others = prev.filter(m => m.id !== `sos_${emergencyAlert.id}`);
           return [
@@ -385,7 +424,7 @@ const AdminDashboard = () => {
               lat: parseFloat(emergencyAlert.lat),
               lng: parseFloat(emergencyAlert.lng),
               title: `🚨 SOS: ${emergencyAlert.user}`,
-              info: `🚨 EMERGENCY SOS ALERT!\nUser: ${emergencyAlert.user}\nDetails: ${emergencyAlert.description || 'Distress signal'}\nCoordinates: ${emergencyAlert.lat}, ${emergencyAlert.lng}`,
+              info: `🚨 EMERGENCY SOS ALERT!\nVictim: ${emergencyAlert.user}\nVictim Phone: ${emergencyAlert.user_phone || 'N/A'}${driverStr}\nDetails: ${emergencyAlert.description || 'Distress signal'}\nGPS: ${emergencyAlert.lat}, ${emergencyAlert.lng}`,
               isDestination: true,
               forceFocus: Date.now()
             }
@@ -1548,94 +1587,133 @@ const AdminDashboard = () => {
             </button>
           </div>
 
-          {/* SOS EMERGENCY CONSOLE OVERLAY */}
+          {/* SOS EMERGENCY CONSOLE OVERLAY WITH FULL DRIVER & VICTIM CONTEXT */}
           <AnimatePresence>
             {activeSOS && (
               <motion.div
                 initial={{ x: 300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
-                className="absolute top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 md:w-[400px] z-[100]"
+                className="absolute top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 md:w-[420px] z-[100]"
               >
                 <div className="bg-red-600 text-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(220,38,38,0.4)] overflow-hidden border-4 border-white/20">
-                  <div className="p-8 pb-4">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="p-4 bg-white/20 rounded-3xl animate-pulse">
-                        <ShieldAlert size={32} />
+                  <div className="p-6 md:p-8 pb-3">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-3.5 bg-white/20 rounded-2xl animate-pulse">
+                        <ShieldAlert size={28} />
                       </div>
                       <button
                         onClick={() => setActiveSOS(null)}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
                       >
-                        <XCircle size={24} />
+                        <XCircle size={22} />
                       </button>
                     </div>
 
-                    <h2 className="text-3xl font-black uppercase italic tracking-tighter leading-none mb-2">SOS SIGNAL</h2>
-                    <p className="text-red-100 font-bold text-xs uppercase tracking-[0.2em] opacity-80">EMERGENCY DISPATCH MODE</p>
+                    <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter leading-none mb-1">SOS DISTRESS SIGNAL</h2>
+                    <p className="text-red-100 font-bold text-[10px] uppercase tracking-[0.2em] opacity-90">EMERGENCY DISPATCH & DRIVER IDENTIFICATION</p>
                   </div>
 
-                  <div className="bg-white/10 backdrop-blur-md p-8 pt-4 space-y-6">
-                    <div className="bg-black/20 p-6 rounded-3xl">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-red-100/50 mb-2">Potential Victim</p>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-red-600">
-                          <Users size={20} />
+                  <div className="bg-white/10 backdrop-blur-md p-6 md:p-8 pt-3 space-y-4 text-xs">
+                    {/* Victim / Passenger Card */}
+                    <div className="bg-black/25 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-red-200/70">Passenger / Potential Victim</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-white text-red-600 rounded-full flex items-center justify-center font-black">
+                            <Users size={16} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-black uppercase leading-tight">{activeSOS.user || 'Unknown User'}</p>
+                            {activeSOS.userPhone && (
+                              <p className="text-[10px] font-bold text-red-200">📞 {activeSOS.userPhone}</p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-lg font-black uppercase">{activeSOS.user || 'Unknown User'}</p>
-                          <p className="text-xs font-bold opacity-60 italic">{activeSOS.message}</p>
-                        </div>
+                        {activeSOS.userPhone && (
+                          <a
+                            href={`tel:${activeSOS.userPhone}`}
+                            className="bg-white text-red-600 font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all shrink-0"
+                          >
+                            Call Victim
+                          </a>
+                        )}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-black/20 p-4 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-red-100/50">Description</p>
-                        <p className="text-xs font-bold italic leading-snug">{activeSOS?.description || 'No details'}</p>
-                      </div>
-                      <div className="bg-black/20 p-4 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-red-100/50">Nearby Drivers</p>
-                        <p className="text-sm font-black italic">{liveMarkers.length} ACTIVE</p>
-                      </div>
+                    {/* Assigned Driver & Unit Card */}
+                    <div className="bg-black/25 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-amber-300/80 flex items-center gap-1">
+                        <Car size={11} /> Assigned Driver & Unit Record
+                      </p>
+                      {activeSOS.driverUsername ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-black uppercase text-amber-200 leading-tight">{activeSOS.driverUsername}</p>
+                            <p className="text-[10px] font-bold text-slate-200">
+                              🛺 Plate: <span className="font-black text-white">{activeSOS.driverVehiclePlate || 'N/A'}</span> • Body: <span className="font-black text-amber-300">#{activeSOS.driverBodyNumber || 'N/A'}</span>
+                            </p>
+                            {activeSOS.driverPhone && (
+                              <p className="text-[10px] font-bold text-amber-200/80">📞 {activeSOS.driverPhone}</p>
+                            )}
+                          </div>
+                          {activeSOS.driverPhone && (
+                            <a
+                              href={`tel:${activeSOS.driverPhone}`}
+                              className="bg-amber-400 text-slate-950 font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl hover:bg-amber-300 transition-all shrink-0 shadow"
+                            >
+                              Call Driver
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-bold text-red-200/70 italic">
+                          No active ride linked (Distress signal triggered directly from app dashboard)
+                        </p>
+                      )}
                     </div>
 
-                    {activeSOS?.lat && activeSOS?.lng && (
-                      <div className="bg-black/20 p-4 rounded-2xl">
-                        <p className="text-[9px] font-black uppercase text-red-100/50 mb-1">GPS Coordinates</p>
-                        <p className="text-xs font-black font-mono">{parseFloat(activeSOS.lat).toFixed(6)}, {parseFloat(activeSOS.lng).toFixed(6)}</p>
-                        <a
-                          href={`https://www.google.com/maps?q=${activeSOS.lat},${activeSOS.lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[10px] text-red-200 underline mt-1 inline-block hover:text-white transition-colors"
-                        >
-                          Open in Google Maps ↗
-                        </a>
+                    {/* Incident Details & GPS */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-black/20 p-3.5 rounded-2xl border border-white/5">
+                        <p className="text-[9px] font-black uppercase text-red-100/60 mb-0.5">Description</p>
+                        <p className="text-[11px] font-bold italic leading-snug truncate">{activeSOS?.description || 'No details provided'}</p>
                       </div>
-                    )}
+                      {activeSOS?.lat && activeSOS?.lng ? (
+                        <div className="bg-black/20 p-3.5 rounded-2xl border border-white/5">
+                          <p className="text-[9px] font-black uppercase text-red-100/60 mb-0.5">GPS Coordinates</p>
+                          <p className="text-[11px] font-black font-mono">{parseFloat(activeSOS.lat).toFixed(4)}, {parseFloat(activeSOS.lng).toFixed(4)}</p>
+                        </div>
+                      ) : (
+                        <div className="bg-black/20 p-3.5 rounded-2xl border border-white/5">
+                          <p className="text-[9px] font-black uppercase text-red-100/60 mb-0.5">Active Fleet</p>
+                          <p className="text-[11px] font-black">{liveMarkers.length} Active Tricycles</p>
+                        </div>
+                      )}
+                    </div>
 
-                    <div className="flex gap-4 pt-4">
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                       <a
                         href={activeSOS?.lat && activeSOS?.lng ? `https://www.google.com/maps?q=${activeSOS.lat},${activeSOS.lng}` : '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 bg-white text-red-600 font-black uppercase tracking-widest text-xs py-5 rounded-2xl shadow-xl hover:scale-[1.02] transition-all text-center"
+                        className="flex-1 bg-white text-red-600 font-black uppercase tracking-wider text-[10px] py-3.5 rounded-xl shadow-lg hover:bg-slate-100 transition-all text-center flex items-center justify-center gap-1.5"
                       >
-                        📍 Open Location
+                        📍 View Location <ExternalLink size={11} />
                       </a>
                       <button
                         onClick={handleResolveActiveSOS}
                         disabled={resolvingSOS}
-                        className="px-6 bg-red-800/50 text-white font-black uppercase tracking-widest text-xs py-5 rounded-2xl hover:bg-red-800 transition-all disabled:opacity-60"
+                        className="px-5 bg-red-950/70 text-white font-black uppercase tracking-wider text-[10px] py-3.5 rounded-xl hover:bg-red-950 transition-all disabled:opacity-60 border border-red-500/30"
                       >
-                        {resolvingSOS ? '...' : 'Resolved'}
+                        {resolvingSOS ? '...' : 'Mark Resolved'}
                       </button>
                     </div>
                   </div>
 
-                  <div className="bg-red-700 py-3 px-8 text-center">
-                    <span className="text-[9px] font-black uppercase tracking-[0.3em]">Direct Communication Line Active</span>
+                  <div className="bg-red-700 py-2.5 px-6 text-center">
+                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-red-100">Live Safety Dispatch Active • LGU Trento Command</span>
                   </div>
                 </div>
               </motion.div>
