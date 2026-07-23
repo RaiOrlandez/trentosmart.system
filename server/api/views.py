@@ -2376,21 +2376,26 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         incident = serializer.save(user=self.request.user)
-        
+
         # Auto-link active ride if not explicitly attached
         if not incident.ride:
             try:
+                # Find recent active ride where user is driver OR passenger
                 active_ride = Ride.objects.filter(
-                    passenger=self.request.user,
-                    status__in=['accepted', 'arrived', 'in_progress', 'on_route', 'ongoing']
-                ).order_by('-created_at').first()
+                    Q(driver=self.request.user) | Q(passenger=self.request.user)
+                ).exclude(status__in=['completed', 'cancelled']).order_by('-created_at').first()
+
                 if active_ride:
                     incident.ride = active_ride
                     incident.save(update_fields=['ride'])
             except Exception as ride_err:
                 logger.warning(f"Failed to auto-link active ride to SOS incident: {ride_err}")
 
+        is_driver = (getattr(self.request.user, 'role', '') == 'driver') or (incident.ride and incident.ride.driver == self.request.user)
+        user_role = 'driver' if is_driver else 'passenger'
+
         driver_user = incident.ride.driver if (incident.ride and incident.ride.driver) else None
+        passenger_user = incident.ride.passenger if (incident.ride and incident.ride.passenger) else None
 
         # 1. Broadcast to WebSocket group safely
         try:
@@ -2403,16 +2408,22 @@ class IncidentViewSet(viewsets.ModelViewSet):
                         'id': incident.id,
                         'user': incident.user.username,
                         'user_phone': incident.user.phone_number,
-                        'type_label': 'EMERGENCY SOS',
+                        'user_role': user_role,
+                        'type_label': 'DRIVER SOS' if user_role == 'driver' else 'EMERGENCY SOS',
                         'lat': float(incident.lat) if incident.lat else 8.314,
                         'lng': float(incident.lng) if incident.lng else 125.899,
                         'description': incident.description,
                         'time': 'Just now',
+                        # Driver details (always filled when a ride is linked)
                         'driver_username': driver_user.username if driver_user else None,
                         'driver_phone': driver_user.phone_number if driver_user else None,
                         'driver_vehicle_plate': driver_user.vehicle_plate if driver_user else None,
                         'driver_body_number': driver_user.body_number if driver_user else None,
                         'driver_vehicle_model': driver_user.vehicle_model if driver_user else None,
+                        # Passenger details (critical for driver SOS)
+                        'passenger_username': passenger_user.username if passenger_user else None,
+                        'passenger_phone': passenger_user.phone_number if passenger_user else None,
+                        # Ride route info
                         'pickup_address': incident.ride.pickup_address if incident.ride else None,
                         'dest_address': incident.ride.dest_address if incident.ride else None,
                     }

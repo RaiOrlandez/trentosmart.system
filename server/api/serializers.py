@@ -210,6 +210,10 @@ class IncidentSerializer(serializers.ModelSerializer):
     pickup_address = serializers.ReadOnlyField(source='ride.pickup_address', default=None)
     dest_address = serializers.ReadOnlyField(source='ride.dest_address', default=None)
 
+    # Passenger info — populated when driver triggers SOS and has an active ride
+    passenger_username = serializers.ReadOnlyField(source='ride.passenger.username', default=None)
+    passenger_phone = serializers.ReadOnlyField(source='ride.passenger.phone_number', default=None)
+
     class Meta:
         model = Incident
         fields = '__all__'

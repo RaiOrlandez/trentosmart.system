@@ -904,11 +904,15 @@ const DriverHome = () => {
     }
 
     try {
-      const res = await api.post('/incidents/', {
+      const sosPayload = {
         lat: currentLat,
         lng: currentLng,
         description: 'Driver SOS Triggered from Mobile App'
-      });
+      };
+      if (activeRide && activeRide.id) {
+        sosPayload.ride = activeRide.id;
+      }
+      const res = await api.post('/incidents/', sosPayload);
       console.log('[SOS] ✅ Emergency signal sent successfully. Incident ID:', res.data?.id, '| Status:', res.status);
       setShowSOS(true);
       setTimeout(() => setShowSOS(false), 5000);

@@ -243,11 +243,15 @@ const AdminDashboard = () => {
         const dModel = latestSos.driver_vehicle_model || (typeof latestSos.ride === 'object' ? latestSos.ride?.driver?.vehicle_model : null);
         const uPhone = latestSos.user_phone || (typeof latestSos.user === 'object' ? latestSos.user?.phone_number : null);
         const victimName = latestSos.username || (typeof latestSos.user === 'object' ? latestSos.user?.username : `User #${latestSos.user}`);
+        const uRole = latestSos.user_role || (latestSos.username ? (dName === latestSos.username ? 'driver' : 'passenger') : 'passenger');
+        const pName = latestSos.passenger_username || (typeof latestSos.ride === 'object' ? latestSos.ride?.passenger?.username : null);
+        const pPhone = latestSos.passenger_phone || (typeof latestSos.ride === 'object' ? latestSos.ride?.passenger?.phone_number : null);
 
         setActiveSOS({
           id: latestSos.id,
           user: victimName,
           userPhone: uPhone,
+          userRole: uRole,
           lat: latestSos.lat,
           lng: latestSos.lng,
           description: latestSos.description,
@@ -256,6 +260,8 @@ const AdminDashboard = () => {
           driverVehiclePlate: dPlate,
           driverBodyNumber: dBody,
           driverVehicleModel: dModel,
+          passengerUsername: pName,
+          passengerPhone: pPhone,
           pickupAddress: latestSos.pickup_address,
           destAddress: latestSos.dest_address,
           rawCase: latestSos
@@ -264,7 +270,9 @@ const AdminDashboard = () => {
 
         // Pre-inject SOS marker immediately so "View on Map" is instant with no delay
         if (latestSos.lat && latestSos.lng) {
+          const isDriverSOS = uRole === 'driver';
           const driverStr = dName ? `\nAssigned Driver: ${dName}\nDriver Phone: ${dPhone || 'N/A'}\nTricycle Plate: ${dPlate || 'N/A'} (Body #${dBody || 'N/A'})` : '\nDriver: No active ride attached';
+          const passengerStr = isDriverSOS && pName ? `\nPassenger On Board: ${pName}\nPassenger Phone: ${pPhone || 'N/A'}` : '';
           setLiveMarkers(prev => {
             const others = prev.filter(m => m.id !== `sos_${latestSos.id}`);
             return [
@@ -273,8 +281,8 @@ const AdminDashboard = () => {
                 id: `sos_${latestSos.id}`,
                 lat: parseFloat(latestSos.lat),
                 lng: parseFloat(latestSos.lng),
-                title: `🚨 SOS: ${victimName}`,
-                info: `🚨 EMERGENCY SOS ALERT!\nVictim: ${victimName}\nVictim Phone: ${uPhone || 'N/A'}${driverStr}\nDetails: ${latestSos.description || 'Distress signal'}\nGPS: ${latestSos.lat}, ${latestSos.lng}`,
+                title: `🚨 ${isDriverSOS ? 'DRIVER SOS' : 'SOS'}: ${victimName}`,
+                info: `🚨 ${isDriverSOS ? 'DRIVER DISTRESS SIGNAL!' : 'EMERGENCY SOS ALERT!'}\nVictim: ${victimName}\nVictim Phone: ${uPhone || 'N/A'}${isDriverSOS ? '' : driverStr}${passengerStr}\nDetails: ${latestSos.description || 'Distress signal'}\nGPS: ${latestSos.lat}, ${latestSos.lng}`,
                 isDestination: true,
                 forceFocus: Date.now()
               }
@@ -393,6 +401,7 @@ const AdminDashboard = () => {
         id: emergencyAlert.id,
         user: emergencyAlert.user,
         userPhone: emergencyAlert.user_phone,
+        userRole: emergencyAlert.user_role || 'passenger',
         lat: emergencyAlert.lat,
         lng: emergencyAlert.lng,
         description: emergencyAlert.description,
@@ -401,6 +410,8 @@ const AdminDashboard = () => {
         driverVehiclePlate: emergencyAlert.driver_vehicle_plate,
         driverBodyNumber: emergencyAlert.driver_body_number,
         driverVehicleModel: emergencyAlert.driver_vehicle_model,
+        passengerUsername: emergencyAlert.passenger_username,
+        passengerPhone: emergencyAlert.passenger_phone,
         pickupAddress: emergencyAlert.pickup_address,
         destAddress: emergencyAlert.dest_address,
         rawCase: emergencyAlert
@@ -409,11 +420,15 @@ const AdminDashboard = () => {
 
       // Pre-inject the SOS marker immediately to avoid map loading delay
       if (emergencyAlert.lat && emergencyAlert.lng) {
+        const isDriverSOS = (emergencyAlert.user_role || 'passenger') === 'driver';
         const dName = emergencyAlert.driver_username;
         const dPhone = emergencyAlert.driver_phone;
         const dPlate = emergencyAlert.driver_vehicle_plate;
         const dBody = emergencyAlert.driver_body_number;
+        const pName = emergencyAlert.passenger_username;
+        const pPhone = emergencyAlert.passenger_phone;
         const driverStr = dName ? `\nAssigned Driver: ${dName}\nDriver Phone: ${dPhone || 'N/A'}\nTricycle Plate: ${dPlate || 'N/A'} (Body #${dBody || 'N/A'})` : '\nDriver: No active ride attached';
+        const passengerStr = isDriverSOS && pName ? `\nPassenger On Board: ${pName}\nPassenger Phone: ${pPhone || 'N/A'}` : '';
 
         setLiveMarkers(prev => {
           const others = prev.filter(m => m.id !== `sos_${emergencyAlert.id}`);
@@ -423,8 +438,8 @@ const AdminDashboard = () => {
               id: `sos_${emergencyAlert.id}`,
               lat: parseFloat(emergencyAlert.lat),
               lng: parseFloat(emergencyAlert.lng),
-              title: `🚨 SOS: ${emergencyAlert.user}`,
-              info: `🚨 EMERGENCY SOS ALERT!\nVictim: ${emergencyAlert.user}\nVictim Phone: ${emergencyAlert.user_phone || 'N/A'}${driverStr}\nDetails: ${emergencyAlert.description || 'Distress signal'}\nGPS: ${emergencyAlert.lat}, ${emergencyAlert.lng}`,
+              title: `🚨 ${isDriverSOS ? 'DRIVER SOS' : 'SOS'}: ${emergencyAlert.user}`,
+              info: `🚨 ${isDriverSOS ? 'DRIVER DISTRESS SIGNAL!' : 'EMERGENCY SOS ALERT!'}\nVictim: ${emergencyAlert.user}\nVictim Phone: ${emergencyAlert.user_phone || 'N/A'}${isDriverSOS ? '' : driverStr}${passengerStr}\nDetails: ${emergencyAlert.description || 'Distress signal'}\nGPS: ${emergencyAlert.lat}, ${emergencyAlert.lng}`,
               isDestination: true,
               forceFocus: Date.now()
             }
@@ -1610,18 +1625,24 @@ const AdminDashboard = () => {
                       </button>
                     </div>
 
-                    <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter leading-none mb-1">SOS DISTRESS SIGNAL</h2>
-                    <p className="text-red-100 font-bold text-[10px] uppercase tracking-[0.2em] opacity-90">EMERGENCY DISPATCH & DRIVER IDENTIFICATION</p>
+                    <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter leading-none mb-1">
+                      {activeSOS?.userRole === 'driver' ? 'DRIVER SOS SIGNAL' : 'SOS DISTRESS SIGNAL'}
+                    </h2>
+                    <p className="text-red-100 font-bold text-[10px] uppercase tracking-[0.2em] opacity-90">
+                      {activeSOS?.userRole === 'driver' ? 'DRIVER EMERGENCY · PASSENGER LINKED' : 'EMERGENCY DISPATCH & DRIVER IDENTIFICATION'}
+                    </p>
                   </div>
 
                   <div className="bg-white/10 backdrop-blur-md p-6 md:p-8 pt-3 space-y-4 text-xs">
-                    {/* Victim / Passenger Card */}
+                    {/* Victim Card — label changes depending on who triggered SOS */}
                     <div className="bg-black/25 p-4 rounded-2xl border border-white/10 space-y-1.5">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-red-200/70">Passenger / Potential Victim</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-red-200/70">
+                        {activeSOS?.userRole === 'driver' ? '🚨 Distressed Driver' : '🚨 Passenger / Potential Victim'}
+                      </p>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 bg-white text-red-600 rounded-full flex items-center justify-center font-black">
-                            <Users size={16} />
+                            {activeSOS?.userRole === 'driver' ? <Car size={16} /> : <Users size={16} />}
                           </div>
                           <div>
                             <p className="text-sm font-black uppercase leading-tight">{activeSOS.user || 'Unknown User'}</p>
@@ -1635,13 +1656,14 @@ const AdminDashboard = () => {
                             href={`tel:${activeSOS.userPhone}`}
                             className="bg-white text-red-600 font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl hover:bg-red-50 transition-all shrink-0"
                           >
-                            Call Victim
+                            {activeSOS?.userRole === 'driver' ? 'Call Driver' : 'Call Victim'}
                           </a>
                         )}
                       </div>
                     </div>
 
-                    {/* Assigned Driver & Unit Card */}
+                    {/* Assigned Driver & Unit Card — shown for passenger SOS */}
+                    {activeSOS?.userRole !== 'driver' && (
                     <div className="bg-black/25 p-4 rounded-2xl border border-white/10 space-y-1.5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-amber-300/80 flex items-center gap-1">
                         <Car size={11} /> Assigned Driver & Unit Record
@@ -1672,6 +1694,39 @@ const AdminDashboard = () => {
                         </p>
                       )}
                     </div>
+                    )}
+
+                    {/* Passenger On Board Card — shown ONLY for Driver SOS */}
+                    {activeSOS?.userRole === 'driver' && (
+                    <div className="bg-black/25 p-4 rounded-2xl border border-emerald-400/20 space-y-1.5">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-emerald-300/80 flex items-center gap-1">
+                        <Users size={11} /> Passenger On Board
+                      </p>
+                      {activeSOS.passengerUsername ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-black uppercase text-emerald-200 leading-tight">{activeSOS.passengerUsername}</p>
+                            {activeSOS.passengerPhone && (
+                              <p className="text-[10px] font-bold text-emerald-200/80">📞 {activeSOS.passengerPhone}</p>
+                            )}
+                            <p className="text-[9px] text-slate-300/60 mt-0.5 italic">Currently riding with the distressed driver</p>
+                          </div>
+                          {activeSOS.passengerPhone && (
+                            <a
+                              href={`tel:${activeSOS.passengerPhone}`}
+                              className="bg-emerald-400 text-slate-950 font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-xl hover:bg-emerald-300 transition-all shrink-0 shadow"
+                            >
+                              Call Passenger
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-bold text-slate-300/70 italic">
+                          No active passenger linked to this driver's ride
+                        </p>
+                      )}
+                    </div>
+                    )}
 
                     {/* Incident Details & GPS */}
                     <div className="grid grid-cols-2 gap-3">
@@ -2979,6 +3034,12 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletin
   const vehiclePlate = data.driver_vehicle_plate || (typeof data.ride === 'object' ? data.ride?.driver?.vehicle_plate : null);
   const bodyNumber = data.driver_body_number || (typeof data.ride === 'object' ? data.ride?.driver?.body_number : null);
 
+  const passengerName = data.passenger_username || (typeof data.ride === 'object' ? data.ride?.passenger?.username : null);
+  const passengerPhone = data.passenger_phone || (typeof data.ride === 'object' ? data.ride?.passenger?.phone_number : null);
+
+  const reporterName = data.username || data.user?.username || 'System User';
+  const isDriverReport = data.user_role === 'driver' || data.user?.role === 'driver' || (driverName && (reporterName === driverName || data.username === driverName));
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -3002,7 +3063,7 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletin
                 <div>
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
-                      Active Investigation
+                      {isDriverReport ? 'Driver Distress Case' : 'Active Investigation'}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400">
                       Case #{data.type?.charAt(0).toUpperCase()}{data.id}
@@ -3055,24 +3116,24 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletin
 
               {/* Involved Parties Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Passenger / Reporter Info */}
+                {/* Card 1: Primary Reporter / Victim */}
                 <div className="p-5 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-3xl space-y-2">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary-dark">
-                      <Users size={16} />
+                      {isDriverReport ? <Car size={16} /> : <Users size={16} />}
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      Passenger / Reporter
+                      {isDriverReport ? '🚨 Distressed Driver' : 'Passenger / Reporter'}
                     </span>
                   </div>
                   <p className="text-base font-black text-secondary dark:text-white">
-                    {data.username || data.user?.username || 'System User'}
+                    {reporterName}
                   </p>
                   {userPhone ? (
                     <div className="flex items-center gap-2 pt-1">
                       <span className="text-xs font-bold text-slate-400">📞 {userPhone}</span>
                       <a href={`tel:${userPhone}`} className="text-[9px] font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded hover:underline">
-                        Call Passenger
+                        {isDriverReport ? 'Call Driver' : 'Call Passenger'}
                       </a>
                     </div>
                   ) : (
@@ -3080,18 +3141,38 @@ const InvestigationModal = ({ isOpen, onClose, data, onUpdate, onDelete, deletin
                   )}
                 </div>
 
-                {/* Driver & Unit Info */}
+                {/* Card 2: Driver & Unit (for Passenger SOS) OR Passenger On Board (for Driver SOS) */}
                 <div className="p-5 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-3xl space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
-                      <Car size={16} />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDriverReport ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                      {isDriverReport ? <Users size={16} /> : <Car size={16} />}
                     </div>
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      Assigned Driver & Unit
+                      {isDriverReport ? 'Passenger On Board' : 'Assigned Driver & Unit'}
                     </span>
                   </div>
 
-                  {driverName ? (
+                  {isDriverReport ? (
+                    passengerName ? (
+                      <div className="space-y-1">
+                        <p className="text-base font-black text-secondary dark:text-white">
+                          {passengerName}
+                        </p>
+                        {passengerPhone && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-xs font-bold text-slate-400">📞 {passengerPhone}</span>
+                            <a href={`tel:${passengerPhone}`} className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded hover:underline">
+                              Call Passenger
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-bold text-slate-400 italic pt-1">
+                        No active passenger linked to this ride
+                      </p>
+                    )
+                  ) : driverName ? (
                     <div className="space-y-1">
                       <p className="text-base font-black text-secondary dark:text-white">
                         {driverName}
