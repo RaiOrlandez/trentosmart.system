@@ -1609,13 +1609,14 @@ const AdminDashboard = () => {
                 initial={{ x: 300, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: 300, opacity: 0 }}
-                className="absolute top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 md:w-[420px] z-[100]"
+                className="fixed top-4 right-4 left-4 md:left-auto md:top-6 md:right-6 md:w-[430px] z-[150] max-h-[calc(100vh-2rem)] flex flex-col"
               >
-                <div className="bg-red-600 text-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(220,38,38,0.4)] overflow-hidden border-4 border-white/20">
-                  <div className="p-6 md:p-8 pb-3">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="p-3.5 bg-white/20 rounded-2xl animate-pulse">
-                        <ShieldAlert size={28} />
+                <div className="bg-red-600 text-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(220,38,38,0.5)] overflow-hidden border-4 border-white/20 flex flex-col max-h-[85vh] md:max-h-[88vh]">
+                  {/* Fixed Header */}
+                  <div className="p-5 md:p-6 pb-3 shrink-0 bg-red-600">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="p-3 bg-white/20 rounded-2xl animate-pulse">
+                        <ShieldAlert size={26} />
                       </div>
                       <button
                         onClick={() => setActiveSOS(null)}
@@ -1628,12 +1629,13 @@ const AdminDashboard = () => {
                     <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter leading-none mb-1">
                       {activeSOS?.userRole === 'driver' ? 'DRIVER SOS SIGNAL' : 'SOS DISTRESS SIGNAL'}
                     </h2>
-                    <p className="text-red-100 font-bold text-[10px] uppercase tracking-[0.2em] opacity-90">
+                    <p className="text-red-100 font-bold text-[9px] uppercase tracking-[0.2em] opacity-90">
                       {activeSOS?.userRole === 'driver' ? 'DRIVER EMERGENCY · PASSENGER LINKED' : 'EMERGENCY DISPATCH & DRIVER IDENTIFICATION'}
                     </p>
                   </div>
 
-                  <div className="bg-white/10 backdrop-blur-md p-6 md:p-8 pt-3 space-y-4 text-xs">
+                  {/* Scrollable Context Body */}
+                  <div className="bg-white/10 backdrop-blur-md p-5 md:p-6 pt-2 space-y-3.5 text-xs overflow-y-auto max-h-[50vh] md:max-h-[55vh] custom-scrollbar flex-1">
                     {/* Victim Card — label changes depending on who triggered SOS */}
                     <div className="bg-black/25 p-4 rounded-2xl border border-white/10 space-y-1.5">
                       <p className="text-[9px] font-black uppercase tracking-widest text-red-200/70">
@@ -1746,29 +1748,30 @@ const AdminDashboard = () => {
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                  {/* Fixed Bottom Action Buttons — ALWAYS VISIBLE */}
+                  <div className="bg-red-700/95 p-4 shrink-0 border-t border-white/10 space-y-2 shadow-2xl">
+                    <div className="flex flex-col sm:flex-row gap-2.5">
                       <a
                         href={activeSOS?.lat && activeSOS?.lng ? `https://www.google.com/maps?q=${activeSOS.lat},${activeSOS.lng}` : '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 bg-white text-red-600 font-black uppercase tracking-wider text-[10px] py-3.5 rounded-xl shadow-lg hover:bg-slate-100 transition-all text-center flex items-center justify-center gap-1.5"
+                        className="flex-1 bg-white text-red-600 font-black uppercase tracking-wider text-[10px] py-3 rounded-xl shadow-lg hover:bg-slate-100 transition-all text-center flex items-center justify-center gap-1.5"
                       >
                         📍 View Location <ExternalLink size={11} />
                       </a>
                       <button
                         onClick={handleResolveActiveSOS}
                         disabled={resolvingSOS}
-                        className="px-5 bg-red-950/70 text-white font-black uppercase tracking-wider text-[10px] py-3.5 rounded-xl hover:bg-red-950 transition-all disabled:opacity-60 border border-red-500/30"
+                        className="px-5 bg-red-950 text-white font-black uppercase tracking-wider text-[10px] py-3 rounded-xl hover:bg-red-900 transition-all disabled:opacity-60 border border-red-500/30 shadow"
                       >
                         {resolvingSOS ? '...' : 'Mark Resolved'}
                       </button>
                     </div>
-                  </div>
-
-                  <div className="bg-red-700 py-2.5 px-6 text-center">
-                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-red-100">Live Safety Dispatch Active • LGU Trento Command</span>
+                    <div className="text-center">
+                      <span className="text-[8px] font-black uppercase tracking-[0.25em] text-red-100/80">Live Safety Dispatch Active • LGU Trento Command</span>
+                    </div>
                   </div>
                 </div>
               </motion.div>
