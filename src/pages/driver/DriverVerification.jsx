@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info, RefreshCw } from 'lucide-react';
+import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {
@@ -33,7 +33,6 @@ const DriverVerification = () => {
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
     const [verificationStatus, setVerificationStatus] = useState(null);
-    const [rawVerificationStatus, setRawVerificationStatus] = useState('');
     const [msg, setMsg] = useState('');
     const [isEditing, setIsEditing] = useState(true);
 
