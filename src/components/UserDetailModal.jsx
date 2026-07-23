@@ -555,7 +555,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                       {/* 5. Police / NBI Clearance */}
                                                                       <AuditCard
                                                                           label="5. Police/NBI Clearance"
-                                                                          value={isClearancePassed ? 'NO DEROGATORY RECORD' : 'MISSING'}
+                                                                          value={isClearancePassed ? 'NO RECORD' : 'MISSING'}
                                                                           isPassed={isClearancePassed}
                                                                           passStatus="Clearance Uploaded ✅"
                                                                           failStatus="Missing Clearance Document ❌"
