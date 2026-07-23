@@ -2224,38 +2224,61 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const streamRef = React.useRef(null);
-  const fallbackTimerRef = React.useRef(null);
+  const attachIntervalRef = React.useRef(null);
+  const fileInputRef = React.useRef(null);
 
   const [phase, setPhase] = useState('preview'); // 'preview' | 'captured' | 'confirming' | 'error'
   const [capturedImage, setCapturedImage] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
 
-  // ── Called by React video element events (onCanPlay, onLoadedMetadata, onPlaying)
-  // These are ALWAYS attached to the DOM because the video is never conditionally unmounted.
+  // ── Called by React video element events
   const handleVideoReady = React.useCallback(() => {
-    if (fallbackTimerRef.current) {
-      clearTimeout(fallbackTimerRef.current);
-      fallbackTimerRef.current = null;
-    }
     if (videoRef.current) {
       videoRef.current.play().catch(() => {});
     }
     setCameraReady(true);
   }, []);
 
+  // ── Multi-tier camera stream request for mobile browser compatibility ──
+  const requestCameraStream = async () => {
+    if (!navigator.mediaDevices && !navigator.getUserMedia && !navigator.webkitGetUserMedia) {
+      throw new Error('Camera API not supported or requires a secure HTTPS connection.');
+    }
+
+    const constraintsList = [
+      { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false },
+      { video: { facingMode: 'user' }, audio: false },
+      { video: { facingMode: 'environment' }, audio: false },
+      { video: true, audio: false }
+    ];
+
+    let lastErr = null;
+    for (const constraints of constraintsList) {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          return await navigator.mediaDevices.getUserMedia(constraints);
+        }
+        const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        if (legacyGUM) {
+          return await new Promise((resolve, reject) => legacyGUM.call(navigator, constraints, resolve, reject));
+        }
+      } catch (err) {
+        lastErr = err;
+        console.warn('[LivenessCheck] Constraint failed, trying next fallback:', constraints, err);
+      }
+    }
+    throw lastErr || new Error('Unable to start mobile camera.');
+  };
+
   // Start camera when modal opens
   useEffect(() => {
     if (!isOpen) {
-      // Stop stream and reset state when modal closes
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
-      if (fallbackTimerRef.current) {
-        clearTimeout(fallbackTimerRef.current);
-        fallbackTimerRef.current = null;
-      }
+      if (attachIntervalRef.current) clearInterval(attachIntervalRef.current);
       setCameraReady(false);
       setPhase('preview');
       setCapturedImage(null);
@@ -2268,54 +2291,58 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
     setErrorMsg('');
     setCameraReady(false);
 
+    let isCancelled = false;
+
     const startCamera = async () => {
       try {
-        // Stop any existing stream first
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false,
-        });
-
+        const stream = await requestCameraStream();
+        if (isCancelled) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
         streamRef.current = stream;
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          // Manually call play() — some browsers don't autoplay until .play() is called
-          videoRef.current.play().catch(() => {});
-        }
-
-        // Fallback tier 1: 2-second readyState check
-        fallbackTimerRef.current = setTimeout(() => {
+        // Poll attachment until React/Framer-Motion mounts the video DOM element
+        let attempts = 0;
+        attachIntervalRef.current = setInterval(() => {
+          attempts++;
           const v = videoRef.current;
-          if (v && (v.readyState >= 2 || v.srcObject)) {
-            setCameraReady(true);
+          if (v && streamRef.current) {
+            if (v.srcObject !== streamRef.current) {
+              v.srcObject = streamRef.current;
+              v.setAttribute('playsinline', 'true');
+              v.setAttribute('webkit-playsinline', 'true');
+              v.muted = true;
+              v.play().catch(e => console.warn('Play error:', e));
+            }
+            if (v.readyState >= 2 || v.currentTime > 0 || v.videoWidth > 0) {
+              setCameraReady(true);
+              if (attachIntervalRef.current) clearInterval(attachIntervalRef.current);
+            }
           }
-          fallbackTimerRef.current = null;
-        }, 2000);
-
-        // Fallback tier 2 (nuclear): force-ready after 3.5 seconds regardless
-        // This guarantees the camera NEVER stays stuck on loading.
-        setTimeout(() => {
-          setCameraReady(prev => {
-            if (!prev) console.warn('[LivenessCheck] Force-ready triggered — events never fired.');
-            return true;
-          });
-        }, 3500);
+          // Force ready after 2.5 seconds max so spinner never hangs on mobile
+          if (attempts > 15) {
+            setCameraReady(true);
+            if (attachIntervalRef.current) clearInterval(attachIntervalRef.current);
+          }
+        }, 150);
 
       } catch (err) {
         console.error('Camera error:', err);
-        if (err.name === 'NotAllowedError') {
-          setErrorMsg('Camera access was denied. Please allow camera access in your browser settings and try again.');
-        } else if (err.name === 'NotFoundError') {
-          setErrorMsg('No camera found on this device.');
-        } else {
-          setErrorMsg(`Camera error: ${err.message}`);
+        let msg = 'Failed to open camera on this mobile device.';
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          msg = 'Camera access was denied. Please allow camera permissions in your browser settings and try again.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          msg = 'No camera found on this device.';
+        } else if (err.message && err.message.includes('HTTPS')) {
+          msg = err.message;
         }
+        setErrorMsg(msg);
         setPhase('error');
       }
     };
@@ -2323,13 +2350,11 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
     startCamera();
 
     return () => {
+      isCancelled = true;
+      if (attachIntervalRef.current) clearInterval(attachIntervalRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
-      }
-      if (fallbackTimerRef.current) {
-        clearTimeout(fallbackTimerRef.current);
-        fallbackTimerRef.current = null;
       }
     };
   }, [isOpen]);
@@ -2359,34 +2384,40 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
     }
   };
 
+  const handleFileCapture = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCapturedImage(event.target.result);
+      setPhase('captured');
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleRetake = async () => {
     setCapturedImage(null);
     setCameraReady(false);
     setPhase('preview');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
-      });
+      const stream = await requestCameraStream();
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.setAttribute('webkit-playsinline', 'true');
+        videoRef.current.muted = true;
         videoRef.current.play().catch(() => {});
       }
-
-      // 2-second fallback for retake
-      fallbackTimerRef.current = setTimeout(() => {
-        const v = videoRef.current;
-        if (v && (v.readyState >= 2 || v.srcObject)) {
-          setCameraReady(true);
-        }
-        fallbackTimerRef.current = null;
-      }, 2000);
-
+      setCameraReady(true);
     } catch (err) {
-      setErrorMsg('Failed to restart camera. Please close and try again.');
+      setErrorMsg('Failed to restart camera. Use the native photo option below.');
       setPhase('error');
     }
   };
@@ -2395,8 +2426,6 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
     setPhase('confirming');
     setTimeout(() => { onVerify(); }, 800);
   };
-
-
 
   return (
     <AnimatePresence>
@@ -2434,15 +2463,33 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
           {/* Camera / Preview Area */}
           <div className="px-8 pb-6">
+            {/* Hidden native mobile file input fallback */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              capture="user"
+              className="hidden"
+              onChange={handleFileCapture}
+            />
+
             {phase === 'error' ? (
-              <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <div className="w-20 h-20 bg-red-50 text-red-400 rounded-full flex items-center justify-center">
                   <Camera size={36} />
                 </div>
-                <p className="text-sm text-red-500 font-medium">{errorMsg}</p>
+                <p className="text-xs text-red-500 font-medium leading-relaxed px-2">{errorMsg}</p>
+                
+                {/* Fallback Native Camera App Button */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full py-3.5 bg-primary text-secondary font-black uppercase tracking-wider text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Camera size={16} /> Snap Photo via Camera App
+                </button>
                 <button
                   onClick={onClose}
-                  className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-sm"
+                  className="w-full py-3 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs"
                 >
                   Close
                 </button>
@@ -2451,25 +2498,28 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
               <>
                 {/* Camera Viewport */}
                 <div className="relative w-full aspect-square rounded-[2rem] overflow-hidden bg-slate-900 mb-6 shadow-inner border-4 border-slate-100">
-                  {/* Live video — always mounted so videoRef is NEVER null when startCamera runs */}
+                  {/* Live video */}
                   <video
                     ref={videoRef}
                     playsInline
+                    webkit-playsinline="true"
                     muted
                     autoPlay
                     onCanPlay={handleVideoReady}
                     onLoadedMetadata={handleVideoReady}
+                    onLoadedData={handleVideoReady}
                     onPlaying={handleVideoReady}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${phase === 'preview' ? (cameraReady ? 'opacity-100' : 'opacity-0') : 'opacity-0'
-                      }`}
-                    style={{ transform: 'scaleX(-1)' }} /* Mirror video for natural selfie feel */
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                      phase === 'preview' ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    style={{ transform: 'scaleX(-1)' }}
                   />
 
                   {/* Loading spinner while camera boots */}
                   {phase === 'preview' && !cameraReady && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900 z-10">
                       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-slate-400 font-bold">Starting camera...</p>
+                      <p className="text-xs text-slate-300 font-bold">Starting camera...</p>
                     </div>
                   )}
 
@@ -2478,35 +2528,20 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
                     <img
                       src={capturedImage}
                       alt="Selfie"
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="w-full h-full object-cover"
                     />
-                  )}
-
-                  {/* Confirming overlay */}
-                  {phase === 'confirming' && (
-                    <div className="absolute inset-0 bg-secondary/80 flex flex-col items-center justify-center gap-3">
-                      {capturedImage && (
-                        <img src={capturedImage} alt="Selfie" className="absolute inset-0 w-full h-full object-cover opacity-30" />
-                      )}
-                      <div className="relative z-10 flex flex-col items-center gap-3">
-                        <div className="w-14 h-14 bg-primary rounded-full flex items-center justify-center shadow-xl animate-pulse">
-                          <ShieldCheck size={28} className="text-secondary" />
-                        </div>
-                        <p className="text-white font-black text-sm uppercase tracking-widest">Verifying...</p>
-                      </div>
-                    </div>
                   )}
 
                   {/* Face guide overlay ring */}
                   {(phase === 'preview' && cameraReady) && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-48 h-48 border-4 border-primary/60 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                      <div className="w-48 h-48 border-4 border-primary/80 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.3)] animate-pulse" />
                     </div>
                   )}
 
                   {/* Captured check badge */}
                   {phase === 'captured' && (
-                    <div className="absolute top-3 right-3 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                    <div className="absolute top-3 right-3 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-20">
                       <Check size={20} className="text-white" strokeWidth={3} />
                     </div>
                   )}
@@ -2517,21 +2552,34 @@ const SelfieVerificationModal = ({ isOpen, onClose, onVerify }) => {
 
                 {/* Action Buttons */}
                 {phase === 'preview' && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={onClose}
-                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleCapture}
-                      disabled={!cameraReady}
-                      className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      <Camera size={16} />
-                      Take Selfie
-                    </button>
+                  <div className="space-y-3">
+                    <div className="flex gap-3">
+                      <button
+                        onClick={onClose}
+                        className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCapture}
+                        disabled={!cameraReady}
+                        className="flex-[2] py-4 bg-primary text-secondary rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <Camera size={16} />
+                        Take Selfie
+                      </button>
+                    </div>
+
+                    {/* Quick Fallback to Phone Camera App */}
+                    {!cameraReady && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2"
+                      >
+                        <Camera size={14} className="text-primary-dark" /> Use Native Phone Camera App
+                      </button>
+                    )}
                   </div>
                 )}
 
