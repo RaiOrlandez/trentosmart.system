@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check } from 'lucide-react';
+import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DriverVerification = () => {
@@ -33,8 +33,13 @@ const DriverVerification = () => {
 
     const [status, setStatus] = useState('loading'); // loading, idle, uploading, success, error
     const [verificationStatus, setVerificationStatus] = useState(null);
+    const [rawVerificationStatus, setRawVerificationStatus] = useState('');
     const [msg, setMsg] = useState('');
     const [isEditing, setIsEditing] = useState(true);
+
+    // Diagnostic & Admin Feedback State
+    const [adminNotes, setAdminNotes] = useState('');
+    const [aiDiagnostics, setAiDiagnostics] = useState(null);
 
     // UI State for Hub
     const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances', 'vehicle', 'liveness'
@@ -61,6 +66,20 @@ const DriverVerification = () => {
             setExistingSelfieWithLicenseImg(data.selfie_with_license_url || data.selfie_with_license);
             setExistingVehicleOrcrImg(data.vehicle_orcr_image_url || data.vehicle_orcr_image);
             setExistingTricyclePhotoImg(data.tricycle_photo_url || data.tricycle_photo);
+
+            setRawVerificationStatus(data.verification_status || '');
+            if (data.verification_notes) {
+                if (data.verification_notes.trim().startsWith('{')) {
+                    try {
+                        const parsed = JSON.parse(data.verification_notes);
+                        setAiDiagnostics(parsed);
+                    } catch (e) {
+                        setAdminNotes(data.verification_notes);
+                    }
+                } else {
+                    setAdminNotes(data.verification_notes);
+                }
+            }
 
             const isApproved = data.is_verified_driver && data.verification_status === 'approved';
             setVerificationStatus(isApproved);
@@ -192,17 +211,54 @@ const DriverVerification = () => {
         }
     };
 
-    // Calculate progress (6 required items instead of 7)
+    // Calculate progress (6 required items instead of 7) & document diagnostic health
+    const isLicenseExpired = licenseExpiryDate && new Date(licenseExpiryDate) < new Date();
+    const licenseRegex = /^[A-Z]\d{2}-?\d{2}-?\d{4,6}$/i;
+    const isLicenseFormatValid = licenseNum && licenseRegex.test(licenseNum.trim());
+    const plateRegex = /^[A-Z0-9\s-]{3,10}$/i;
+    const isPlateValid = vehiclePlate && plateRegex.test(vehiclePlate.trim());
+
     const items = [
-        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && licenseExpiryDate },
-        { ready: permitNum.length > 3 && (permitImg || existingPermitImg) },
+        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && licenseExpiryDate && !isLicenseExpired && isLicenseFormatValid },
+        { ready: permitNum.length >= 3 && (permitImg || existingPermitImg) },
         { ready: (nbiClearanceImg || existingNbiClearanceImg) },
         { ready: (vehicleOrcrImg || existingVehicleOrcrImg) },
-        { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && vehiclePlate.length > 0 && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
+        { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && isPlateValid && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
     const completedCount = items.filter(i => i.ready).length;
     const progressPercent = (completedCount / 6) * 100;
+
+    // Document Diagnostic Statuses
+    const docStatuses = {
+        license: isLicenseExpired 
+            ? { isOk: false, label: 'Expired ⚠️', color: 'bg-amber-500/20 text-amber-500 border-amber-500/30', alert: 'Nakalipas na ang Expiration Date ng iyong lisensya. Paki-update ang date o mag-upload ng panibagong lisensya.' }
+            : (!isLicenseFormatValid && licenseNum)
+            ? { isOk: false, label: 'Mali ang Format ❌', color: 'bg-red-500/20 text-red-500 border-red-500/30', alert: 'Mali ang format ng LTO License number (dapat e.g. D12-34-567890 o D1234567890).' }
+            : items[0].ready
+            ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
+            : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Paki-kumpleto ang License #, expiry date, at larawan.' },
+
+        permit: items[1].ready
+            ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
+            : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Lagyan ng Trento MTOP Permit ID at larawan.' },
+
+        clearance: items[2].ready
+            ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
+            : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Mag-upload ng malinaw na Police o NBI Clearance.' },
+
+        vehicle: (!isPlateValid && vehiclePlate)
+            ? { isOk: false, label: 'Mali ang Plate ❌', color: 'bg-red-500/20 text-red-500 border-red-500/30', alert: 'Mali ang Plate Number format.' }
+            : (items[3].ready && items[4].ready)
+            ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
+            : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Paki-kumpleto ang Body #, OR/CR, at litrato ng tricycle.' },
+
+        liveness: (aiDiagnostics && aiDiagnostics.face_similarity_score < 80)
+            ? { isOk: false, label: 'Face Issue ❌', color: 'bg-red-500/20 text-red-500 border-red-500/30', alert: 'Hindi tumugma ang mukha sa Solo Selfie kumpara sa License photo. Kumuha ng malinaw na bagong litrato.' }
+            : items[5].ready
+            ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
+            : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Mag-take ng malinaw na Solo Selfie kung saan kita ang mukha.' }
+    };
 
     if (status === 'loading') {
         return (
@@ -305,6 +361,45 @@ const DriverVerification = () => {
                     </div>
                 </div>
 
+                {/* Admin Review Remarks Banner */}
+                {adminNotes && (
+                    <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-6 mb-8 relative overflow-hidden">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 bg-amber-500/20 text-amber-500 rounded-2xl shrink-0 mt-0.5">
+                                <FileText size={22} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest block mb-1">📢 LGU Admin Review Remarks</span>
+                                <p className="text-sm font-bold text-slate-800 dark:text-white leading-relaxed italic">"{adminNotes}"</p>
+                                <p className="text-[10px] text-slate-400 mt-2 font-medium">Pakisundan ang abiso ng Admin sa ibaba at i-update ang nauukol na dokumento.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* AI Document Pre-Verification Health Dashboard */}
+                {Object.values(docStatuses).some(d => !d.isOk) && (
+                    <div className="bg-slate-900 rounded-3xl p-6 mb-8 border border-white/10 text-white space-y-3 shadow-lg">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle size={16} className="text-amber-400 animate-pulse" />
+                                <h4 className="font-black uppercase tracking-wider text-xs">🤖 Document Diagnostics & Action Checklist</h4>
+                            </div>
+                            <span className="text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full border border-amber-500/30">
+                                {Object.values(docStatuses).filter(d => !d.isOk).length} Action{Object.values(docStatuses).filter(d => !d.isOk).length > 1 ? 's' : ''} Needed
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                            {Object.entries(docStatuses).map(([key, item]) => item.alert ? (
+                                <div key={key} className="p-3 bg-white/5 rounded-xl border border-white/5 flex items-start gap-2">
+                                    <Info size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                                    <span className="text-[11px] text-slate-300 font-medium leading-tight">{item.alert}</span>
+                                </div>
+                            ) : null)}
+                        </div>
+                    </div>
+                )}
+
                 {status === 'success' ? (
                     <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center shadow-xl border border-slate-100 dark:border-slate-800">
                         <div className="w-24 h-24 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
@@ -330,7 +425,12 @@ const DriverVerification = () => {
                                         {items[0].ready ? <Check size={20} /> : <span className="font-black">1</span>}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">LTO Driver's License</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">LTO Driver's License</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${docStatuses.license.color}`}>
+                                                {docStatuses.license.label}
+                                            </span>
+                                        </div>
                                         <p className="text-slate-500 text-xs">Professional or Non-Pro license details</p>
                                     </div>
                                 </div>
@@ -340,8 +440,14 @@ const DriverVerification = () => {
                             <AnimatePresence>
                                 {activeSection === 'license' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="space-y-4 mt-4">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2 space-y-4">
+                                            {docStatuses.license.alert && (
+                                                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-start gap-2 mt-4">
+                                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                                    <span>{docStatuses.license.alert}</span>
+                                                </div>
+                                            )}
+                                            <div className="space-y-4 mt-2">
                                                 <div>
                                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">License Number</label>
                                                     <input
@@ -380,7 +486,12 @@ const DriverVerification = () => {
                                         {items[1].ready ? <Check size={20} /> : <span className="font-black">2</span>}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">LGU Franchise Permit</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">LGU Franchise Permit</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${docStatuses.permit.color}`}>
+                                                {docStatuses.permit.label}
+                                            </span>
+                                        </div>
                                         <p className="text-slate-500 text-xs">Official Trento MTOP credentials</p>
                                     </div>
                                 </div>
@@ -390,8 +501,14 @@ const DriverVerification = () => {
                             <AnimatePresence>
                                 {activeSection === 'permit' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="space-y-4 mt-4">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2 space-y-4">
+                                            {docStatuses.permit.alert && (
+                                                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-start gap-2 mt-4">
+                                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                                    <span>{docStatuses.permit.alert}</span>
+                                                </div>
+                                            )}
+                                            <div className="space-y-4 mt-2">
                                                 <div>
                                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">Operator Permit ID</label>
                                                     <input
@@ -423,7 +540,12 @@ const DriverVerification = () => {
                                         {items[2].ready ? <Check size={20} /> : <span className="font-black">3</span>}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Safety Clearances</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">Safety Clearances</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${docStatuses.clearance.color}`}>
+                                                {docStatuses.clearance.label}
+                                            </span>
+                                        </div>
                                         <p className="text-slate-500 text-xs">Police or NBI Certifications</p>
                                     </div>
                                 </div>
@@ -433,8 +555,14 @@ const DriverVerification = () => {
                             <AnimatePresence>
                                 {activeSection === 'clearances' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="grid grid-cols-1 gap-4 mt-4">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2 space-y-4">
+                                            {docStatuses.clearance.alert && (
+                                                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-start gap-2 mt-4">
+                                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                                    <span>{docStatuses.clearance.alert}</span>
+                                                </div>
+                                            )}
+                                            <div className="grid grid-cols-1 gap-4 mt-2">
                                                 <div>
                                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Police or NBI Clearance</label>
                                                     <DocumentUploadField id="upload-nbi" label="Clearance" file={nbiClearanceImg} existingUrl={existingNbiClearanceImg} setFile={setNbiClearanceImg} />
@@ -445,6 +573,7 @@ const DriverVerification = () => {
                                 )}
                             </AnimatePresence>
                         </div>
+
                         {/* Task 4: Vehicle Details & OR/CR */}
                         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-all">
                             <button
@@ -457,7 +586,12 @@ const DriverVerification = () => {
                                         {(items[3].ready && items[4].ready) ? <Check size={20} /> : <span className="font-black">4</span>}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Vehicle Registration & Photo</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">Vehicle Registration & Photo</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${docStatuses.vehicle.color}`}>
+                                                {docStatuses.vehicle.label}
+                                            </span>
+                                        </div>
                                         <p className="text-slate-500 text-xs">Official LTO OR/CR & Tricycle photo</p>
                                     </div>
                                 </div>
@@ -467,8 +601,14 @@ const DriverVerification = () => {
                             <AnimatePresence>
                                 {activeSection === 'vehicle' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="space-y-4 mt-4">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2 space-y-4">
+                                            {docStatuses.vehicle.alert && (
+                                                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-start gap-2 mt-4">
+                                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                                    <span>{docStatuses.vehicle.alert}</span>
+                                                </div>
+                                            )}
+                                            <div className="space-y-4 mt-2">
                                                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 italic">These details will be locked once approved by LGU admin.</p>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div>
@@ -532,7 +672,12 @@ const DriverVerification = () => {
                                         {items[5].ready ? <Check size={20} /> : <span className="font-black">5</span>}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-800 dark:text-white text-lg">Identity Verification</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 dark:text-white text-lg">Identity Verification</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${docStatuses.liveness.color}`}>
+                                                {docStatuses.liveness.label}
+                                            </span>
+                                        </div>
                                         <p className="text-slate-500 text-xs">Solo Driver Face Photo (Biometrics)</p>
                                     </div>
                                 </div>
@@ -542,8 +687,14 @@ const DriverVerification = () => {
                             <AnimatePresence>
                                 {activeSection === 'liveness' && (
                                     <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                            <div className="space-y-4 mt-4">
+                                        <div className="p-6 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2 space-y-4">
+                                            {docStatuses.liveness.alert && (
+                                                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-start gap-2 mt-4">
+                                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                                    <span>{docStatuses.liveness.alert}</span>
+                                                </div>
+                                            )}
+                                            <div className="space-y-4 mt-2">
                                                 <p className="text-xs text-slate-400 ml-2 italic">Take a clear, well-lit photo of your face facing forward. Ensure your face is centered and clearly visible for AI biometrics.</p>
                                                 <div>
                                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Solo Driver Selfie</label>
