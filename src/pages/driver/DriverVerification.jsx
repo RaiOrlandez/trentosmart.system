@@ -66,7 +66,7 @@ const DriverVerification = () => {
             setExistingVehicleOrcrImg(data.vehicle_orcr_image_url || data.vehicle_orcr_image);
             setExistingTricyclePhotoImg(data.tricycle_photo_url || data.tricycle_photo);
 
-            setRawVerificationStatus(data.verification_status || '');
+
             if (data.verification_notes) {
                 if (data.verification_notes.trim().startsWith('{')) {
                     try {
