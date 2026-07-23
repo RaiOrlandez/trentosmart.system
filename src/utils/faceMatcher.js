@@ -114,8 +114,8 @@ function extractFeatures(img) {
     let totalSkin = 0;
     const cx = CANVAS_SIZE / 2;
     const cy = CANVAS_SIZE / 2;
-    const rx = CANVAS_SIZE * 0.28;  // Oval half-width  (28% of image width)
-    const ry = CANVAS_SIZE * 0.38;  // Oval half-height (38% of image height)
+    const rx = CANVAS_SIZE * 0.35;  // Oval half-width  (35% of image width for ID card support)
+    const ry = CANVAS_SIZE * 0.42;  // Oval half-height (42% of image height for ID card support)
 
     for (let y = 0; y < CANVAS_SIZE; y++) {
         let rowEdge = 0;
@@ -162,10 +162,9 @@ function extractFeatures(img) {
     const ovalSkinRatio = ovalSkin.total > 0 ? ovalSkin.count / ovalSkin.total : 0;
 
     // ── Gate 2: Strict Face Presence Check ──────────────────────
-    // A real face photo must have:
-    //   • At least 10% of the image covered by skin pixels
-    //   • At least 12% of the OVAL CENTER covered by skin pixels
-    const isLikelyFace = skinRatio >= 0.10 && ovalSkinRatio >= 0.12;
+    // Standard face: >= 8% overall skin & >= 8% in oval center
+    // Small ID Card face fallback: >= 5% overall skin & >= 4% in oval zone
+    const isLikelyFace = (skinRatio >= 0.08 && ovalSkinRatio >= 0.08) || (skinRatio >= 0.05 && ovalSkinRatio >= 0.04);
 
     return {
         isLikelyFace,

@@ -346,7 +346,7 @@ const DriverVerification = () => {
                                                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 mb-2 block">License Number</label>
                                                     <input
                                                         type="text" value={licenseNum} onChange={(e) => setLicenseNum(e.target.value)} required disabled={!isEditing}
-                                                        placeholder="e.g. D12-34-567890"
+                                                        placeholder="e.g. D12-34-567890 or D1234567890"
                                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-4 px-6 focus:ring-2 focus:ring-primary/50 outline-none transition-all font-bold text-slate-900 dark:text-white disabled:opacity-50"
                                                     />
                                                 </div>

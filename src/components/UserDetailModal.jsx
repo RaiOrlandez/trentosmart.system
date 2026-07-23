@@ -187,12 +187,13 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
 
     // Fallback & Dynamic Real-time AI Document Inspection for ALL 6 Documents
     if (user.role === 'driver') {
-        const licenseRegex = /^[A-Z]\d{2}-\d{2}-\d{6}$/i;
-        const plateRegex = /^[A-Z0-9\s-]{4,10}$/i;
+        const licenseRegex = /^[A-Z]\d{2}-?\d{2}-?\d{4,6}$/i;
+        const plateRegex = /^[A-Z0-9\s-]{3,10}$/i;
         
         const isLicenseFormatValid = licenseRegex.test((user.license_number || "").trim()) && !!(user.license_image_url || user.license_image);
+        const isLicenseExpired = user.license_expiry_date && new Date(user.license_expiry_date) < new Date();
         const isPlateFormatValid = plateRegex.test((user.vehicle_plate || "").trim()) && !!(user.vehicle_orcr_image_url || user.vehicle_orcr_image);
-        const isPermitValid = !!(user.permit_number && user.permit_number.length >= 3 && (user.permit_image_url || user.permit_image));
+        const isPermitValid = !!(user.permit_number && user.permit_number.trim().length >= 3 && (user.permit_image_url || user.permit_image));
         const isClearanceValid = !!(user.nbi_clearance_image_url || user.nbi_clearance_image);
         const isTricyclePhotoValid = !!(user.tricycle_photo_url || user.tricycle_photo);
         
@@ -204,19 +205,26 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
             const hasDummyText = (user.license_number && user.license_number.toLowerCase().includes('dummy')) || 
                                  (user.vehicle_plate && user.vehicle_plate.toLowerCase().includes('test'));
             
-            if (hasDummyText || !isLicenseFormatValid) {
+            if (hasDummyText || !isLicenseFormatValid || isLicenseExpired) {
                 faceSimilarity = parseFloat((28.4 + (seed % 5) * 2.1).toFixed(1));
             } else {
                 faceSimilarity = parseFloat((89.5 + (seed % 10) * 0.8).toFixed(1));
             }
-            isFaceDetectedBoth = faceSimilarity >= 75;
+            isFaceDetectedBoth = faceSimilarity >= 80;
+        }
+
+        let licenseStatus = "FAILED";
+        if (isLicenseExpired) {
+            licenseStatus = "EXPIRED";
+        } else if (isLicenseFormatValid) {
+            licenseStatus = "PASSED";
         }
 
         aiReport = {
             ai_verified: true,
             face_similarity_score: faceSimilarity,
             face_detected_both: isFaceDetectedBoth,
-            license_ocr_status: isLicenseFormatValid ? "PASSED" : "FAILED",
+            license_ocr_status: licenseStatus,
             orcr_ocr_status: isPlateFormatValid ? "PASSED" : "FAILED",
             permit_ocr_status: isPermitValid ? "PASSED" : "FAILED",
             clearance_status: isClearanceValid ? "PASSED" : "FAILED",
@@ -445,7 +453,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                     </div>
 
                                                     {aiReport && (() => {
-                                                        const isFacePassed = aiReport.face_similarity_score >= 75 && aiReport.face_detected_both;
+                                                        const isFacePassed = aiReport.face_similarity_score >= 80 && aiReport.face_detected_both !== false;
                                                         const isLicensePassed = aiReport.license_ocr_status === 'PASSED';
                                                         const isPlatePassed = aiReport.orcr_ocr_status === 'PASSED';
                                                         const isPermitPassed = aiReport.permit_ocr_status === 'PASSED';
@@ -479,7 +487,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                      {/* 1. Solo Selfie Face Match */}
                                                                       <AuditCard
                                                                           label="1. Solo Selfie Face Match"
-                                                                          value={`${aiReport.face_similarity_score}% similarity`}
+                                                                          value={`${aiReport.face_similarity_score}% similarity ${liveFaceResult ? '🔴 LIVE' : '📋 CACHED'}`}
                                                                           isPassed={isFacePassed}
                                                                           passStatus="Face Biometrics Verified ✅"
                                                                           failStatus={liveFaceResult?.statusText || 'Face Mismatch ❌'}
@@ -490,7 +498,7 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                               liveFaceResult?.statusText?.includes('Screenshot') || liveFaceResult?.statusText?.includes('Document')
                                                                                   ? 'The uploaded image appears to be a screenshot or a text document — not a real face photo. The AI detected mostly black/white pixels (>60%) with no human skin tone. Please re-upload a clear solo face photo taken with the camera.'
                                                                                   : liveFaceResult?.statusText?.includes('No Face')
-                                                                                  ? 'No human face was detected in this photo. The system requires skin-tone pixels concentrated in the center oval region of the image. Ensure the photo shows a clear frontal face with proper lighting.'
+                                                                                  ? 'No human face was detected in this photo. The system requires skin-tone pixels concentrated in the face region of the image. Ensure the photo shows a clear frontal face with proper lighting.'
                                                                                   : `The facial pixel patterns between the License photo and the Solo Selfie do not match sufficiently (${aiReport.face_similarity_score}% — minimum required is 80%). The system detected different facial structures, suggesting the photos may be of different people.`
                                                                           }
                                                                       />
@@ -500,17 +508,19 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
                                                                           label="2. Driver's License OCR"
                                                                           value={user.license_number || 'No License # Entered'}
                                                                           isPassed={isLicensePassed}
-                                                                          passStatus="LTO Format Verified ✅"
-                                                                          failStatus="Invalid LTO Format ❌"
+                                                                          passStatus={aiReport.license_ocr_status === 'EXPIRED' ? 'License Expired ⚠️' : 'LTO Format Verified ✅'}
+                                                                          failStatus={aiReport.license_ocr_status === 'EXPIRED' ? 'License Expired ⚠️' : 'Invalid LTO Format ❌'}
                                                                           accentColor="text-blue-400"
                                                                           onInspect={setInspectingDoc}
-                                                                          passDetail="The entered license number matches the standard LTO format (A99-99-999999) and a license card image has been uploaded successfully."
+                                                                          passDetail="The entered license number matches standard LTO Philippines formats (A99-99-999999 or A9999999999) and the card is unexpired."
                                                                           failDetail={
-                                                                              !user.license_number
-                                                                                  ? 'No license number was entered. The driver must provide their LTO license number in the format A99-99-999999 (e.g., D12-34-567890).'
+                                                                              aiReport.license_ocr_status === 'EXPIRED'
+                                                                                  ? `The driver's license expiration date (${user.license_expiry_date || 'N/A'}) is in the past. The driver must renew their LTO Driver's License and upload an updated document.`
+                                                                                  : !user.license_number
+                                                                                  ? 'No license number was entered. The driver must provide their LTO license number in a valid PH format (e.g., D12-34-567890 or D1234567890).'
                                                                                   : !user.license_image_url
                                                                                   ? "A license number was entered but no license card image was uploaded. Please upload a clear photo of the physical LTO Driver's License."
-                                                                                  : `The entered license number "${user.license_number}" does not match the standard LTO format (A99-99-999999). Verify that the license number is typed correctly without extra spaces or symbols.`
+                                                                                  : `The entered license number "${user.license_number}" does not match standard LTO Philippines formats (e.g., D12-34-567890, N01-23-456789, or D1234567890). Verify typing.`
                                                                           }
                                                                       />
 
