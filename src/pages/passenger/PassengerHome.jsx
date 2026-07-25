@@ -723,8 +723,8 @@ const PassengerHome = () => {
   // so drivers appear immediately on first load without waiting for WS events.
   useEffect(() => {
     if (status !== 'idle') {
-      // Remove all idle driver icons when passenger is in an active ride
-      setMarkers(prev => prev.filter(m => !m.isDriver || m.title === 'Driver'));
+      // Remove all idle driver icons when passenger is in an active ride, but preserve the assigned driver
+      setMarkers(prev => prev.filter(m => !m.isDriver || m.id === 'driver'));
       return;
     }
     setMarkers(prev => {
@@ -1096,7 +1096,7 @@ const PassengerHome = () => {
       if (hasGoodAccuracy) {
         // Update map marker only when accuracy is acceptable
         setMarkers(current => {
-          const otherMarkers = current.filter(m => m.id !== 'driver' && m.title !== 'Driver');
+          const otherMarkers = current.filter(m => m.id !== 'driver' && !m.isDriver);
           const dName = assignedDriver?.username || assignedDriver?.first_name || 'Driver';
           return [
             ...otherMarkers,
