@@ -406,8 +406,15 @@ const DriverHome = () => {
       try {
         const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
 
-        // 1. Fetch Primary Route (Driver -> Target)
-        const res = await fetch(`${osrmUrl}/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
+        // 1. Fetch Primary Route (Driver -> Target) with 6s timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(
+          `${osrmUrl}/${startLng},${startLat};${targetLng},${targetLat}?overview=full&geometries=geojson`,
+          { signal: controller.signal }
+        );
+        clearTimeout(timeoutId);
+
         const data = await res.json();
         if (active && data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const pathCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
@@ -419,6 +426,7 @@ const DriverHome = () => {
 
           lastFetchedCoords.current = { lat: startLat, lng: startLng };
         }
+        // NOTE: Do NOT clear driverRouteCoords on bad OSRM response — keep the last valid polyline.
 
         // 2. Fetch Secondary Route if required (Pickup -> Dest)
         if (active && fetchSecondary && !isNaN(pickupLat) && !isNaN(destLat)) {
@@ -432,7 +440,10 @@ const DriverHome = () => {
           setSecondaryRouteCoords(null);
         }
       } catch (err) {
-        console.error('Failed to fetch driver navigation route:', err);
+        if (err.name !== 'AbortError') {
+          console.error('[DriverRoute] OSRM fetch failed — keeping last route visible:', err);
+        }
+        // Intentionally NOT clearing driverRouteCoords so the line stays on the map.
       }
     };
 

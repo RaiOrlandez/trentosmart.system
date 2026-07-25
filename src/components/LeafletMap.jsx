@@ -357,7 +357,18 @@ const SmoothMarker = ({ position, icon, isDriver, heading, autoOpenPopup, snapTo
     useEffect(() => () => cancelAnimationFrame(requestRef.current), []);
 
     return (
-        <Marker ref={markerRef} position={position} icon={icon}>
+        <Marker
+            ref={markerRef}
+            position={position}
+            icon={icon}
+            eventHandlers={{
+                click: () => {
+                    if (markerRef.current) {
+                        markerRef.current.openPopup();
+                    }
+                }
+            }}
+        >
             {children}
         </Marker>
     );

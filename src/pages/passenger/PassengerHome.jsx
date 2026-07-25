@@ -1152,20 +1152,29 @@ const PassengerHome = () => {
           const fetchLiveRoute = async () => {
             try {
               const osrmUrl = process.env.REACT_APP_OSRM_URL || 'https://router.project-osrm.org/route/v1/driving';
-              const res = await fetch(`${osrmUrl}/${driverLng},${driverLat};${targetLng},${targetLat}?overview=full&geometries=geojson`);
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 6000);
+              const res = await fetch(
+                `${osrmUrl}/${driverLng},${driverLat};${targetLng},${targetLat}?overview=full&geometries=geojson`,
+                { signal: controller.signal }
+              );
+              clearTimeout(timeoutId);
               const data = await res.json();
               if (data.code === 'Ok' && data.routes?.length > 0) {
                 const pathCoords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
                 setRouteCoordinates(pathCoords);
-
                 // OSRM duration is in seconds
                 const durationMins = Math.ceil(data.routes[0].duration / 60);
                 setDriverEta(durationMins);
-
                 lastRouteFetchedCoordsRef.current = { lat: driverLat, lng: driverLng };
               }
+              // NOTE: Do NOT clear routeCoordinates on a bad OSRM response —
+              // keep the last valid polyline visible so the blue line never disappears.
             } catch (err) {
-              console.warn("Failed to fetch live routing update:", err);
+              if (err.name !== 'AbortError') {
+                console.warn("[LiveRoute] OSRM fetch failed — keeping last route visible.", err);
+              }
+              // Intentionally NOT calling setRouteCoordinates(null) here.
             }
           };
           fetchLiveRoute();
@@ -1199,8 +1208,9 @@ const PassengerHome = () => {
       ]);
       setFitBoundsKey(prev => prev + 1);
     } else if (status === 'ongoing') {
-      // Clear the old driver -> pickup route and reset OSRM rate limits to trigger immediate re-routing
-      setRouteCoordinates(null);
+      // Reset OSRM rate-limit so a fresh driver→destination route is fetched immediately
+      // Do NOT call setRouteCoordinates(null) here — that would flash a blank map while
+      // the new OSRM response is in-flight. The old pickup route briefly shows instead.
       lastRouteFetchedCoordsRef.current = { lat: 0, lng: 0 };
 
       setSecondaryRouteCoordinates(null);
