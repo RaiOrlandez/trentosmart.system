@@ -1096,14 +1096,24 @@ const PassengerHome = () => {
       if (hasGoodAccuracy) {
         // Update map marker only when accuracy is acceptable
         setMarkers(current => {
-          const otherMarkers = current.filter(m => m.title !== 'Driver');
+          const otherMarkers = current.filter(m => m.id !== 'driver' && m.title !== 'Driver');
+          const dName = assignedDriver?.username || assignedDriver?.first_name || 'Driver';
           return [
             ...otherMarkers,
             {
               id: 'driver',
               lat: driverLat,
               lng: driverLng,
-              title: 'Driver',
+              title: dName,
+              profile_picture: assignedDriver?.profile_picture_url || assignedDriver?.profile_picture,
+              driverDetails: {
+                username: dName,
+                phone: assignedDriver?.phone_number || '',
+                vehicle_model: assignedDriver?.vehicle_model || 'Tricycle',
+                vehicle_plate: assignedDriver?.vehicle_plate || 'N/A',
+                body_number: assignedDriver?.body_number || 'N/A',
+                average_rating: assignedDriver?.average_rating || 5.0,
+              },
               info: status === 'matched' ? 'On the way to pick you up!' : 'Heading to destination!',
               isDriver: true,
               heading: wsData.heading || 0,
@@ -1117,7 +1127,7 @@ const PassengerHome = () => {
         // Poor GPS accuracy — update heading/ETA only, keep pin at last known position
         console.warn('[DriverMarker] Skipping position update: driver accuracy too poor (', driverAccuracy, 'm)');
         setMarkers(current => current.map(m =>
-          m.title === 'Driver'
+          (m.id === 'driver' || m.isDriver)
             ? { ...m, heading: wsData.heading || m.heading, eta: driverEta }
             : m
         ));

@@ -621,42 +621,92 @@ const LeafletMap = ({
                             snapToPosition={isYouAreHere}
                         >
                             <Popup className="custom-popup">
-                                <div className="text-sm font-bold p-2 min-w-[160px]">
+                                <div className="text-sm font-bold p-1 min-w-[210px]">
                                     {marker.isDriver && (
-                                        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary bg-slate-100 flex-shrink-0">
-                                                <img
-                                                    src={ensureImageUrl(marker.profile_picture, marker.username || marker.title)}
-                                                    alt="Driver"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-[10px] font-black uppercase tracking-widest text-primary leading-tight">Driver</div>
-                                                <div className="text-secondary truncate font-black">{marker.title}</div>
-                                                {marker.eta && (
-                                                    <div className="text-[10px] font-bold text-blue-600 mt-0.5">
-                                                        ~{marker.eta} min away
+                                        <div className="space-y-2">
+                                            {/* Driver Header with Photo and Name */}
+                                            <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400 bg-amber-50 flex-shrink-0 shadow-sm">
+                                                    <img
+                                                        src={ensureImageUrl(marker.profile_picture, marker.title || 'Driver')}
+                                                        alt="Driver"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-[9px] font-black uppercase tracking-wider text-amber-600 leading-tight">
+                                                        🛺 Tricycle Driver
                                                     </div>
-                                                )}
-                                                {marker.accuracy && (
-                                                    <div className="text-[9px] text-slate-400 font-bold mt-0.5">
-                                                        ±{Math.round(marker.accuracy)} m accuracy
+                                                    <div className="text-slate-900 font-extrabold text-sm truncate leading-tight">
+                                                        {marker.title && marker.title !== 'Driver' ? marker.title : (marker.driverDetails?.username || 'Assigned Driver')}
                                                     </div>
-                                                )}
+                                                    {marker.driverDetails?.average_rating && (
+                                                        <div className="text-[10px] font-bold text-amber-500 flex items-center gap-1 mt-0.5">
+                                                            ⭐ {parseFloat(marker.driverDetails.average_rating).toFixed(1)} Rating
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
+
+                                            {/* Vehicle & Plate details if available */}
+                                            {(marker.driverDetails?.vehicle_plate || marker.driverDetails?.body_number || marker.driverDetails?.vehicle_model) && (
+                                                <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 space-y-1">
+                                                    {marker.driverDetails.vehicle_model && (
+                                                        <div className="flex justify-between">
+                                                            <span className="text-slate-400 font-medium">Model:</span>
+                                                            <span className="font-bold">{marker.driverDetails.vehicle_model}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between gap-2">
+                                                        {marker.driverDetails.vehicle_plate && marker.driverDetails.vehicle_plate !== 'N/A' && (
+                                                            <div><span className="text-slate-400 font-medium">Plate:</span> <span className="font-black text-slate-800 dark:text-slate-200">{marker.driverDetails.vehicle_plate}</span></div>
+                                                        )}
+                                                        {marker.driverDetails.body_number && marker.driverDetails.body_number !== 'N/A' && (
+                                                            <div><span className="text-slate-400 font-medium">Unit:</span> <span className="font-black text-amber-600">#{marker.driverDetails.body_number}</span></div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Status / ETA */}
+                                            <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 pt-1">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
+                                                <span className="leading-tight">{marker.info}</span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-[10px] pt-1 text-slate-400 border-t border-slate-100">
+                                                {marker.eta ? (
+                                                    <span className="font-bold text-blue-600">⏱️ ~{marker.eta} min away</span>
+                                                ) : <span />}
+                                                {marker.accuracy ? (
+                                                    <span className="font-bold text-slate-400">📍 ±{Math.round(marker.accuracy)}m GPS</span>
+                                                ) : <span />}
+                                            </div>
+
+                                            {/* Quick Call Action */}
+                                            {marker.driverDetails?.phone && marker.driverDetails.phone !== 'N/A' && (
+                                                <a
+                                                    href={`tel:${marker.driverDetails.phone}`}
+                                                    className="mt-2 w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] py-1.5 px-3 rounded-lg transition-all shadow-sm no-underline"
+                                                >
+                                                    📞 Call {marker.title?.split(' ')[0] || 'Driver'} ({marker.driverDetails.phone})
+                                                </a>
+                                            )}
                                         </div>
                                     )}
                                     {marker.isDestination && !marker.isDriver && (
                                         <div className="mb-1">
                                             <div className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-1">📍 Destination</div>
                                             <div className="text-secondary font-black text-sm leading-snug">{marker.title?.replace('📍 ', '')}</div>
+                                            <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
                                         </div>
                                     )}
                                     {!marker.isDriver && !marker.isDestination && (
-                                        <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1">{marker.title}</div>
+                                        <div>
+                                            <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1">{marker.title}</div>
+                                            <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
+                                        </div>
                                     )}
-                                    <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
                                 </div>
                             </Popup>
                         </SmoothMarker>
