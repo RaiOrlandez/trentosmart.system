@@ -702,10 +702,64 @@ const LeafletMap = ({
                                         </div>
                                     )}
                                     {!marker.isDriver && !marker.isDestination && (
-                                        <div>
-                                            <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1">{marker.title}</div>
-                                            <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
-                                        </div>
+                                        marker.passengerDetails ? (
+                                            <div className="space-y-2 min-w-[200px]">
+                                                {/* Passenger Header */}
+                                                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500 bg-emerald-50 flex-shrink-0 shadow-sm">
+                                                        <img
+                                                            src={ensureImageUrl(marker.passengerDetails.profile_picture, marker.passengerDetails.username || 'Passenger')}
+                                                            alt="Passenger"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-[9px] font-black uppercase tracking-wider text-emerald-600 leading-tight">
+                                                            👤 Passenger Pickup
+                                                        </div>
+                                                        <div className="text-slate-900 font-extrabold text-sm truncate leading-tight">
+                                                            {marker.passengerDetails.username || 'Passenger'}
+                                                        </div>
+                                                        {marker.passengerDetails.passenger_count && (
+                                                            <div className="text-[10px] font-bold text-slate-500 mt-0.5">
+                                                                👥 {marker.passengerDetails.passenger_count} Passenger(s)
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Pickup Address */}
+                                                <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                                                    <div className="text-slate-400 font-medium text-[9px] uppercase tracking-wider mb-0.5">📍 Pickup Address:</div>
+                                                    <div className="font-extrabold text-slate-800 dark:text-slate-200 leading-snug">{marker.passengerDetails.pickup_address || marker.info}</div>
+                                                </div>
+
+                                                {/* Fare & Payment Method */}
+                                                {(marker.passengerDetails.fare || marker.passengerDetails.payment_method) && (
+                                                    <div className="flex items-center justify-between text-[10px] font-extrabold bg-emerald-50 text-emerald-700 p-1.5 rounded-lg">
+                                                        <span>Fare: ₱{marker.passengerDetails.fare}</span>
+                                                        <span className="uppercase text-[9px] bg-emerald-200/60 px-1.5 py-0.5 rounded">{marker.passengerDetails.payment_method || 'CASH'}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="text-slate-500 text-[10px] font-medium leading-relaxed italic">{marker.info}</div>
+
+                                                {/* Quick Call Action */}
+                                                {marker.passengerDetails.phone && (
+                                                    <a
+                                                        href={`tel:${marker.passengerDetails.phone}`}
+                                                        className="mt-1 w-full flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] py-1.5 px-3 rounded-lg transition-all shadow-sm no-underline"
+                                                    >
+                                                        📞 Call {marker.passengerDetails.username?.split(' ')[0] || 'Passenger'} ({marker.passengerDetails.phone})
+                                                    </a>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <div className="text-primary-dark uppercase text-[10px] font-black tracking-widest mb-1">{marker.title}</div>
+                                                <div className="text-slate-500 text-[11px] font-medium leading-relaxed italic mt-1">{marker.info}</div>
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             </Popup>

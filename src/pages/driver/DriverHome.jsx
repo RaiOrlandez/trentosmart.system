@@ -649,14 +649,30 @@ const DriverHome = () => {
         const liveIsUsable = passengerLivePos?.lat &&
           (!liveAccuracy || liveAccuracy < 300);
 
+        const ridePassenger = activeRide.passenger;
+        const passengerName = ridePassenger?.username || ridePassenger?.first_name || 'Passenger';
+        const passengerPic = ridePassenger?.profile_picture_url || ridePassenger?.profile_picture;
+        const passengerPhone = ridePassenger?.phone_number || '';
+
+        const passengerDetails = {
+          username: passengerName,
+          profile_picture: passengerPic,
+          phone: passengerPhone,
+          pickup_address: activeRide.pickup_address || activeRide.pickup,
+          fare: activeRide.fare,
+          payment_method: activeRide.payment_method || 'cash',
+          passenger_count: activeRide.passenger_count || 1,
+        };
+
         if (liveIsUsable) {
           newMarkers.push({
             id: 'passenger',
             lat: parseFloat(passengerLivePos.lat),
             lng: parseFloat(passengerLivePos.lng),
-            title: 'Passenger (Live)',
-            info: `Passenger location · ±${Math.round(liveAccuracy)}m`,
-            isPickup: true
+            title: passengerName,
+            info: `Live Pickup · ±${Math.round(liveAccuracy)}m`,
+            isPickup: true,
+            passengerDetails: passengerDetails
           });
         } else {
           // No live position yet (WS still connecting) or accuracy too poor —
@@ -665,9 +681,10 @@ const DriverHome = () => {
             id: 'passenger',
             lat: parseFloat(activeRide.pickup_lat) || 8.03555,
             lng: parseFloat(activeRide.pickup_lng) || 126.06432,
-            title: 'Pickup',
+            title: passengerName,
             info: activeRide.pickup_address || activeRide.pickup,
-            isPickup: true
+            isPickup: true,
+            passengerDetails: passengerDetails
           });
         }
       }
@@ -683,13 +700,26 @@ const DriverHome = () => {
         isDestination: true
       });
     } else if (selectedRequest) {
+      const reqPassenger = selectedRequest.passenger;
+      const reqPassengerName = reqPassenger?.username || 'Passenger';
+      const reqPassengerPhone = reqPassenger?.phone_number || '';
+
       newMarkers.push({
         id: 'req_pickup',
         lat: selectedRequest.pickup_lat || 8.03555,
         lng: selectedRequest.pickup_lng || 126.06432,
-        title: 'New Request',
+        title: reqPassengerName,
         info: `Pickup at ${selectedRequest.pickup_address || selectedRequest.pickup}`,
-        isPickup: true
+        isPickup: true,
+        passengerDetails: {
+          username: reqPassengerName,
+          profile_picture: reqPassenger?.profile_picture_url || reqPassenger?.profile_picture,
+          phone: reqPassengerPhone,
+          pickup_address: selectedRequest.pickup_address || selectedRequest.pickup,
+          fare: selectedRequest.fare,
+          payment_method: selectedRequest.payment_method || 'cash',
+          passenger_count: selectedRequest.passenger_count || 1,
+        }
       });
 
       // Also show destination pin in preview — driver can see where they'd be going
