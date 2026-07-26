@@ -2971,18 +2971,30 @@ class VerifyEmailView(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
-        email = request.data.get('email')
-        otp = request.data.get('otp')
+        email_input = (request.data.get('email') or '').strip()
+        otp = (request.data.get('otp') or '').strip()
 
-        if not email or not otp:
-            return Response({'detail': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email_input or not otp:
+            return Response({'detail': 'Email and OTP code are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = User.objects.filter(
+            Q(email__iexact=email_input) | Q(username__iexact=email_input)
+        ).first()
+
         if not user:
-            return Response({'detail': 'User with this email not found.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'User account not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if user.is_email_verified:
-            return Response({'detail': 'Email already verified.'}, status=status.HTTP_200_OK)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'detail': 'Email already verified.',
+                'already_verified': True,
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'role': user.role,
+                'email': user.email,
+                'username': user.username
+            }, status=status.HTTP_200_OK)
 
         is_valid_otp = user.email_otp and user.email_otp == otp
 
@@ -2996,14 +3008,24 @@ class VerifyEmailView(APIView):
                     user.email_otp_created_at = None
                     user.save(update_fields=['email_otp', 'email_otp_created_at'])
                     return Response(
-                        {'detail': 'This verification code has expired. Please request a new one.'},
+                        {'detail': 'This verification code has expired. Please request a new code.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+
             user.is_email_verified = True
             user.email_otp = None
             user.email_otp_created_at = None
             user.save(update_fields=['is_email_verified', 'email_otp', 'email_otp_created_at'])
-            return Response({'detail': 'Email verified successfully! You can now log in.'}, status=status.HTTP_200_OK)
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'detail': 'Email verified successfully! Logging you in...',
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'role': user.role,
+                'email': user.email,
+                'username': user.username
+            }, status=status.HTTP_200_OK)
         else:
             return Response({'detail': 'Invalid OTP code. Please check your email or request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -3018,17 +3040,19 @@ class ResendOTPView(APIView):
     throttle_scope     = 'resend_otp'
 
     def post(self, request):
-        email = request.data.get('email', '').strip()
-        if not email:
-            return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        email_input = request.data.get('email', '').strip()
+        if not email_input:
+            return Response({'detail': 'Email or Username is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email__iexact=email).first()
+        user = User.objects.filter(
+            Q(email__iexact=email_input) | Q(username__iexact=email_input)
+        ).first()
+
         if not user:
-            # Don't reveal whether the email exists (security best practice)
-            return Response({'detail': 'If this email is registered, a new code has been sent.'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'If this account exists, a new code has been sent.'}, status=status.HTTP_200_OK)
 
         if user.is_email_verified:
-            return Response({'detail': 'This email is already verified. Please log in.'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'This account is already verified. Please log in.'}, status=status.HTTP_200_OK)
 
         # Generate a fresh 6-digit OTP and reset its timestamp
         from django.utils import timezone as tz
@@ -3036,7 +3060,7 @@ class ResendOTPView(APIView):
         user.email_otp = new_otp
         user.email_otp_created_at = tz.now()
         user.save(update_fields=['email_otp', 'email_otp_created_at'])
-        logger.info(f"[DEMO/LOG] Generated new OTP for {email}: {new_otp}")
+        logger.info(f"[DEMO/LOG] Generated new OTP for {user.email}: {new_otp}")
 
         # Send the new OTP via email
         import threading

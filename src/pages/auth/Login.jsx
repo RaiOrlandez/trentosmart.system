@@ -114,7 +114,8 @@ const Login = () => {
       else navigate('/passenger');
     } catch (err) {
       if (err.response?.data?.email_not_verified) {
-        navigate(`/verify-email?email=${email}`);
+        const verifiedEmail = err.response.data.email || email;
+        navigate(`/verify-email?email=${encodeURIComponent(verifiedEmail)}`);
         return;
       }
       setError(err.response?.data?.detail || err.message || 'Login failed. Check your credentials.');

@@ -253,7 +253,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'created_at')
 
 
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.db.models import Q
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     default_error_messages = {
@@ -264,8 +264,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         identifier = (attrs.get('username') or attrs.get('email') or '').strip()
         if not identifier:
             raise serializers.ValidationError({'detail': 'Email or username is required.'})
-        attrs['username'] = identifier
-        attrs['email'] = identifier
+
+        # Lookup user by username OR email (case-insensitive)
+        user = User.objects.filter(
+            Q(username__iexact=identifier) | Q(email__iexact=identifier)
+        ).first()
+
+        if not user:
+            raise serializers.ValidationError({'detail': 'Invalid email/username or password.'})
+
+        # Pass exact username to SimpleJWT super validation
+        attrs['username'] = user.username
+        attrs['email'] = user.email
 
         try:
             data = super().validate(attrs)
@@ -273,11 +283,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise serializers.ValidationError({'detail': 'Invalid email/username or password.'})
 
         # Block unverified passengers/drivers; admins may always sign in
-        user = self.user
         if user.role != 'admin' and not getattr(user, 'is_email_verified', True):
             raise serializers.ValidationError({
                 'detail': 'Please verify your email before logging in.',
                 'email_not_verified': True,
+                'email': user.email, # Always return real user email address
             })
 
         return data

@@ -55,12 +55,22 @@ const VerifyEmail = () => {
         setLoading(true);
         setError(null);
         try {
-            await api.post('/auth/verify-email/', {
+            const res = await api.post('/auth/verify-email/', {
                 email: emailFromQuery,
                 otp: fullOtp
             });
             setSuccess(true);
-            setTimeout(() => navigate('/login'), 2000);
+            if (res.data?.access) {
+                localStorage.setItem('token', res.data.access);
+                localStorage.setItem('refreshToken', res.data.refresh);
+                const userRole = res.data.role;
+                setTimeout(() => {
+                    if (userRole === 'driver') navigate('/driver');
+                    else navigate('/passenger');
+                }, 1500);
+            } else {
+                setTimeout(() => navigate('/login'), 2000);
+            }
         } catch (err) {
             setError(err.response?.data?.detail || 'Verification failed. Please check the code.');
         } finally {
