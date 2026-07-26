@@ -41,9 +41,65 @@ const DriverVerification = () => {
     const [adminNotes, setAdminNotes] = useState('');
     const [aiDiagnostics, setAiDiagnostics] = useState(null);
 
-    // Real-Time OCR State
-    const [ocrScanning, setOcrScanning] = useState(false);
-    const [ocrResult, setOcrResult] = useState(null);
+    // BUG FIX 1 & 4: Per-document OCR state instead of shared state.
+    // Each document section has its own scanning/result state so they never bleed into each other.
+    const [ocrStates, setOcrStates] = useState({
+        license:  { scanning: false, result: null },
+        permit:   { scanning: false, result: null },
+        nbi:      { scanning: false, result: null },
+        orcr:     { scanning: false, result: null },
+    });
+
+    // BUG FIX 2: Track OCR rejection state per document so Submit can be blocked
+    const [ocrRejected, setOcrRejected] = useState({
+        license: false, permit: false, nbi: false, orcr: false
+    });
+
+    const setDocOcr = (docKey, scanning, result) => {
+        setOcrStates(prev => ({ ...prev, [docKey]: { scanning, result } }));
+    };
+
+    const OcrBanner = ({ docKey }) => {
+        const state = ocrStates[docKey];
+        if (!state) return null;
+        const { scanning, result } = state;
+
+        if (scanning) {
+            return (
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-center gap-2.5 animate-pulse mt-3">
+                    <RefreshCw size={16} className="animate-spin text-amber-500 shrink-0" />
+                    <span>🤖 Scanning document text via OCR (Tesseract Engine)...</span>
+                </div>
+            );
+        }
+
+        if (!result) return null;
+
+        return (
+            <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 border mt-3 ${
+                result.status === 'rejected'
+                    ? 'bg-red-500/15 border-red-500/50 text-red-600 dark:text-red-400 animate-pulse'
+                    : result.status === 'expired'
+                    ? 'bg-red-500/10 border-red-500/30 text-red-500'
+                    : result.status === 'warning'
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                    : 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+            }`}>
+                {result.status === 'rejected'
+                    ? <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
+                    : <Sparkles size={16} className="shrink-0 mt-0.5" />
+                }
+                <div className="space-y-1">
+                    <span className="block leading-relaxed">{result.message}</span>
+                    {result.expirationDate && (
+                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-0.5">
+                            Detected Expiry: <span className="font-extrabold text-slate-800 dark:text-white">{result.expirationDate}</span> {result.isExpired ? '(EXPIRED ❌)' : '(VALID ✅)'}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     // UI State for Hub
     const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances', 'vehicle', 'liveness'
@@ -101,158 +157,117 @@ const DriverVerification = () => {
     // 1. LTO License OCR Handler
     const handleLicenseUpload = async (file) => {
         setLicenseImg(file);
-        if (!file) return;
-        setOcrScanning(true);
-        setOcrResult(null);
+        setDocOcr('license', true, null);
+        setOcrRejected(prev => ({ ...prev, license: false }));
+        if (!file) { setDocOcr('license', false, null); return; }
         try {
             const scan = await scanLicenseID(file);
-            setOcrScanning(false);
-
-            // 🛡️ Random Image Guard: reject if no official LTO document keywords found
             if (!scan.isAuthenticDoc) {
-                setLicenseImg(null); // clear the invalid file
-                setOcrResult({
+                setLicenseImg(null);
+                setOcrRejected(prev => ({ ...prev, license: true }));
+                setDocOcr('license', false, {
                     status: 'rejected',
-                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LTO Driver\'s License. Please upload a clear, authentic photo of your actual LTO Driver\'s License.'
+                    message: '🚫 INVALID DOCUMENT: Image is not an official LTO Driver\'s License. Please upload the correct ID.'
                 });
                 return;
             }
-
             if (scan.success) {
                 const autoPopulated = [];
-                if (scan.expirationDate) {
-                    setLicenseExpiryDate(scan.expirationDate);
-                    autoPopulated.push(`Expiry Date (${scan.expirationDate})`);
-                }
-                if (scan.licenseNumber) {
-                    setLicenseNum(scan.licenseNumber);
-                    autoPopulated.push(`License # (${scan.licenseNumber})`);
-                }
-                setOcrResult({
+                if (scan.expirationDate) { setLicenseExpiryDate(scan.expirationDate); autoPopulated.push(`Expiry Date (${scan.expirationDate})`); }
+                if (scan.licenseNumber) { setLicenseNum(scan.licenseNumber); autoPopulated.push(`License # (${scan.licenseNumber})`); }
+                setDocOcr('license', false, {
                     status: scan.isExpired ? 'expired' : 'success',
-                    confidence: scan.confidence,
                     expirationDate: scan.expirationDate,
-                    licenseNumber: scan.licenseNumber,
                     isExpired: scan.isExpired,
-                    message: scan.isExpired 
+                    message: scan.isExpired
                         ? `⚠️ OCR Alert: EXPIRED License Date Detected (${scan.expirationDate})`
-                        : autoPopulated.length > 0 
-                            ? `✅ Real OCR Auto-Scan Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
-                            : `✅ Real OCR Image Scanned (${scan.confidence}% confidence). Text processed successfully.`
+                        : autoPopulated.length > 0
+                            ? `✅ OCR Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
+                            : `✅ OCR Scanned (${scan.confidence}% confidence). Text verified.`
                 });
             } else {
-                setOcrResult({
-                    status: 'warning',
-                    message: '⚠️ OCR Scan: Text was unclear. Please verify/type dates manually.'
-                });
+                setDocOcr('license', false, { status: 'warning', message: '⚠️ OCR unclear — please verify/type fields manually.' });
             }
         } catch (e) {
-            setOcrScanning(false);
+            setDocOcr('license', false, null);
             console.error('OCR scanning error:', e);
         }
     };
 
     const handlePermitUpload = async (file) => {
         setPermitImg(file);
-        if (!file) return;
-        setOcrScanning(true);
-        setOcrResult(null);
+        setDocOcr('permit', true, null);
+        setOcrRejected(prev => ({ ...prev, permit: false }));
+        if (!file) { setDocOcr('permit', false, null); return; }
         try {
             const scan = await scanPermitID(file);
-            setOcrScanning(false);
-
-            // 🛡️ Random Image Guard
             if (!scan.isAuthenticDoc) {
                 setPermitImg(null);
-                setOcrResult({
+                setOcrRejected(prev => ({ ...prev, permit: true }));
+                setDocOcr('permit', false, {
                     status: 'rejected',
-                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LGU Franchise or MTOP Permit. Please upload a clear photo of your actual Trento Mayor\'s Permit / MTOP.'
+                    message: '🚫 INVALID DOCUMENT: Image is not an official LGU Franchise / MTOP Permit. Upload the correct document.'
                 });
                 return;
             }
-
-            if (scan.success && scan.permitNumber) {
-                setPermitNum(scan.permitNumber);
-                setOcrResult({
-                    status: 'success',
-                    message: `✅ Real OCR Auto-Detected MTOP Permit #: ${scan.permitNumber} (${scan.confidence}% confidence)`
-                });
-            } else {
-                setOcrResult({
-                    status: 'success',
-                    message: `✅ MTOP Permit Image verified and uploaded successfully via OCR (${scan.confidence || 85}% confidence).`
-                });
-            }
+            const msg = scan.permitNumber
+                ? `✅ OCR Auto-Detected MTOP Permit #: ${scan.permitNumber} (${scan.confidence}% confidence)`
+                : `✅ MTOP Permit verified via OCR (${scan.confidence || 85}% confidence).`;
+            if (scan.permitNumber) setPermitNum(scan.permitNumber);
+            setDocOcr('permit', false, { status: 'success', message: msg });
         } catch (e) {
-            setOcrScanning(false);
+            setDocOcr('permit', false, null);
         }
     };
 
     const handleNbiUpload = async (file) => {
         setNbiClearanceImg(file);
-        if (!file) return;
-        setOcrScanning(true);
-        setOcrResult(null);
+        setDocOcr('nbi', true, null);
+        setOcrRejected(prev => ({ ...prev, nbi: false }));
+        if (!file) { setDocOcr('nbi', false, null); return; }
         try {
             const scan = await scanNbiClearance(file);
-            setOcrScanning(false);
-
-            // 🛡️ Random Image Guard
             if (!scan.isAuthenticDoc) {
                 setNbiClearanceImg(null);
-                setOcrResult({
+                setOcrRejected(prev => ({ ...prev, nbi: true }));
+                setDocOcr('nbi', false, {
                     status: 'rejected',
-                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official NBI or Police Clearance. Please upload a clear, authentic photo of your actual NBI / Police Clearance certificate.'
+                    message: '🚫 INVALID DOCUMENT: Image is not an official NBI or Police Clearance. Upload the correct clearance certificate.'
                 });
                 return;
             }
-
-            if (scan.success) {
-                setOcrResult({
-                    status: 'success',
-                    message: scan.hasNoRecord
-                        ? `✅ Real OCR Verified: "NO DEROGATORY CRIMINAL RECORD" text confirmed in NBI Clearance (${scan.confidence}% confidence).`
-                        : `✅ NBI / Police Clearance image verified and scanned via OCR (${scan.confidence}% confidence).`
-                });
-            }
+            const msg = scan.hasNoRecord
+                ? `✅ OCR Confirmed: "NO DEROGATORY CRIMINAL RECORD" (${scan.confidence}% confidence).`
+                : `✅ NBI / Police Clearance verified via OCR (${scan.confidence}% confidence).`;
+            setDocOcr('nbi', false, { status: 'success', message: msg });
         } catch (e) {
-            setOcrScanning(false);
+            setDocOcr('nbi', false, null);
         }
     };
 
     const handleOrcrUpload = async (file) => {
         setVehicleOrcrImg(file);
-        if (!file) return;
-        setOcrScanning(true);
-        setOcrResult(null);
+        setDocOcr('orcr', true, null);
+        setOcrRejected(prev => ({ ...prev, orcr: false }));
+        if (!file) { setDocOcr('orcr', false, null); return; }
         try {
             const scan = await scanVehicleORCR(file);
-            setOcrScanning(false);
-
-            // 🛡️ Random Image Guard
             if (!scan.isAuthenticDoc) {
                 setVehicleOrcrImg(null);
-                setOcrResult({
+                setOcrRejected(prev => ({ ...prev, orcr: true }));
+                setDocOcr('orcr', false, {
                     status: 'rejected',
-                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LTO Vehicle OR/CR (Official Receipt / Certificate of Registration). Please upload a clear, authentic photo of your actual LTO OR/CR document.'
+                    message: '🚫 INVALID DOCUMENT: Image is not an official LTO Vehicle OR/CR. Upload the actual Official Receipt / Certificate of Registration.'
                 });
                 return;
             }
-
-            if (scan.success && scan.plateNumber) {
-                setVehiclePlate(scan.plateNumber);
-                setOcrResult({
-                    status: 'success',
-                    message: `✅ Real OCR Auto-Detected Vehicle Plate #: ${scan.plateNumber} (${scan.confidence}% confidence)`
-                });
-            } else {
-                setOcrResult({
-                    status: 'success',
-                    message: `✅ Vehicle OR/CR image verified and scanned via OCR (${scan.confidence || 85}% confidence).`
-                });
-            }
+            if (scan.plateNumber) setVehiclePlate(scan.plateNumber);
+            const msg = scan.plateNumber
+                ? `✅ OCR Auto-Detected Vehicle Plate #: ${scan.plateNumber} (${scan.confidence}% confidence)`
+                : `✅ Vehicle OR/CR verified via OCR (${scan.confidence || 85}% confidence).`;
+            setDocOcr('orcr', false, { status: 'success', message: msg });
         } catch (e) {
-            setOcrScanning(false);
+            setDocOcr('orcr', false, null);
         }
     };
 
@@ -316,6 +331,20 @@ const DriverVerification = () => {
         e.preventDefault();
         setStatus('uploading');
         setMsg('');
+
+        // BUG FIX 2: Block submission if any document was rejected by OCR
+        if (ocrRejected.license || ocrRejected.permit || ocrRejected.nbi || ocrRejected.orcr) {
+            setStatus('error');
+            setMsg('🚫 Submission Blocked: One or more uploaded document images were REJECTED by OCR as invalid or fake. Please upload clear, authentic photos of your actual official documents.');
+            return;
+        }
+
+        // Block if OCR is still scanning
+        if (ocrStates.license.scanning || ocrStates.permit.scanning || ocrStates.nbi.scanning || ocrStates.orcr.scanning) {
+            setStatus('error');
+            setMsg('⌛ Please wait for OCR document scanning to complete before submitting.');
+            return;
+        }
 
         try {
             // Compress all images in parallel
@@ -384,10 +413,10 @@ const DriverVerification = () => {
     const isPlateValid = vehiclePlate && plateRegex.test(vehiclePlate.trim());
 
     const items = [
-        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && licenseExpiryDate && !isLicenseExpired && isLicenseFormatValid },
-        { ready: permitNum.length >= 3 && (permitImg || existingPermitImg) },
-        { ready: (nbiClearanceImg || existingNbiClearanceImg) },
-        { ready: (vehicleOrcrImg || existingVehicleOrcrImg) },
+        { ready: licenseNum.length > 5 && (licenseImg || existingLicenseImg) && !ocrRejected.license && licenseExpiryDate && !isLicenseExpired && isLicenseFormatValid },
+        { ready: permitNum.length >= 3 && (permitImg || existingPermitImg) && !ocrRejected.permit },
+        { ready: (nbiClearanceImg || existingNbiClearanceImg) && !ocrRejected.nbi },
+        { ready: (vehicleOrcrImg || existingVehicleOrcrImg) && !ocrRejected.orcr },
         { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && isPlateValid && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
         { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
     ];
@@ -638,38 +667,8 @@ const DriverVerification = () => {
                                                     <DocumentUploadField id="upload-license" label="License" file={licenseImg} existingUrl={existingLicenseImg} setFile={handleLicenseUpload} />
                                                 </div>
 
-                                                {/* Live Real-Time OCR Status Banner */}
-                                                {ocrScanning && (
-                                                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-center gap-2.5 animate-pulse">
-                                                        <RefreshCw size={16} className="animate-spin text-amber-500 shrink-0" />
-                                                        <span>🤖 Scanning LTO License ID text via OCR (Tesseract Engine)...</span>
-                                                    </div>
-                                                )}
-
-                                                {ocrResult && !ocrScanning && (
-                                                    <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 border ${
-                                                        ocrResult.status === 'rejected'
-                                                            ? 'bg-red-500/15 border-red-500/50 text-red-600 dark:text-red-400 animate-pulse'
-                                                            : ocrResult.status === 'expired'
-                                                            ? 'bg-red-500/10 border-red-500/30 text-red-500'
-                                                            : ocrResult.status === 'warning'
-                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                                                            : 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
-                                                    }`}>
-                                                        {ocrResult.status === 'rejected'
-                                                            ? <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
-                                                            : <Sparkles size={16} className="shrink-0 mt-0.5" />
-                                                        }
-                                                        <div className="space-y-1">
-                                                            <span className="block leading-relaxed">{ocrResult.message}</span>
-                                                            {ocrResult.expirationDate && (
-                                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-0.5">
-                                                                    Detected Expiry: <span className="font-extrabold text-slate-800 dark:text-white">{ocrResult.expirationDate}</span> {ocrResult.isExpired ? '(EXPIRED ❌)' : '(VALID ✅)'}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                {/* Per-Document OCR Banner */}
+                                                <OcrBanner docKey="license" />
                                             </div>
                                         </div>
                                     </motion.div>
@@ -726,6 +725,7 @@ const DriverVerification = () => {
                                                         <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1"><Sparkles size={11} /> OCR Enabled</span>
                                                     </label>
                                                     <DocumentUploadField id="upload-permit" label="Permit" file={permitImg} existingUrl={existingPermitImg} setFile={handlePermitUpload} />
+                                                    <OcrBanner docKey="permit" />
                                                 </div>
                                             </div>
                                         </div>
@@ -775,6 +775,7 @@ const DriverVerification = () => {
                                                         <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1"><Sparkles size={11} /> OCR Record Verification</span>
                                                     </label>
                                                     <DocumentUploadField id="upload-nbi" label="Clearance" file={nbiClearanceImg} existingUrl={existingNbiClearanceImg} setFile={handleNbiUpload} />
+                                                    <OcrBanner docKey="nbi" />
                                                 </div>
                                             </div>
                                         </div>
@@ -859,6 +860,7 @@ const DriverVerification = () => {
                                                             <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1"><Sparkles size={11} /> OCR Plate Scan</span>
                                                         </label>
                                                         <DocumentUploadField id="upload-orcr" label="OR/CR" file={vehicleOrcrImg} existingUrl={existingVehicleOrcrImg} setFile={handleOrcrUpload} />
+                                                        <OcrBanner docKey="orcr" />
                                                     </div>
                                                     <div>
                                                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Tricycle Photo</label>

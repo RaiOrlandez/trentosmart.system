@@ -7,27 +7,29 @@ import { createWorker } from 'tesseract.js';
  */
 
 // Official Keywords for PH Document Validation
+// NOTE: Do NOT use short/common words (OR, CR, REP) — they appear in almost any text.
+// Threshold is 3 matches minimum for higher accuracy.
 const DOCUMENT_KEYWORDS = {
-    license: ['DRIVER', 'LICENSE', 'LTO', 'REPUBLIC', 'PHILIPPINES', 'EXPIRY', 'RESTRICTION', 'NON-PROFESSIONAL', 'PROFESSIONAL', 'DL'],
-    permit: ['PERMIT', 'FRANCHISE', 'MTOP', 'TRENTO', 'MUNICIPAL', 'MAYOR', 'OFFICE', 'TRICYCLE', 'OPERATOR', 'LGU', 'AGUSAN'],
-    clearance: ['NBI', 'POLICE', 'CLEARANCE', 'NATIONAL', 'BUREAU', 'INVESTIGATION', 'RECORD', 'NO DEROGATORY', 'CERTIFICATE', 'REPUBLIC', 'REP'],
-    orcr: ['OFFICIAL', 'RECEIPT', 'CERTIFICATE', 'REGISTRATION', 'LTO', 'PLATE', 'CHASSIS', 'MOTOR', 'VEHICLE', 'OWNER', 'CR', 'OR']
+    license: ['DRIVER', 'LICENSE', 'LTO', 'REPUBLIC OF THE PHILIPPINES', 'EXPIRY DATE', 'RESTRICTION', 'NON-PROFESSIONAL', 'PROFESSIONAL', 'BIRTH DATE', 'NATIONALITY', 'WEIGHT'],
+    permit: ['FRANCHISE', 'MTOP', 'MUNICIPAL', 'MAYOR', 'TRICYCLE', 'OPERATOR', 'PERMIT TO OPERATE', 'MOTORIZED TRICYCLE', 'LGU', 'ORDINANCE'],
+    clearance: ['NBI CLEARANCE', 'POLICE CLEARANCE', 'NATIONAL BUREAU', 'BUREAU OF INVESTIGATION', 'NO DEROGATORY', 'NO CRIMINAL RECORD', 'CLEARANCE CERTIFICATE', 'ISSUED BY'],
+    orcr: ['OFFICIAL RECEIPT', 'CERTIFICATE OF REGISTRATION', 'MOTOR VEHICLE', 'CHASSIS NUMBER', 'ENGINE NUMBER', 'PLATE NUMBER', 'REGISTERED OWNER', 'LAND TRANSPORTATION']
 };
 
 /**
  * Checks if OCR text contains official document keywords.
- * Prevents random photos (cats, landscapes, memes, blank pages) from passing as official documents.
+ * Requires 3 or more distinctive keyword matches to prevent random images from passing.
  */
 export function validateDocumentAuthenticity(rawText, docType) {
-    if (!rawText || rawText.trim().length < 10) return false;
+    if (!rawText || rawText.trim().length < 15) return false;
     const upper = rawText.toUpperCase();
     const keywords = DOCUMENT_KEYWORDS[docType] || [];
     let matchCount = 0;
     for (const kw of keywords) {
         if (upper.includes(kw)) matchCount++;
     }
-    // At least 2 official document keywords must be present
-    return matchCount >= 2;
+    // Require at least 3 strong keyword matches — much stricter than before
+    return matchCount >= 3;
 }
 
 // Helper to parse dates in various PH document formats
