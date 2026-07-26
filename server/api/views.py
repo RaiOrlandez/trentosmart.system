@@ -552,6 +552,27 @@ class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        if user.role == 'driver' and user.is_verified_driver:
+            try:
+                from api.ocr_verifier import audit_driver_profile
+                is_passed, diagnostics, failure_reasons = audit_driver_profile(user)
+                if not is_passed:
+                    logger.warning(f"Driver {user.username} failed profile audit: {failure_reasons}")
+                    user.is_verified_driver = False
+                    user.verification_status = 'rejected'
+                    ai_meta = {
+                        "ai_verified": False,
+                        "license_ocr_status": "EXPIRED" if any("Expired" in r for r in failure_reasons) else "FAILED",
+                        "audit_reasons": failure_reasons,
+                        "timestamp": timezone.now().isoformat(),
+                        "admin_notes": f"System Audit Flagged: {'; '.join(failure_reasons[:2])}"
+                    }
+                    user.verification_notes = json.dumps(ai_meta)
+                    user.save(update_fields=['is_verified_driver', 'verification_status', 'verification_notes'])
+            except Exception as e:
+                logger.error(f"Error auditing driver profile: {e}")
+
         return Response(UserSerializer(request.user, context={'request': request}).data)
 
     def patch(self, request):
@@ -1912,111 +1933,43 @@ class DriverVerificationView(APIView):
                 try:
                     user = serializer.save()
                     
-                    # SYSTEM AUTO-VERIFICATION (REALISTIC AI OCR & FACE MATCH SIMULATION)
-                    import re
-                    import json
-                    import random
-                    import hashlib
-                    import time
+                    # SYSTEM AUTO-VERIFICATION & OCR INTEGRITY AUDIT
+                    from api.ocr_verifier import audit_driver_profile
+                    is_passed, diagnostics, failure_reasons = audit_driver_profile(user)
 
                     license_num = (user.license_number or "").strip().upper()
                     vehicle_plate = (user.vehicle_plate or "").strip().upper()
-                    
-                    # 1. Validate Philippine LTO Driver's License Formats
-                    # Formats:
-                    #  - Standard PH: A99-99-999999 (1 letter, 2 digits, hyphen, 2 digits, hyphen, 6 digits)
-                    #  - No-hyphen legacy: A9999999999 (1 letter, 10 digits)
-                    #  - Professional/NBI-linked: N01-23-456789 or 3-char prefix + 8-10 digits
-                    license_regex = r'^[A-Z]\d{2}-?\d{2}-?\d{4,6}$'
-                    is_valid_license_format = bool(re.match(license_regex, license_num))
-                    
-                    # Check License Expiry Date if provided
-                    is_license_expired = False
-                    if user.license_expiry_date:
-                        is_license_expired = user.license_expiry_date < timezone.now().date()
-                    
-                    # 2. Validate Vehicle Plate Format
-                    # Standard PH plates (ABC 1234, AB 12345), or Local LGU body number formats
-                    # Must contain valid letters/numbers and not be empty/all-hyphens
-                    is_valid_plate_format = False
-                    if vehicle_plate and not re.match(r'^[\s-]+$', vehicle_plate) and len(vehicle_plate) >= 3:
-                        plate_regex = r'^[A-Z0-9\s-]{3,10}$'
-                        is_valid_plate_format = bool(re.match(plate_regex, vehicle_plate))
-                    
-                    # 3. Validate uploaded images for potential placeholders/fakes
-                    # If file size is less than 20KB, it's likely a blank placeholder, tiny icon, or dummy file.
-                    has_fake_images = False
                     license_size = user.license_image.size if user.license_image else 0
                     selfie_size = user.selfie_with_license.size if user.selfie_with_license else 0
-                    
-                    if user.license_image and license_size < 20000:
-                        has_fake_images = True
-                    if user.selfie_with_license and selfie_size < 20000:
-                        has_fake_images = True
-                        
-                    # Check if filenames contain dummy keywords
-                    for img_field in [user.license_image, user.selfie_with_license]:
-                        if img_field and img_field.name:
-                            name_lower = img_field.name.lower()
-                            if any(k in name_lower for k in ["placeholder", "dummy", "test", "example", "blank", "fake"]):
-                                has_fake_images = True
-                    
-                    # Determine OCR status
-                    if is_license_expired:
-                        ocr_license = "EXPIRED"
-                    elif is_valid_license_format:
-                        ocr_license = "PASSED"
-                    else:
-                        ocr_license = "FAILED"
-                        
-                    ocr_orcr = "PASSED" if is_valid_plate_format else "FAILED"
-                    
-                    # Determine Face Match Similarity using dynamic file/user fingerprint seed
-                    seed_payload = f"{user.id}-{license_size}-{selfie_size}-{license_num}-{time.time()}"
-                    seed_val = int(hashlib.md5(seed_payload.encode()).hexdigest(), 16) % (2**32)
-                    random.seed(seed_val)
-                    
-                    if has_fake_images:
-                        # Fail face recognition (low confidence, no face detected, or placeholder detected)
-                        face_score = round(random.uniform(22.0, 48.5), 1)
-                    elif not is_valid_license_format or is_license_expired:
-                        # Slightly lower face score if details look suspicious/expired
-                        face_score = round(random.uniform(50.0, 68.4), 1)
-                    else:
-                        # Good quality match
-                        face_score = round(random.uniform(89.5, 98.2), 1)
-                    
-                    face_detected_both = not has_fake_images and is_valid_license_format and face_score >= 80.0
-                    
+
                     fingerprint = hashlib.sha256(f"{user.id}-{license_num}-{vehicle_plate}-{license_size}-{selfie_size}".encode()).hexdigest()[:16]
-                    
-                    # Preserve any existing admin_notes before overwriting verification_notes
+
+                    # Preserve existing admin_notes
                     existing_admin_notes = ""
                     try:
                         if user.verification_notes and user.verification_notes.strip().startswith('{'):
                             existing_parsed = json.loads(user.verification_notes)
                             existing_admin_notes = existing_parsed.get("admin_notes", "")
                     except Exception:
-                        pass  # If old notes were plain text (not JSON), discard them safely
+                        pass
 
                     ai_metadata = {
-                        "ai_verified": True,
-                        "face_similarity_score": face_score,
-                        "face_detected_both": face_detected_both,
-                        "license_ocr_status": ocr_license,
-                        "orcr_ocr_status": ocr_orcr,
+                        "ai_verified": is_passed,
+                        "license_ocr_status": "EXPIRED" if not diagnostics.get("license_not_expired") else ("PASSED" if diagnostics.get("license_format_ok") else "FAILED"),
+                        "orcr_ocr_status": "PASSED" if diagnostics.get("orcr_ocr_ok") else "FAILED",
+                        "permit_ocr_status": "PASSED" if diagnostics.get("permit_ocr_ok") else "FAILED",
+                        "nbi_ocr_status": "PASSED" if diagnostics.get("nbi_ocr_ok") else "FAILED",
+                        "audit_reasons": failure_reasons,
                         "timestamp": timezone.now().isoformat(),
                         "submission_fingerprint": fingerprint,
-                        "admin_notes": existing_admin_notes  # Carry forward admin remarks
+                        "admin_notes": existing_admin_notes
                     }
                     user.verification_notes = json.dumps(ai_metadata)
-                    
-                    # If they update documents, they need to be re-verified
                     user.is_verified_driver = False
-                    user.verification_status = 'pending'
+                    user.verification_status = 'pending' if is_passed else 'rejected'
                     user.save()
-                    
-                    logger.info(f"Verification documents saved and AI report generated for {user.username}")
+
+                    logger.info(f"Verification documents saved and AI report generated for {user.username} (Audit Passed: {is_passed})")
                     
                     # Try to send notification, but don't fail if it doesn't work
                     try:
