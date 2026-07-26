@@ -219,78 +219,90 @@ function parseDatesFromText(text) {
 function extractLicenseDatesLineByLine(rawText) {
     if (!rawText) return { expirationDate: null, issueDate: null, birthDate: null, allDates: [] };
 
-    const upperText = rawText.toUpperCase();
+    const cleanText = normalizeOcrDateString(rawText.toUpperCase());
     const allDates = parseDatesFromText(rawText);
 
     if (allDates.length === 0) {
         return { expirationDate: null, issueDate: null, birthDate: null, allDates: [] };
     }
 
-    // Keyword position finders
-    const EXP_KEYWORDS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:', 'KAPASUHAN'];
-    const ISS_KEYWORDS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED', 'ISSUE'];
+    // Split text into individual lines to perform line-level context matching
+    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+
+    const EXP_KEYWORDS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP', 'KAPASUHAN'];
+    const ISS_KEYWORDS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED', 'DATE ISSUED', 'ISSUE'];
     const DOB_KEYWORDS = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB', 'BORN', 'BIRTH'];
 
-    const findMinKeywordDistance = (charIndex, keywords) => {
-        let minDist = Infinity;
-        for (const kw of keywords) {
-            let pos = upperText.indexOf(kw);
-            while (pos !== -1) {
-                const dist = Math.abs(charIndex - pos);
-                if (dist < minDist) minDist = dist;
-                pos = upperText.indexOf(kw, pos + 1);
+    const expCandidates = [];
+    const issCandidates = [];
+    const dobCandidates = [];
+
+    // 1. Scan line-by-line: check which dates are on (or immediately after) EXP / ISS / DOB label lines
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        const lineDates = parseDatesFromText(line);
+
+        if (lineDates.length === 0) continue;
+
+        const hasExpLabel = EXP_KEYWORDS.some(kw => line.includes(kw) || prevLine.includes(kw));
+        const hasIssLabel = ISS_KEYWORDS.some(kw => line.includes(kw) || prevLine.includes(kw));
+        const hasDobLabel = DOB_KEYWORDS.some(kw => line.includes(kw) || prevLine.includes(kw));
+
+        for (const d of lineDates) {
+            if (hasExpLabel && !hasIssLabel) {
+                expCandidates.push(d);
+            } else if (hasIssLabel && !hasExpLabel) {
+                issCandidates.push(d);
+            } else if (hasDobLabel) {
+                dobCandidates.push(d);
             }
-        }
-        return minDist;
-    };
-
-    // Classify each date candidate
-    const scoredDates = allDates.map(d => {
-        const expDist = findMinKeywordDistance(d.index, EXP_KEYWORDS);
-        const issDist = findMinKeywordDistance(d.index, ISS_KEYWORDS);
-        const dobDist = findMinKeywordDistance(d.index, DOB_KEYWORDS);
-
-        let type = 'unknown';
-        if (expDist < issDist && expDist < dobDist && expDist < 200) {
-            type = 'expiration';
-        } else if (issDist < expDist && issDist < dobDist && issDist < 150) {
-            type = 'issue';
-        } else if (dobDist < expDist && dobDist < issDist && dobDist < 150) {
-            type = 'birth';
-        } else if (d.year <= 2010) {
-            type = 'birth'; // Year <= 2010 is almost certainly a birth date
-        }
-
-        return { ...d, expDist, issDist, dobDist, type };
-    });
-
-    // Separate by type
-    const expCandidates = scoredDates.filter(d => d.type === 'expiration');
-    const issCandidates = scoredDates.filter(d => d.type === 'issue');
-    const dobCandidates = scoredDates.filter(d => d.type === 'birth');
-
-    let expirationDate = null;
-
-    if (expCandidates.length > 0) {
-        // Pick expiration candidate with highest year / closest distance
-        expCandidates.sort((a, b) => b.year - a.year || a.expDist - b.expDist);
-        expirationDate = expCandidates[0].formatted;
-    } else {
-        // Fallback: exclude birth dates (year <= 2010) and dates closest to ISSUE label
-        const remaining = scoredDates.filter(d => d.year > 2010 && d.type !== 'birth');
-        if (remaining.length > 0) {
-            // Sort by year descending (HIGHEST year = Expiration Date e.g. 2025 vs Issue Date 2020)
-            remaining.sort((a, b) => b.year - a.year);
-            expirationDate = remaining[0].formatted;
-        } else {
-            // Ultimate fallback: highest year overall
-            allDates.sort((a, b) => b.year - a.year);
-            expirationDate = allDates[0].formatted;
         }
     }
 
-    const issueDate = issCandidates.length > 0 ? issCandidates[0].formatted : null;
-    const birthDate = dobCandidates.length > 0 ? dobCandidates[0].formatted : null;
+    // Filter out birth dates (year <= 2010 or age > 16)
+    const validityDates = allDates.filter(d => d.year > 2010);
+    // Sort all validity dates descending by year, month, day (LATEST date first!)
+    validityDates.sort((a, b) => b.year - a.year || b.month - a.month || b.day - a.day);
+
+    let expirationDate = null;
+    let issueDate = null;
+
+    if (validityDates.length > 0) {
+        // Absolute Rule for LTO Driver's License:
+        // Expiration Date is ALWAYS the LATEST validity date (highest year & date) on the card!
+        // E.g., 2025/02/09 (Expiration) > 2020/12/04 (Issue Date).
+        expirationDate = validityDates[0].formatted;
+
+        // If there is an earlier validity date, that is the Issue Date
+        if (validityDates.length > 1) {
+            issueDate = validityDates[validityDates.length - 1].formatted;
+        }
+    }
+
+    // Check if an explicit expCandidate exists with higher or equal priority
+    if (expCandidates.length > 0) {
+        expCandidates.sort((a, b) => b.year - a.year || b.month - a.month || b.day - a.day);
+        // Ensure explicit expCandidate is not earlier than an identified issue date
+        if (expCandidates[0].year > 2010) {
+            expirationDate = expCandidates[0].formatted;
+        }
+    }
+
+    if (issCandidates.length > 0 && !issueDate) {
+        issCandidates.sort((a, b) => b.year - a.year || b.month - a.month || b.day - a.day);
+        issueDate = issCandidates[0].formatted;
+    }
+
+    // Final Hierarchy Guardrail: Expiration Date CANNOT be earlier than Issue Date!
+    if (expirationDate && issueDate && expirationDate < issueDate) {
+        const temp = expirationDate;
+        expirationDate = issueDate;
+        issueDate = temp;
+    }
+
+    const birthDateObj = allDates.find(d => d.year <= 2010);
+    const birthDate = birthDateObj ? birthDateObj.formatted : null;
 
     return { expirationDate, issueDate, birthDate, allDates };
 }

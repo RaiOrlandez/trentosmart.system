@@ -90,72 +90,77 @@ def parse_dates_in_line(line):
 def extract_dates_from_pytesseract(ocr_text):
     """
     Line-by-line label-aware date extractor for PH LTO Driver's License OCR text.
-
-    Correctly classifies:
-      EXPIRATION DATE lines -> expiration candidates
-      ISSUE DATE / DATE OF ISSUANCE lines -> excluded from expiry
-      DATE OF BIRTH lines -> excluded from expiry
-
-    Returns dict: { expirationDate, issueDate, birthDate, allDates }
+    Enforces Year-Hierarchy: Expiration Date is ALWAYS the latest date (highest year)
+    among valid license dates on the ID card (e.g. 2025-02-09 > 2020-12-04).
     """
     if not ocr_text:
         return {'expirationDate': None, 'issueDate': None, 'birthDate': None, 'allDates': []}
 
-    EXP_LABELS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:']
-    ISS_LABELS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED']
-    DOB_LABELS = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB']
+    EXP_LABELS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP', 'KAPASUHAN']
+    ISS_LABELS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED', 'DATE ISSUED', 'ISSUE']
+    DOB_LABELS = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB', 'BORN', 'BIRTH']
 
     lines = [l.strip() for l in ocr_text.split('\n') if l.strip()]
     upper_lines = [l.upper() for l in lines]
 
     all_dates = []
-    expiration_candidates = []
-    issue_candidates = []
-    birth_candidates = []
+    exp_candidates = []
+    iss_candidates = []
+    dob_candidates = []
 
     for i, line in enumerate(upper_lines):
         dates_in_line = parse_dates_in_line(line)
-        next_line = upper_lines[i + 1] if i + 1 < len(upper_lines) else ''
-        dates_in_next = parse_dates_in_line(next_line)
+        if not dates_in_line:
+            continue
 
-        is_exp = any(lbl in line for lbl in EXP_LABELS)
-        is_iss = any(lbl in line for lbl in ISS_LABELS)
-        is_dob = any(lbl in line for lbl in DOB_LABELS)
+        prev_line = upper_lines[i - 1] if i > 0 else ''
+        has_exp = any(lbl in line or lbl in prev_line for lbl in EXP_LABELS)
+        has_iss = any(lbl in line or lbl in prev_line for lbl in ISS_LABELS)
+        has_dob = any(lbl in line or lbl in prev_line for lbl in DOB_LABELS)
 
-        combined = dates_in_line + dates_in_next
+        for d in dates_in_line:
+            all_dates.append(d)
+            if has_exp and not has_iss:
+                exp_candidates.append(d)
+            elif has_iss and not has_exp:
+                iss_candidates.append(d)
+            elif has_dob:
+                dob_candidates.append(d)
 
-        if is_exp:
-            expiration_candidates.extend(combined)
-            all_dates.extend(combined)
-        elif is_iss:
-            issue_candidates.extend(combined)
-            all_dates.extend(combined)
-        elif is_dob:
-            birth_candidates.extend(combined)
-            all_dates.extend(combined)
-        elif dates_in_line:
-            all_dates.extend(dates_in_line)
+    if not all_dates:
+        return {'expirationDate': None, 'issueDate': None, 'birthDate': None, 'allDates': []}
 
-    # Resolve expiration: pick highest-year candidate
+    # Separate validity dates (year > 2010) from birth dates (year <= 2010)
+    validity_dates = [d for d in all_dates if d['year'] > 2010]
+    birth_dates = [d for d in all_dates if d['year'] <= 2010]
+
+    # Sort validity dates descending (latest date first: highest year, month, day)
+    validity_dates.sort(key=lambda d: (d['year'], d['month'], d['day']), reverse=True)
+
     expiration_date = None
-    if expiration_candidates:
-        expiration_candidates.sort(key=lambda x: (x['year'], x['month']), reverse=True)
-        expiration_date = expiration_candidates[0]['formatted']
-    elif all_dates:
-        issue_strs = {d['formatted'] for d in issue_candidates}
-        birth_strs = {d['formatted'] for d in birth_candidates}
-        fallback = [d for d in all_dates if d['formatted'] not in issue_strs and d['formatted'] not in birth_strs]
-        if fallback:
-            fallback.sort(key=lambda x: x['year'], reverse=True)
-            expiration_date = fallback[0]['formatted']
-        else:
-            all_dates.sort(key=lambda x: x['year'], reverse=True)
-            expiration_date = all_dates[0]['formatted'] if all_dates else None
+    issue_date = None
 
-    issue_date = (sorted(issue_candidates, key=lambda x: x['year'], reverse=True)[0]['formatted']
-                  if issue_candidates else None)
-    birth_date = (sorted(birth_candidates, key=lambda x: x['year'], reverse=True)[0]['formatted']
-                  if birth_candidates else None)
+    if validity_dates:
+        # Absolute LTO Rule: Expiration Date is ALWAYS the latest validity date
+        expiration_date = validity_dates[0]['formatted']
+        if len(validity_dates) > 1:
+            issue_date = validity_dates[-1]['formatted']
+
+    # Explicit candidates priority check
+    if exp_candidates:
+        exp_candidates.sort(key=lambda d: (d['year'], d['month'], d['day']), reverse=True)
+        if exp_candidates[0]['year'] > 2010:
+            expiration_date = exp_candidates[0]['formatted']
+
+    if iss_candidates and not issue_date:
+        iss_candidates.sort(key=lambda d: (d['year'], d['month'], d['day']), reverse=True)
+        issue_date = iss_candidates[0]['formatted']
+
+    # Final guardrail: Ensure Expiration Date is never earlier than Issue Date
+    if expiration_date and issue_date and expiration_date < issue_date:
+        expiration_date, issue_date = issue_date, expiration_date
+
+    birth_date = birth_dates[0]['formatted'] if birth_dates else (dob_candidates[0]['formatted'] if dob_candidates else None)
 
     return {
         'expirationDate': expiration_date,
