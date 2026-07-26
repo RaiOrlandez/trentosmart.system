@@ -98,16 +98,26 @@ const DriverVerification = () => {
         }
     };
 
+    // 1. LTO License OCR Handler
     const handleLicenseUpload = async (file) => {
         setLicenseImg(file);
         if (!file) return;
-
         setOcrScanning(true);
         setOcrResult(null);
-
         try {
             const scan = await scanLicenseID(file);
             setOcrScanning(false);
+
+            // 🛡️ Random Image Guard: reject if no official LTO document keywords found
+            if (!scan.isAuthenticDoc) {
+                setLicenseImg(null); // clear the invalid file
+                setOcrResult({
+                    status: 'rejected',
+                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LTO Driver\'s License. Please upload a clear, authentic photo of your actual LTO Driver\'s License.'
+                });
+                return;
+            }
+
             if (scan.success) {
                 const autoPopulated = [];
                 if (scan.expirationDate) {
@@ -150,6 +160,17 @@ const DriverVerification = () => {
         try {
             const scan = await scanPermitID(file);
             setOcrScanning(false);
+
+            // 🛡️ Random Image Guard
+            if (!scan.isAuthenticDoc) {
+                setPermitImg(null);
+                setOcrResult({
+                    status: 'rejected',
+                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LGU Franchise or MTOP Permit. Please upload a clear photo of your actual Trento Mayor\'s Permit / MTOP.'
+                });
+                return;
+            }
+
             if (scan.success && scan.permitNumber) {
                 setPermitNum(scan.permitNumber);
                 setOcrResult({
@@ -159,7 +180,7 @@ const DriverVerification = () => {
             } else {
                 setOcrResult({
                     status: 'success',
-                    message: `✅ MTOP Permit Image uploaded and processed via OCR (${scan.confidence || 85}% confidence).`
+                    message: `✅ MTOP Permit Image verified and uploaded successfully via OCR (${scan.confidence || 85}% confidence).`
                 });
             }
         } catch (e) {
@@ -175,12 +196,23 @@ const DriverVerification = () => {
         try {
             const scan = await scanNbiClearance(file);
             setOcrScanning(false);
+
+            // 🛡️ Random Image Guard
+            if (!scan.isAuthenticDoc) {
+                setNbiClearanceImg(null);
+                setOcrResult({
+                    status: 'rejected',
+                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official NBI or Police Clearance. Please upload a clear, authentic photo of your actual NBI / Police Clearance certificate.'
+                });
+                return;
+            }
+
             if (scan.success) {
                 setOcrResult({
-                    status: scan.hasNoRecord ? 'success' : 'success',
+                    status: 'success',
                     message: scan.hasNoRecord
                         ? `✅ Real OCR Verified: "NO DEROGATORY CRIMINAL RECORD" text confirmed in NBI Clearance (${scan.confidence}% confidence).`
-                        : `✅ NBI / Police Clearance image scanned via OCR (${scan.confidence}% confidence).`
+                        : `✅ NBI / Police Clearance image verified and scanned via OCR (${scan.confidence}% confidence).`
                 });
             }
         } catch (e) {
@@ -196,6 +228,17 @@ const DriverVerification = () => {
         try {
             const scan = await scanVehicleORCR(file);
             setOcrScanning(false);
+
+            // 🛡️ Random Image Guard
+            if (!scan.isAuthenticDoc) {
+                setVehicleOrcrImg(null);
+                setOcrResult({
+                    status: 'rejected',
+                    message: '🚫 INVALID DOCUMENT DETECTED: The uploaded image does not appear to be an official LTO Vehicle OR/CR (Official Receipt / Certificate of Registration). Please upload a clear, authentic photo of your actual LTO OR/CR document.'
+                });
+                return;
+            }
+
             if (scan.success && scan.plateNumber) {
                 setVehiclePlate(scan.plateNumber);
                 setOcrResult({
@@ -205,7 +248,7 @@ const DriverVerification = () => {
             } else {
                 setOcrResult({
                     status: 'success',
-                    message: `✅ Vehicle OR/CR image scanned via OCR (${scan.confidence || 85}% confidence).`
+                    message: `✅ Vehicle OR/CR image verified and scanned via OCR (${scan.confidence || 85}% confidence).`
                 });
             }
         } catch (e) {
@@ -605,13 +648,18 @@ const DriverVerification = () => {
 
                                                 {ocrResult && !ocrScanning && (
                                                     <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 border ${
-                                                        ocrResult.status === 'expired'
+                                                        ocrResult.status === 'rejected'
+                                                            ? 'bg-red-500/15 border-red-500/50 text-red-600 dark:text-red-400 animate-pulse'
+                                                            : ocrResult.status === 'expired'
                                                             ? 'bg-red-500/10 border-red-500/30 text-red-500'
                                                             : ocrResult.status === 'warning'
                                                             ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
                                                             : 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
                                                     }`}>
-                                                        <Sparkles size={16} className="shrink-0 mt-0.5" />
+                                                        {ocrResult.status === 'rejected'
+                                                            ? <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
+                                                            : <Sparkles size={16} className="shrink-0 mt-0.5" />
+                                                        }
                                                         <div className="space-y-1">
                                                             <span className="block leading-relaxed">{ocrResult.message}</span>
                                                             {ocrResult.expirationDate && (

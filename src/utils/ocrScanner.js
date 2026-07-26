@@ -3,7 +3,32 @@ import { createWorker } from 'tesseract.js';
 /**
  * ocrScanner.js — Multi-Document OCR Scanning Engine for Transmart Driver Verification
  * Supports LTO Driver's License, LGU MTOP Permit, NBI Clearance, and Vehicle OR/CR.
+ * Includes Document Authenticity & Random Image Detector.
  */
+
+// Official Keywords for PH Document Validation
+const DOCUMENT_KEYWORDS = {
+    license: ['DRIVER', 'LICENSE', 'LTO', 'REPUBLIC', 'PHILIPPINES', 'EXPIRY', 'RESTRICTION', 'NON-PROFESSIONAL', 'PROFESSIONAL', 'DL'],
+    permit: ['PERMIT', 'FRANCHISE', 'MTOP', 'TRENTO', 'MUNICIPAL', 'MAYOR', 'OFFICE', 'TRICYCLE', 'OPERATOR', 'LGU', 'AGUSAN'],
+    clearance: ['NBI', 'POLICE', 'CLEARANCE', 'NATIONAL', 'BUREAU', 'INVESTIGATION', 'RECORD', 'NO DEROGATORY', 'CERTIFICATE', 'REPUBLIC', 'REP'],
+    orcr: ['OFFICIAL', 'RECEIPT', 'CERTIFICATE', 'REGISTRATION', 'LTO', 'PLATE', 'CHASSIS', 'MOTOR', 'VEHICLE', 'OWNER', 'CR', 'OR']
+};
+
+/**
+ * Checks if OCR text contains official document keywords.
+ * Prevents random photos (cats, landscapes, memes, blank pages) from passing as official documents.
+ */
+export function validateDocumentAuthenticity(rawText, docType) {
+    if (!rawText || rawText.trim().length < 10) return false;
+    const upper = rawText.toUpperCase();
+    const keywords = DOCUMENT_KEYWORDS[docType] || [];
+    let matchCount = 0;
+    for (const kw of keywords) {
+        if (upper.includes(kw)) matchCount++;
+    }
+    // At least 2 official document keywords must be present
+    return matchCount >= 2;
+}
 
 // Helper to parse dates in various PH document formats
 function extractDatesFromText(rawText) {
@@ -104,8 +129,6 @@ function extractLicenseNumber(rawText) {
 function extractPermitNumber(rawText) {
     if (!rawText) return null;
     const text = rawText.toUpperCase();
-    
-    // Format: MTOP-XXXX, PERMIT-XXXX, or numeric ID
     const permitRegex = /\b(MTOP[- ]?\d{3,6}|PERMIT[- ]?\d{3,6}|\d{4,8})\b/g;
     const match = permitRegex.exec(text);
     return match ? match[1] : null;
@@ -115,15 +138,13 @@ function extractPermitNumber(rawText) {
 function extractPlateNumber(rawText) {
     if (!rawText) return null;
     const text = rawText.toUpperCase();
-    
-    // PH Plate formats: ABC 123, ABC 1234, AB 12345
     const plateRegex = /\b([A-Z]{2,3}[- ]?\d{3,4})\b/g;
     const match = plateRegex.exec(text);
     return match ? match[1].replace(/\s+/g, ' ') : null;
 }
 
 /**
- * Scan LTO Driver's License
+ * Scan LTO Driver's License with Random Image Guard
  */
 export async function scanLicenseID(imageFile) {
     let worker = null;
@@ -132,9 +153,9 @@ export async function scanLicenseID(imageFile) {
         const ret = await worker.recognize(imageFile);
         const text = ret.data.text || '';
         const confidence = ret.data.confidence || 0;
-
         await worker.terminate();
 
+        const isAuthenticDoc = validateDocumentAuthenticity(text, 'license');
         const detectedLicense = extractLicenseNumber(text);
         const dates = extractDatesFromText(text);
 
@@ -160,6 +181,7 @@ export async function scanLicenseID(imageFile) {
 
         return {
             success: true,
+            isAuthenticDoc,
             rawText: text,
             licenseNumber: detectedLicense,
             expirationDate,
@@ -170,12 +192,12 @@ export async function scanLicenseID(imageFile) {
     } catch (err) {
         console.error('OCR Scanning Error (License):', err);
         if (worker) { try { await worker.terminate(); } catch (_) {} }
-        return { success: false, error: err.message, confidence: 0 };
+        return { success: false, isAuthenticDoc: false, error: err.message, confidence: 0 };
     }
 }
 
 /**
- * Scan LGU Franchise / MTOP Permit
+ * Scan LGU Franchise / MTOP Permit with Random Image Guard
  */
 export async function scanPermitID(imageFile) {
     let worker = null;
@@ -186,26 +208,27 @@ export async function scanPermitID(imageFile) {
         const confidence = ret.data.confidence || 0;
         await worker.terminate();
 
+        const isAuthenticDoc = validateDocumentAuthenticity(text, 'permit');
         const permitNum = extractPermitNumber(text);
         const dates = extractDatesFromText(text);
-        const validDate = dates.length > 0 ? dates[0].formatted : null;
 
         return {
             success: true,
+            isAuthenticDoc,
             rawText: text,
             permitNumber: permitNum,
-            expirationDate: validDate,
+            expirationDate: dates.length > 0 ? dates[0].formatted : null,
             confidence: Math.round(confidence)
         };
     } catch (err) {
         console.error('OCR Scanning Error (Permit):', err);
         if (worker) { try { await worker.terminate(); } catch (_) {} }
-        return { success: false, error: err.message, confidence: 0 };
+        return { success: false, isAuthenticDoc: false, error: err.message, confidence: 0 };
     }
 }
 
 /**
- * Scan NBI / Police Clearance
+ * Scan NBI / Police Clearance with Random Image Guard
  */
 export async function scanNbiClearance(imageFile) {
     let worker = null;
@@ -216,14 +239,15 @@ export async function scanNbiClearance(imageFile) {
         const confidence = ret.data.confidence || 0;
         await worker.terminate();
 
+        const isAuthenticDoc = validateDocumentAuthenticity(text, 'clearance');
         const hasNoRecord = text.toUpperCase().includes('NO RECORD') || 
                             text.toUpperCase().includes('NO DEROGATORY') ||
                             text.toUpperCase().includes('CLEARED');
-
         const dates = extractDatesFromText(text);
 
         return {
             success: true,
+            isAuthenticDoc,
             rawText: text,
             hasNoRecord,
             issueDate: dates.length > 0 ? dates[0].formatted : null,
@@ -232,12 +256,12 @@ export async function scanNbiClearance(imageFile) {
     } catch (err) {
         console.error('OCR Scanning Error (NBI):', err);
         if (worker) { try { await worker.terminate(); } catch (_) {} }
-        return { success: false, error: err.message, confidence: 0 };
+        return { success: false, isAuthenticDoc: false, error: err.message, confidence: 0 };
     }
 }
 
 /**
- * Scan Vehicle OR / CR
+ * Scan Vehicle OR / CR with Random Image Guard
  */
 export async function scanVehicleORCR(imageFile) {
     let worker = null;
@@ -248,11 +272,13 @@ export async function scanVehicleORCR(imageFile) {
         const confidence = ret.data.confidence || 0;
         await worker.terminate();
 
+        const isAuthenticDoc = validateDocumentAuthenticity(text, 'orcr');
         const plateNumber = extractPlateNumber(text);
         const dates = extractDatesFromText(text);
 
         return {
             success: true,
+            isAuthenticDoc,
             rawText: text,
             plateNumber,
             registrationDate: dates.length > 0 ? dates[0].formatted : null,
@@ -261,6 +287,6 @@ export async function scanVehicleORCR(imageFile) {
     } catch (err) {
         console.error('OCR Scanning Error (ORCR):', err);
         if (worker) { try { await worker.terminate(); } catch (_) {} }
-        return { success: false, error: err.message, confidence: 0 };
+        return { success: false, isAuthenticDoc: false, error: err.message, confidence: 0 };
     }
 }
