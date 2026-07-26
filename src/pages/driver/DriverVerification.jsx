@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { scanLicenseID, scanPermitID, scanNbiClearance, scanVehicleORCR } from '../../utils/ocrScanner';
+import { compareFaces } from '../../utils/faceMatcher';
 
 const DriverVerification = () => {
     // Text Inputs
@@ -41,8 +42,11 @@ const DriverVerification = () => {
     const [adminNotes, setAdminNotes] = useState('');
     const [aiDiagnostics, setAiDiagnostics] = useState(null);
 
+    // Real-Time Face Match State
+    const [faceMatchResult, setFaceMatchResult] = useState(null);
+    const [isMatchingFace, setIsMatchingFace] = useState(false);
+
     // BUG FIX 1 & 4: Per-document OCR state instead of shared state.
-    // Each document section has its own scanning/result state so they never bleed into each other.
     const [ocrStates, setOcrStates] = useState({
         license:  { scanning: false, result: null },
         permit:   { scanning: false, result: null },
@@ -50,9 +54,9 @@ const DriverVerification = () => {
         orcr:     { scanning: false, result: null },
     });
 
-    // BUG FIX 2: Track OCR rejection state per document so Submit can be blocked
+    // BUG FIX 2: Track OCR & Biometric rejection state per document
     const [ocrRejected, setOcrRejected] = useState({
-        license: false, permit: false, nbi: false, orcr: false
+        license: false, permit: false, nbi: false, orcr: false, liveness: false
     });
 
     const setDocOcr = (docKey, scanning, result) => {
@@ -194,12 +198,51 @@ const DriverVerification = () => {
                         ? `✅ OCR Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
                         : `✅ OCR Scanned (${scan.confidence}% confidence). Text verified.`
                 });
+
+                const activeSelfie = selfieWithLicenseImg || existingSelfieWithLicenseImg;
+                if (activeSelfie) {
+                    runFaceBiometricsCheck(file, activeSelfie);
+                }
             } else {
                 setDocOcr('license', false, { status: 'warning', message: '⚠️ OCR unclear — please verify/type fields manually.' });
             }
         } catch (e) {
             setDocOcr('license', false, null);
             console.error('OCR scanning error:', e);
+        }
+    };
+
+    const runFaceBiometricsCheck = async (licInput, selfieInput) => {
+        if (!licInput || !selfieInput) {
+            setFaceMatchResult(null);
+            return;
+        }
+        setIsMatchingFace(true);
+        try {
+            const res = await compareFaces(licInput, selfieInput);
+            setFaceMatchResult(res);
+            if (!res.matched || !res.licenseFaceDetected || !res.selfieFaceDetected) {
+                setOcrRejected(prev => ({ ...prev, liveness: true }));
+            } else {
+                setOcrRejected(prev => ({ ...prev, liveness: false }));
+            }
+        } catch (e) {
+            console.error('Face biometrics scan error:', e);
+        } finally {
+            setIsMatchingFace(false);
+        }
+    };
+
+    const handleSelfieUpload = (file) => {
+        setSelfieWithLicenseImg(file);
+        if (!file) {
+            setFaceMatchResult(null);
+            setOcrRejected(prev => ({ ...prev, liveness: false }));
+            return;
+        }
+        const activeLicense = licenseImg || existingLicenseImg;
+        if (activeLicense) {
+            runFaceBiometricsCheck(activeLicense, file);
         }
     };
 
@@ -341,17 +384,17 @@ const DriverVerification = () => {
         setStatus('uploading');
         setMsg('');
 
-        // BUG FIX 2: Block submission if any document was rejected by OCR
-        if (ocrRejected.license || ocrRejected.permit || ocrRejected.nbi || ocrRejected.orcr) {
+        // BUG FIX 2 & Face Gate: Block submission if any document or face photo was rejected by OCR or Face Biometrics
+        if (ocrRejected.license || ocrRejected.permit || ocrRejected.nbi || ocrRejected.orcr || ocrRejected.liveness) {
             setStatus('error');
-            setMsg('🚫 Submission Blocked: One or more uploaded document images were REJECTED by OCR as invalid or fake. Please upload clear, authentic photos of your actual official documents.');
+            setMsg('🚫 Submission Blocked: One or more uploaded document images or Solo Selfie failed OCR or Face Biometrics verification. Please upload clear, authentic, matching photos.');
             return;
         }
 
-        // Block if OCR is still scanning
-        if (ocrStates.license.scanning || ocrStates.permit.scanning || ocrStates.nbi.scanning || ocrStates.orcr.scanning) {
+        // Block if OCR or Face Biometrics is still scanning
+        if (ocrStates.license.scanning || ocrStates.permit.scanning || ocrStates.nbi.scanning || ocrStates.orcr.scanning || isMatchingFace) {
             setStatus('error');
-            setMsg('⌛ Please wait for OCR document scanning to complete before submitting.');
+            setMsg('⌛ Please wait for document OCR scanning and AI Face Biometrics to complete before submitting.');
             return;
         }
 
@@ -427,7 +470,7 @@ const DriverVerification = () => {
         { ready: (nbiClearanceImg || existingNbiClearanceImg) && !ocrRejected.nbi },
         { ready: (vehicleOrcrImg || existingVehicleOrcrImg) && !ocrRejected.orcr },
         { ready: bodyNumber.length > 0 && vehicleModel.length > 0 && isPlateValid && vehicleColor.length > 0 && sidecarType.length > 0 && (tricyclePhotoImg || existingTricyclePhotoImg) },
-        { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) }
+        { ready: (selfieWithLicenseImg || existingSelfieWithLicenseImg) && !ocrRejected.liveness && (!faceMatchResult || faceMatchResult.matched) }
     ];
     const completedCount = items.filter(i => i.ready).length;
     const progressPercent = (completedCount / 6) * 100;
@@ -456,7 +499,9 @@ const DriverVerification = () => {
             ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
             : { isOk: false, label: 'Incomplete ⚠️', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', alert: 'Paki-kumpleto ang Body #, OR/CR, at litrato ng tricycle.' },
 
-        liveness: (aiDiagnostics && aiDiagnostics.face_similarity_score < 80)
+        liveness: (faceMatchResult && (!faceMatchResult.matched || !faceMatchResult.selfieFaceDetected || !faceMatchResult.licenseFaceDetected))
+            ? { isOk: false, label: 'Face Mismatch ❌', color: 'bg-red-500/20 text-red-500 border-red-500/30', alert: faceMatchResult.statusText }
+            : (aiDiagnostics && aiDiagnostics.face_similarity_score < 80)
             ? { isOk: false, label: 'Face Issue ❌', color: 'bg-red-500/20 text-red-500 border-red-500/30', alert: 'Hindi tumugma ang mukha sa Solo Selfie kumpara sa License photo. Kumuha ng malinaw na bagong litrato.' }
             : items[5].ready
             ? { isOk: true, label: 'Verified ✅', color: 'bg-green-500/20 text-green-500 border-green-500/30', alert: null }
@@ -920,9 +965,40 @@ const DriverVerification = () => {
                                             <div className="space-y-4 mt-2">
                                                 <p className="text-xs text-slate-400 ml-2 italic">Take a clear, well-lit photo of your face facing forward. Ensure your face is centered and clearly visible for AI biometrics.</p>
                                                 <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">Solo Driver Selfie</label>
-                                                    <DocumentUploadField id="upload-selfie" label="Solo Selfie" file={selfieWithLicenseImg} existingUrl={existingSelfieWithLicenseImg} setFile={setSelfieWithLicenseImg} />
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block flex items-center justify-between">
+                                                        <span>Solo Driver Selfie</span>
+                                                        <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1">
+                                                            <Sparkles size={11} /> Real-Time Face Biometrics
+                                                        </span>
+                                                    </label>
+                                                    <DocumentUploadField id="upload-selfie" label="Solo Selfie" file={selfieWithLicenseImg} existingUrl={existingSelfieWithLicenseImg} setFile={handleSelfieUpload} />
                                                 </div>
+
+                                                {isMatchingFace && (
+                                                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-center gap-2.5 animate-pulse mt-3">
+                                                        <RefreshCw size={16} className="animate-spin text-amber-500 shrink-0" />
+                                                        <span>🤖 Analyzing Face Biometrics (License Photo vs Solo Selfie)...</span>
+                                                    </div>
+                                                )}
+
+                                                {!isMatchingFace && faceMatchResult && (
+                                                    <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 border mt-3 ${
+                                                        !faceMatchResult.matched || !faceMatchResult.selfieFaceDetected || !faceMatchResult.licenseFaceDetected
+                                                            ? 'bg-red-500/15 border-red-500/50 text-red-600 dark:text-red-400 animate-pulse'
+                                                            : 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+                                                    }`}>
+                                                        {!faceMatchResult.matched || !faceMatchResult.selfieFaceDetected || !faceMatchResult.licenseFaceDetected
+                                                            ? <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
+                                                            : <Sparkles size={16} className="shrink-0 mt-0.5" />
+                                                        }
+                                                        <div className="space-y-1">
+                                                            <span className="block leading-relaxed">{faceMatchResult.statusText}</span>
+                                                            <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-0.5">
+                                                                Biometric Similarity: <span className="font-extrabold text-slate-800 dark:text-white">{faceMatchResult.similarityScore}%</span> {faceMatchResult.matched ? '(MATCHED ✅)' : '(MISMATCHED ❌ - Min 80% Required)'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </motion.div>
