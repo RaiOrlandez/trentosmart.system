@@ -458,7 +458,20 @@ const DriverVerification = () => {
     };
 
     // Calculate progress (6 required items instead of 7) & document diagnostic health
-    const isLicenseExpired = licenseExpiryDate && new Date(licenseExpiryDate) < new Date();
+    // Robust date parser: handles YYYY-MM-DD (ISO/OCR), DD/MM/YYYY (display) and guards against
+    // JS new Date("02/09/2025") ambiguity which reads it as Feb 9, 2025 (expired!) instead of Sep 2, 2025 (valid).
+    const parseLicenseDate = (dateStr) => {
+        if (!dateStr) return null;
+        // ISO YYYY-MM-DD from backend / OCR result
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return new Date(dateStr.trim() + 'T00:00:00');
+        // DD/MM/YYYY display format (used when loaded from Profile.jsx)
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr.trim())) {
+            const [day, month, year] = dateStr.trim().split('/');
+            return new Date(`${year}-${month}-${day}T00:00:00`);
+        }
+        return new Date(dateStr);
+    };
+    const isLicenseExpired = licenseExpiryDate && parseLicenseDate(licenseExpiryDate) < new Date();
     const licenseRegex = /^[A-Z]\d{2}-?\d{2}-?\d{4,6}$/i;
     const isLicenseFormatValid = licenseNum && licenseRegex.test(licenseNum.trim());
     const plateRegex = /^[A-Z0-9\s-]{3,10}$/i;

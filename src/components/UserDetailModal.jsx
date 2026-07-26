@@ -203,7 +203,26 @@ const UserDetailModal = ({ isOpen, onClose, user, onRefresh, onApprove }) => {
         const plateRegex = /^[A-Z0-9\s-]{3,10}$/i;
         
         const isLicenseFormatValid = licenseRegex.test((user.license_number || "").trim()) && !!(user.license_image_url || user.license_image);
-        const isLicenseExpired = user.license_expiry_date && new Date(user.license_expiry_date) < new Date();
+
+        // --- BUG FIX: Robust license expiry date parsing ---
+        // new Date("02/09/2025") is ambiguous in JS (browser reads DD/MM as MM/DD, giving Feb 9, 2025 which is expired!).
+        // We must detect the format and parse correctly.
+        const parseLicenseExpiryDate = (dateStr) => {
+            if (!dateStr) return null;
+            // ISO format YYYY-MM-DD (from Django backend)
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+                return new Date(dateStr.trim() + 'T00:00:00');
+            }
+            // DD/MM/YYYY format (display format used in Profile.jsx)
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr.trim())) {
+                const [day, month, year] = dateStr.trim().split('/');
+                return new Date(`${year}-${month}-${day}T00:00:00`);
+            }
+            // MM/DD/YYYY fallback (should not happen with PH LTO but safe guard)
+            return new Date(dateStr);
+        };
+        const licenseExpiryDateObj = parseLicenseExpiryDate(user.license_expiry_date);
+        const isLicenseExpired = licenseExpiryDateObj && licenseExpiryDateObj < new Date();
         const isPlateFormatValid = plateRegex.test((user.vehicle_plate || "").trim()) && !!(user.vehicle_orcr_image_url || user.vehicle_orcr_image);
         const isPermitValid = !!(user.permit_number && user.permit_number.trim().length >= 3 && (user.permit_image_url || user.permit_image));
         const isClearanceValid = !!(user.nbi_clearance_image_url || user.nbi_clearance_image);
