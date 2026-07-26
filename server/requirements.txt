@@ -26,4 +26,6 @@ firebase-admin>=6.2.0
 cloudinary>=1.36.0
 django-cloudinary-storage>=0.3.0
 # PDF Generation
-reportlab>=4.0.0
+reportlab>=4.0.0
+# OCR Document Verification (server-side, requires tesseract-ocr system package)
+pytesseract>=0.3.13

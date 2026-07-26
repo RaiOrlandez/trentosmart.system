@@ -35,6 +35,11 @@ from .models import TransactionPIN
 
 
 import os
+import re
+import json
+import random
+import string
+import hashlib
 import requests
 from datetime import timedelta
 from django.conf import settings
@@ -211,9 +216,7 @@ def check_admin_pin(request):
         return False, "Please set up your 6-digit Security PIN in your Profile first."
 
 
-import random
-import string
-
+# User model — loaded after Django is fully initialized
 User = get_user_model()
 
 

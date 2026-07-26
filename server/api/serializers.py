@@ -253,6 +253,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
         read_only_fields = ('user', 'created_at')
 
 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db.models import Q
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

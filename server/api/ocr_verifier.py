@@ -31,35 +31,40 @@ def verify_image_ocr_text(img_field, doc_type):
 
     try:
         img_field.open()
-        with Image.open(img_field) as img:
-            # Convert RGBA to RGB for tesseract compatibility
-            if img.mode != 'RGB':
-                img = img.convert('RGB')
+        img = Image.open(img_field)
+        # Convert RGBA/palette to RGB for tesseract compatibility
+        if img.mode not in ('RGB', 'L'):
+            img = img.convert('RGB')
 
-            ocr_text = ""
-            if HAS_PYTESSERACT:
-                try:
-                    ocr_text = pytesseract.image_to_string(img)
-                except Exception as tess_err:
-                    logger.warning(f"PyTesseract execution fallback: {tess_err}")
-                    ocr_text = ""
+        img_width, img_height = img.size
+        file_size = img_field.size
 
-            upper_text = ocr_text.toUpperCase() if hasattr(ocr_text, 'toUpperCase') else ocr_text.upper()
-            keywords = DOCUMENT_KEYWORDS.get(doc_type, [])
+        ocr_text = ""
+        if HAS_PYTESSERACT:
+            try:
+                ocr_text = pytesseract.image_to_string(img)
+            except Exception as tess_err:
+                logger.warning(f"PyTesseract execution fallback: {tess_err}")
+                ocr_text = ""
 
-            if keywords and upper_text:
-                matches = [kw for kw in keywords if kw in upper_text]
-                if len(matches) >= 2:
-                    return True, ocr_text, f"OCR Verified: Natagpuan ang mga opisyal na salita ({', '.join(matches[:3])})."
-                else:
-                    return False, ocr_text, f"OCR Failure: Walang natagpuang opisyal na teksto sa larawan ng {doc_type.upper()}."
+        img.close()
 
-            # If OCR text is blank or tesseract binary not linked in system path, fallback to file integrity & resolution check
-            w, h = img.size
-            if w >= 300 and h >= 300 and img_field.size >= 25000:
-                return True, ocr_text, "Image Integrity Verified (High Resolution Document Photo)."
+        # Python string upper() — NOT JavaScript toUpperCase()
+        upper_text = ocr_text.upper()
+        keywords = DOCUMENT_KEYWORDS.get(doc_type, [])
+
+        if keywords and upper_text.strip():
+            matches = [kw for kw in keywords if kw in upper_text]
+            if len(matches) >= 2:
+                return True, ocr_text, f"OCR Verified: Natagpuan ang mga opisyal na salita ({', '.join(matches[:3])})."
             else:
-                return False, ocr_text, "Hindi pumasa sa Image Quality & OCR Resolution Gate."
+                return False, ocr_text, f"OCR Failure: Walang natagpuang opisyal na teksto sa larawan ng {doc_type.upper()}."
+
+        # Tesseract not installed or text is blank — fallback to image quality check
+        if img_width >= 300 and img_height >= 300 and file_size >= 25000:
+            return True, ocr_text, "Image Integrity Verified (High Resolution Document Photo)."
+        else:
+            return False, ocr_text, "Hindi pumasa sa Image Quality & OCR Resolution Gate."
 
     except Exception as err:
         return False, "", f"Error sa pagbe-verify ng larawan: {str(err)}"
