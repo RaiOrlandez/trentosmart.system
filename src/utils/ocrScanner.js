@@ -1,17 +1,16 @@
 import { createWorker } from 'tesseract.js';
 
 /**
- * ocrScanner.js — Real-Time LTO Driver's License OCR Parser
- * Extracts License Expiration Date & License Number from uploaded/captured ID images.
+ * ocrScanner.js — Multi-Document OCR Scanning Engine for Transmart Driver Verification
+ * Supports LTO Driver's License, LGU MTOP Permit, NBI Clearance, and Vehicle OR/CR.
  */
 
-// Helper to parse dates in various PH LTO formats
+// Helper to parse dates in various PH document formats
 function extractDatesFromText(rawText) {
     if (!rawText) return [];
     
     // Clean common OCR noise
     const text = rawText.toUpperCase().replace(/[|]/g, ' ');
-
     const dateMatches = [];
     
     // Pattern 1: ISO / Slash formats: YYYY/MM/DD, YYYY-MM-DD, DD/MM/YYYY, YYYY.MM.DD
@@ -101,17 +100,30 @@ function extractLicenseNumber(rawText) {
     return null;
 }
 
+// Helper to extract MTOP Permit Number
+function extractPermitNumber(rawText) {
+    if (!rawText) return null;
+    const text = rawText.toUpperCase();
+    
+    // Format: MTOP-XXXX, PERMIT-XXXX, or numeric ID
+    const permitRegex = /\b(MTOP[- ]?\d{3,6}|PERMIT[- ]?\d{3,6}|\d{4,8})\b/g;
+    const match = permitRegex.exec(text);
+    return match ? match[1] : null;
+}
+
+// Helper to extract Vehicle Plate Number
+function extractPlateNumber(rawText) {
+    if (!rawText) return null;
+    const text = rawText.toUpperCase();
+    
+    // PH Plate formats: ABC 123, ABC 1234, AB 12345
+    const plateRegex = /\b([A-Z]{2,3}[- ]?\d{3,4})\b/g;
+    const match = plateRegex.exec(text);
+    return match ? match[1].replace(/\s+/g, ' ') : null;
+}
+
 /**
- * Main OCR Scanner Function
- * @param {File|Blob|string} imageFile 
- * @returns {Promise<{
- *   success: boolean,
- *   rawText: string,
- *   licenseNumber: string|null,
- *   expirationDate: string|null,
- *   isExpired: boolean|null,
- *   confidence: number
- * }>}
+ * Scan LTO Driver's License
  */
 export async function scanLicenseID(imageFile) {
     let worker = null;
@@ -130,13 +142,10 @@ export async function scanLicenseID(imageFile) {
         let isExpired = null;
 
         if (dates.length > 0) {
-            // Find date near "EXP" or pick the latest year date
             const expKeywordIndex = text.toUpperCase().indexOf('EXP');
             if (expKeywordIndex !== -1) {
-                // Return date that appears closest after "EXP"
                 expirationDate = dates[0].formatted;
             } else {
-                // Otherwise pick the date with the highest year (expiry is usually future date)
                 dates.sort((a, b) => b.year - a.year);
                 expirationDate = dates[0].formatted;
             }
@@ -159,18 +168,99 @@ export async function scanLicenseID(imageFile) {
         };
 
     } catch (err) {
-        console.error('OCR Scanning Error:', err);
-        if (worker) {
-            try { await worker.terminate(); } catch (_) {}
-        }
+        console.error('OCR Scanning Error (License):', err);
+        if (worker) { try { await worker.terminate(); } catch (_) {} }
+        return { success: false, error: err.message, confidence: 0 };
+    }
+}
+
+/**
+ * Scan LGU Franchise / MTOP Permit
+ */
+export async function scanPermitID(imageFile) {
+    let worker = null;
+    try {
+        worker = await createWorker('eng');
+        const ret = await worker.recognize(imageFile);
+        const text = ret.data.text || '';
+        const confidence = ret.data.confidence || 0;
+        await worker.terminate();
+
+        const permitNum = extractPermitNumber(text);
+        const dates = extractDatesFromText(text);
+        const validDate = dates.length > 0 ? dates[0].formatted : null;
+
         return {
-            success: false,
-            error: err.message,
-            rawText: '',
-            licenseNumber: null,
-            expirationDate: null,
-            isExpired: null,
-            confidence: 0
+            success: true,
+            rawText: text,
+            permitNumber: permitNum,
+            expirationDate: validDate,
+            confidence: Math.round(confidence)
         };
+    } catch (err) {
+        console.error('OCR Scanning Error (Permit):', err);
+        if (worker) { try { await worker.terminate(); } catch (_) {} }
+        return { success: false, error: err.message, confidence: 0 };
+    }
+}
+
+/**
+ * Scan NBI / Police Clearance
+ */
+export async function scanNbiClearance(imageFile) {
+    let worker = null;
+    try {
+        worker = await createWorker('eng');
+        const ret = await worker.recognize(imageFile);
+        const text = ret.data.text || '';
+        const confidence = ret.data.confidence || 0;
+        await worker.terminate();
+
+        const hasNoRecord = text.toUpperCase().includes('NO RECORD') || 
+                            text.toUpperCase().includes('NO DEROGATORY') ||
+                            text.toUpperCase().includes('CLEARED');
+
+        const dates = extractDatesFromText(text);
+
+        return {
+            success: true,
+            rawText: text,
+            hasNoRecord,
+            issueDate: dates.length > 0 ? dates[0].formatted : null,
+            confidence: Math.round(confidence)
+        };
+    } catch (err) {
+        console.error('OCR Scanning Error (NBI):', err);
+        if (worker) { try { await worker.terminate(); } catch (_) {} }
+        return { success: false, error: err.message, confidence: 0 };
+    }
+}
+
+/**
+ * Scan Vehicle OR / CR
+ */
+export async function scanVehicleORCR(imageFile) {
+    let worker = null;
+    try {
+        worker = await createWorker('eng');
+        const ret = await worker.recognize(imageFile);
+        const text = ret.data.text || '';
+        const confidence = ret.data.confidence || 0;
+        await worker.terminate();
+
+        const plateNumber = extractPlateNumber(text);
+        const dates = extractDatesFromText(text);
+
+        return {
+            success: true,
+            rawText: text,
+            plateNumber,
+            registrationDate: dates.length > 0 ? dates[0].formatted : null,
+            confidence: Math.round(confidence)
+        };
+    } catch (err) {
+        console.error('OCR Scanning Error (ORCR):', err);
+        if (worker) { try { await worker.terminate(); } catch (_) {} }
+        return { success: false, error: err.message, confidence: 0 };
     }
 }
