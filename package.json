@@ -21,7 +21,8 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^6.11.2",
     "react-scripts": "5.0.1",
-    "recharts": "^3.6.0"
+    "recharts": "^3.6.0",
+    "tesseract.js": "^7.0.0"
   },
   "scripts": {
     "start": "react-scripts start",

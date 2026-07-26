@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info } from 'lucide-react';
+import { ShieldCheck, CheckCircle, AlertCircle, ArrowLeft, Camera, ChevronRight, Check, AlertTriangle, FileText, Info, RefreshCw, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { scanLicenseID } from '../../utils/ocrScanner';
 
 const DriverVerification = () => {
     // Text Inputs
@@ -39,6 +40,10 @@ const DriverVerification = () => {
     // Diagnostic & Admin Feedback State
     const [adminNotes, setAdminNotes] = useState('');
     const [aiDiagnostics, setAiDiagnostics] = useState(null);
+
+    // Real-Time OCR State
+    const [ocrScanning, setOcrScanning] = useState(false);
+    const [ocrResult, setOcrResult] = useState(null);
 
     // UI State for Hub
     const [activeSection, setActiveSection] = useState(null); // 'license', 'permit', 'clearances', 'vehicle', 'liveness'
@@ -90,6 +95,50 @@ const DriverVerification = () => {
         } catch (err) {
             console.error(err);
             setStatus('idle');
+        }
+    };
+
+    const handleLicenseUpload = async (file) => {
+        setLicenseImg(file);
+        if (!file) return;
+
+        setOcrScanning(true);
+        setOcrResult(null);
+
+        try {
+            const scan = await scanLicenseID(file);
+            setOcrScanning(false);
+            if (scan.success) {
+                const autoPopulated = [];
+                if (scan.expirationDate) {
+                    setLicenseExpiryDate(scan.expirationDate);
+                    autoPopulated.push(`Expiry Date (${scan.expirationDate})`);
+                }
+                if (scan.licenseNumber) {
+                    setLicenseNum(scan.licenseNumber);
+                    autoPopulated.push(`License # (${scan.licenseNumber})`);
+                }
+                setOcrResult({
+                    status: scan.isExpired ? 'expired' : 'success',
+                    confidence: scan.confidence,
+                    expirationDate: scan.expirationDate,
+                    licenseNumber: scan.licenseNumber,
+                    isExpired: scan.isExpired,
+                    message: scan.isExpired 
+                        ? `⚠️ OCR Alert: EXPIRED License Date Detected (${scan.expirationDate})`
+                        : autoPopulated.length > 0 
+                            ? `✅ Real OCR Auto-Scan Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
+                            : `✅ Real OCR Image Scanned (${scan.confidence}% confidence). Text processed successfully.`
+                });
+            } else {
+                setOcrResult({
+                    status: 'warning',
+                    message: '⚠️ OCR Scan: Text was unclear. Please verify/type dates manually.'
+                });
+            }
+        } catch (e) {
+            setOcrScanning(false);
+            console.error('OCR scanning error:', e);
         }
     };
 
@@ -466,9 +515,42 @@ const DriverVerification = () => {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block">License Photo</label>
-                                                    <DocumentUploadField id="upload-license" label="License" file={licenseImg} existingUrl={existingLicenseImg} setFile={setLicenseImg} />
+                                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 block flex items-center justify-between">
+                                                        <span>License Photo</span>
+                                                        <span className="text-[9px] font-bold text-amber-500 flex items-center gap-1">
+                                                            <Sparkles size={11} /> 100% Real-Time OCR Enabled
+                                                        </span>
+                                                    </label>
+                                                    <DocumentUploadField id="upload-license" label="License" file={licenseImg} existingUrl={existingLicenseImg} setFile={handleLicenseUpload} />
                                                 </div>
+
+                                                {/* Live Real-Time OCR Status Banner */}
+                                                {ocrScanning && (
+                                                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-500 text-xs font-bold flex items-center gap-2.5 animate-pulse">
+                                                        <RefreshCw size={16} className="animate-spin text-amber-500 shrink-0" />
+                                                        <span>🤖 Scanning LTO License ID text via OCR (Tesseract Engine)...</span>
+                                                    </div>
+                                                )}
+
+                                                {ocrResult && !ocrScanning && (
+                                                    <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2.5 border ${
+                                                        ocrResult.status === 'expired'
+                                                            ? 'bg-red-500/10 border-red-500/30 text-red-500'
+                                                            : ocrResult.status === 'warning'
+                                                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-500'
+                                                            : 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400'
+                                                    }`}>
+                                                        <Sparkles size={16} className="shrink-0 mt-0.5" />
+                                                        <div className="space-y-1">
+                                                            <span className="block leading-relaxed">{ocrResult.message}</span>
+                                                            {ocrResult.expirationDate && (
+                                                                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 pt-0.5">
+                                                                    Detected Expiry: <span className="font-extrabold text-slate-800 dark:text-white">{ocrResult.expirationDate}</span> {ocrResult.isExpired ? '(EXPIRED ❌)' : '(VALID ✅)'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </motion.div>
