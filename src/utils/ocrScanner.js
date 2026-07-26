@@ -119,10 +119,13 @@ export function validateDocumentAuthenticity(rawText, docType) {
 
 /**
  * Normalizes common OCR character typos in numeric date strings.
- * e.g. "2O24" -> "2024", "O5/1l" -> "05/11", "O9/O2/2O25" -> "09/02/2025"
+ * e.g. "2O24" -> "2024", "O5/1l" -> "05/11", "2025 / 02 / 09" -> "2025/02/09"
  */
 function normalizeOcrDateString(str) {
+    if (!str) return '';
     return str
+        // Remove spaces around slashes, dashes, and dots in dates
+        .replace(/(\d+)\s*[/.-]\s*(\d+)/g, '$1/$2')
         // 'O' between digits -> '0'
         .replace(/([0-9])O([0-9])/gi, '$10$2')
         // Leading O before digit -> 0
@@ -135,139 +138,159 @@ function normalizeOcrDateString(str) {
         .replace(/([0-9])L([0-9])/gi, '$11$2')
         // S between digits -> 5
         .replace(/([0-9])S([0-9])/gi, '$15$2')
-        // B between digits -> 8 (rare OCR error)
+        // B between digits -> 8
         .replace(/([0-9])B([0-9])/gi, '$18$2');
 }
 
 /**
- * Extracts all date instances from a single line of text.
- * Returns array of { formatted, year, month, day } objects.
+ * Extracts all date instances from a text block.
+ * Uses flexible non-digit boundaries instead of rigid \b so dates attached to text like "2025/02/09D06" match.
+ * Returns array of { formatted, year, month, day, raw, index } objects.
  */
-function parseDatesInLine(line) {
-    const clean = normalizeOcrDateString(line.toUpperCase());
+function parseDatesFromText(text) {
+    if (!text) return [];
+    const clean = normalizeOcrDateString(text.toUpperCase());
     const results = [];
-    let m;
+    const seen = new Set();
 
-    // YYYY-MM-DD / YYYY/MM/DD
-    const ymd = /\b(20[0-4]\d)[-/. ](0?[1-9]|1[0-2])[-/. ](0?[1-9]|[12]\d|3[01])\b/g;
+    // 1. YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD (Year 2000 to 2099)
+    const ymd = /(?:^|[^0-9])(20[0-9]\d)[-/. ](0?[1-9]|1[0-2])[-/. ](0?[1-9]|[12]\d|3[01])(?![0-9])/g;
+    let m;
     while ((m = ymd.exec(clean)) !== null) {
         const year = parseInt(m[1], 10);
         const month = parseInt(m[2], 10);
         const day = parseInt(m[3], 10);
-        results.push({ formatted: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`, year, month, day });
+        const formatted = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const key = `${formatted}_${m.index}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            results.push({ formatted, year, month, day, index: m.index, raw: m[0].trim() });
+        }
     }
 
-    // MM/DD/YYYY or DD/MM/YYYY — pick correctly using range logic
-    const dmy = /\b(0?[1-9]|[12]\d|3[01])[-/. ](0?[1-9]|1[0-2])[-/. ](20[0-4]\d)\b/g;
+    // 2. MM/DD/YYYY or DD/MM/YYYY (PH LTO Standard: DD/MM/YYYY e.g. 02/09/2025 = 02 September 2025)
+    const dmy = /(?:^|[^0-9])(0?[1-9]|[12]\d|3[01])[-/. ](0?[1-9]|1[0-2])[-/. ](20[0-9]\d)(?![0-9])/g;
     while ((m = dmy.exec(clean)) !== null) {
         const p1 = parseInt(m[1], 10);
         const p2 = parseInt(m[2], 10);
         const year = parseInt(m[3], 10);
-        // If p1 > 12, it must be a day (DD/MM/YYYY)
         let month, day;
-        if (p1 > 12) { month = p2; day = p1; }
-        else if (p2 > 12) { month = p1; day = p2; }
-        else { month = p1; day = p2; } // default to MM/DD/YYYY (PH LTO uses MM/DD/YYYY)
-        results.push({ formatted: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`, year, month, day });
+        if (p1 > 12) { month = p2; day = p1; }       // e.g. 25/02/2025 -> day=25, month=02
+        else if (p2 > 12) { month = p1; day = p2; }  // e.g. 02/25/2025 -> month=02, day=25
+        else { month = p2; day = p1; }               // PH LTO standard DD/MM/YYYY: 02/09/2025 -> day=02, month=09
+        const formatted = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const key = `${formatted}_${m.index}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            results.push({ formatted, year, month, day, index: m.index, raw: m[0].trim() });
+        }
     }
 
-    // Month-name formats: "15 MAY 2025" / "2025 MAY 15" / "MAY 15 2025"
-    const MONTHS = { JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12' };
-    const mon = /\b(?:(20[0-4]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})|(\d{1,2})[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(20[0-4]\d)|(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})[\s/-]+(20[0-4]\d))\b/gi;
+    // 3. Month name formats: "09 FEB 2025" / "2025 FEB 09" / "FEB 09 2025"
+    const MONTHS = { JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12 };
+    const mon = /(?:^|[^0-9A-Z])(?:(20[0-9]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})|(\d{1,2})[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(20[0-9]\d)|(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})[\s/-]+(20[0-9]\d))(?![0-9])/gi;
     while ((m = mon.exec(clean)) !== null) {
         let year, month, day;
-        if (m[1]) { year = parseInt(m[1]); month = MONTHS[m[2].slice(0,3).toUpperCase()]; day = m[3].padStart(2,'0'); }
-        else if (m[4]) { year = parseInt(m[6]); month = MONTHS[m[5].slice(0,3).toUpperCase()]; day = m[4].padStart(2,'0'); }
-        else { year = parseInt(m[9]); month = MONTHS[m[7].slice(0,3).toUpperCase()]; day = m[8].padStart(2,'0'); }
-        if (year && month) results.push({ formatted: `${year}-${month}-${day}`, year, month: parseInt(month), day: parseInt(day) });
+        if (m[1]) { year = parseInt(m[1]); month = MONTHS[m[2].slice(0,3).toUpperCase()]; day = parseInt(m[3]); }
+        else if (m[4]) { year = parseInt(m[6]); month = MONTHS[m[5].slice(0,3).toUpperCase()]; day = parseInt(m[4]); }
+        else { year = parseInt(m[9]); month = MONTHS[m[7].slice(0,3).toUpperCase()]; day = parseInt(m[8]); }
+        if (year && month && day) {
+            const formatted = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const key = `${formatted}_${m.index}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                results.push({ formatted, year, month, day, index: m.index, raw: m[0].trim() });
+            }
+        }
     }
 
     return results;
 }
 
 /**
- * Line-by-line label-aware date extractor for PH LTO Driver's Licenses.
+ * Line-by-line & Proximity label-aware date extractor for PH LTO Driver's Licenses.
  *
- * Correctly separates:
- *   EXPIRATION DATE → returns as expiry candidate
- *   ISSUE DATE / DATE OF ISSUANCE → excluded from expiry (kept as issueDate)
- *   DATE OF BIRTH / KAPANGANAKAN   → excluded from expiry (kept as birthDate)
- *
- * Returns { expirationDate, issueDate, birthDate, allDates }
+ * Guaranteed extraction strategy:
+ *   1. Extracts all dates from OCR text using flexible boundaries.
+ *   2. Identifies proximity to EXPIRATION vs ISSUE vs BIRTH labels.
+ *   3. Enforces Year-Hierarchy: Expiration Date on LTO License ALWAYS has the HIGHEST year (e.g. 2025 > 2020).
+ *      Prevents Issue Date (2020/12/02) from overriding Expiration Date (2025/02/09).
  */
 function extractLicenseDatesLineByLine(rawText) {
     if (!rawText) return { expirationDate: null, issueDate: null, birthDate: null, allDates: [] };
 
-    const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-    const upperLines = lines.map(l => l.toUpperCase());
+    const upperText = rawText.toUpperCase();
+    const allDates = parseDatesFromText(rawText);
 
-    // Label patterns for each date type
-    const EXP_LABELS  = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:', 'EXPIRY DATE'];
-    const ISS_LABELS  = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED'];
-    const DOB_LABELS  = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB', 'BORN'];
-
-    const allDates = [];
-    let expirationCandidates = [];
-    let issueCandidates = [];
-    let birthCandidates = [];
-
-    for (let i = 0; i < upperLines.length; i++) {
-        const line = upperLines[i];
-        const datesInLine = parseDatesInLine(line);
-        // Also peek at next line in case the date is printed on the line after the label
-        const nextLine = i + 1 < upperLines.length ? upperLines[i + 1] : '';
-        const datesInNextLine = parseDatesInLine(nextLine);
-
-        const isExpLine = EXP_LABELS.some(lbl => line.includes(lbl));
-        const isIssLine = ISS_LABELS.some(lbl => line.includes(lbl));
-        const isDobLine = DOB_LABELS.some(lbl => line.includes(lbl));
-
-        if (isExpLine) {
-            // Prefer dates on the same line, then next line
-            const combined = [...datesInLine, ...datesInNextLine];
-            expirationCandidates.push(...combined);
-            allDates.push(...combined);
-        } else if (isIssLine) {
-            const combined = [...datesInLine, ...datesInNextLine];
-            issueCandidates.push(...combined);
-            allDates.push(...combined);
-        } else if (isDobLine) {
-            const combined = [...datesInLine, ...datesInNextLine];
-            birthCandidates.push(...combined);
-            allDates.push(...combined);
-        } else if (datesInLine.length > 0) {
-            // Generic date line — keep in allDates pool for fallback
-            allDates.push(...datesInLine);
-        }
+    if (allDates.length === 0) {
+        return { expirationDate: null, issueDate: null, birthDate: null, allDates: [] };
     }
 
-    // Resolve expiration date
+    // Keyword position finders
+    const EXP_KEYWORDS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:', 'KAPASUHAN'];
+    const ISS_KEYWORDS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED', 'ISSUE'];
+    const DOB_KEYWORDS = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB', 'BORN', 'BIRTH'];
+
+    const findMinKeywordDistance = (charIndex, keywords) => {
+        let minDist = Infinity;
+        for (const kw of keywords) {
+            let pos = upperText.indexOf(kw);
+            while (pos !== -1) {
+                const dist = Math.abs(charIndex - pos);
+                if (dist < minDist) minDist = dist;
+                pos = upperText.indexOf(kw, pos + 1);
+            }
+        }
+        return minDist;
+    };
+
+    // Classify each date candidate
+    const scoredDates = allDates.map(d => {
+        const expDist = findMinKeywordDistance(d.index, EXP_KEYWORDS);
+        const issDist = findMinKeywordDistance(d.index, ISS_KEYWORDS);
+        const dobDist = findMinKeywordDistance(d.index, DOB_KEYWORDS);
+
+        let type = 'unknown';
+        if (expDist < issDist && expDist < dobDist && expDist < 200) {
+            type = 'expiration';
+        } else if (issDist < expDist && issDist < dobDist && issDist < 150) {
+            type = 'issue';
+        } else if (dobDist < expDist && dobDist < issDist && dobDist < 150) {
+            type = 'birth';
+        } else if (d.year <= 2010) {
+            type = 'birth'; // Year <= 2010 is almost certainly a birth date
+        }
+
+        return { ...d, expDist, issDist, dobDist, type };
+    });
+
+    // Separate by type
+    const expCandidates = scoredDates.filter(d => d.type === 'expiration');
+    const issCandidates = scoredDates.filter(d => d.type === 'issue');
+    const dobCandidates = scoredDates.filter(d => d.type === 'birth');
+
     let expirationDate = null;
-    if (expirationCandidates.length > 0) {
-        // Pick the one with the highest year (future-most)
-        expirationCandidates.sort((a, b) => b.year - a.year || b.month - a.month);
-        expirationDate = expirationCandidates[0].formatted;
-    } else if (allDates.length > 0) {
-        // Fallback: exclude any date already identified as issue or birth
-        const issueStrs = new Set(issueCandidates.map(d => d.formatted));
-        const birthStrs = new Set(birthCandidates.map(d => d.formatted));
-        const fallback = allDates.filter(d => !issueStrs.has(d.formatted) && !birthStrs.has(d.formatted));
-        if (fallback.length > 0) {
-            fallback.sort((a, b) => b.year - a.year);
-            expirationDate = fallback[0].formatted;
+
+    if (expCandidates.length > 0) {
+        // Pick expiration candidate with highest year / closest distance
+        expCandidates.sort((a, b) => b.year - a.year || a.expDist - b.expDist);
+        expirationDate = expCandidates[0].formatted;
+    } else {
+        // Fallback: exclude birth dates (year <= 2010) and dates closest to ISSUE label
+        const remaining = scoredDates.filter(d => d.year > 2010 && d.type !== 'birth');
+        if (remaining.length > 0) {
+            // Sort by year descending (HIGHEST year = Expiration Date e.g. 2025 vs Issue Date 2020)
+            remaining.sort((a, b) => b.year - a.year);
+            expirationDate = remaining[0].formatted;
         } else {
-            // Last resort: take the highest-year date overall
+            // Ultimate fallback: highest year overall
             allDates.sort((a, b) => b.year - a.year);
             expirationDate = allDates[0].formatted;
         }
     }
 
-    const issueDate = issueCandidates.length > 0
-        ? [...issueCandidates].sort((a, b) => b.year - a.year)[0].formatted
-        : null;
-    const birthDate = birthCandidates.length > 0
-        ? [...birthCandidates].sort((a, b) => b.year - a.year)[0].formatted
-        : null;
+    const issueDate = issCandidates.length > 0 ? issCandidates[0].formatted : null;
+    const birthDate = dobCandidates.length > 0 ? dobCandidates[0].formatted : null;
 
     return { expirationDate, issueDate, birthDate, allDates };
 }
@@ -277,12 +300,7 @@ function extractLicenseDatesLineByLine(rawText) {
  */
 function extractDatesFromText(rawText) {
     if (!rawText) return [];
-    const lines = rawText.split('\n');
-    const all = [];
-    for (const line of lines) all.push(...parseDatesInLine(line));
-    // Deduplicate by formatted date
-    const seen = new Set();
-    return all.filter(d => { if (seen.has(d.formatted)) return false; seen.add(d.formatted); return true; });
+    return parseDatesFromText(rawText);
 }
 
 // Helper to extract PH LTO License Number

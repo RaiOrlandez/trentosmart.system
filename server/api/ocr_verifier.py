@@ -44,44 +44,45 @@ def normalize_ocr_date_str(text):
 
 def parse_dates_in_line(line):
     """
-    Extracts all date instances from a single line of OCR text.
-    Returns list of dicts with year, month, day, formatted fields.
+    Extracts all date instances from a line of OCR text using non-digit boundaries.
     """
     import re
     results = []
     clean = normalize_ocr_date_str(line.upper())
 
-    # YYYY-MM-DD / YYYY/MM/DD
-    for m in re.finditer(r'\b(20[0-4]\d)[\-/. ](0?[1-9]|1[0-2])[\-/. ](0?[1-9]|[12]\d|3[01])\b', clean):
+    # YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+    for m in re.finditer(r'(?:^|[^0-9])(20[0-9]\d)[\-/. ](0?[1-9]|1[0-2])[\-/. ](0?[1-9]|[12]\d|3[01])(?![0-9])', clean):
         y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}', 'index': m.start()})
 
-    # MM/DD/YYYY or DD/MM/YYYY
-    for m in re.finditer(r'\b(0?[1-9]|[12]\d|3[01])[\-/. ](0?[1-9]|1[0-2])[\-/. ](20[0-4]\d)\b', clean):
+    # DD/MM/YYYY or MM/DD/YYYY (PH LTO Standard: DD/MM/YYYY)
+    for m in re.finditer(r'(?:^|[^0-9])(0?[1-9]|[12]\d|3[01])[\-/. ](0?[1-9]|1[0-2])[\-/. ](20[0-9]\d)(?![0-9])', clean):
         p1, p2, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if p1 > 12:
             mo, d = p2, p1          # DD/MM/YYYY
         elif p2 > 12:
-            mo, d = p1, p2          # MM/DD/YYYY but p2 > 12 means p2 is day
+            mo, d = p1, p2          # MM/DD/YYYY
         else:
-            mo, d = p1, p2          # default MM/DD/YYYY (PH LTO standard)
-        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+            mo, d = p2, p1          # PH LTO standard DD/MM/YYYY: 02/09/2025 -> 02 Sep 2025
+        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}', 'index': m.start()})
 
-    # Month-name formats: "02 SEP 2025" / "2025 SEP 02"
+    # Month-name formats
     MONTHS = {'JAN':1,'FEB':2,'MAR':3,'APR':4,'MAY':5,'JUN':6,'JUL':7,'AUG':8,'SEP':9,'OCT':10,'NOV':11,'DEC':12}
     for m in re.finditer(
-        r'\b(\d{1,2}|20[0-4]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2}|20[0-4]\d)\b',
+        r'(?:^|[^0-9A-Z])(?:(20[0-9]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})|(\d{1,2})[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(20[0-9]\d)|(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})[\s/-]+(20[0-9]\d))(?![0-9])',
         clean
     ):
-        p1, mon_str, p3 = m.group(1), m.group(2)[:3].upper(), m.group(3)
+        p1, mon_str, p3 = m.group(1), m.group(2)[:3].upper() if m.group(2) else (m.group(5)[:3].upper() if m.group(5) else m.group(7)[:3].upper()), m.group(3) or m.group(4) or m.group(8)
         mo = MONTHS.get(mon_str)
         if mo:
-            if len(p1) == 4:
-                y, d = int(p1), int(p3)
+            if m.group(1):
+                y, d = int(m.group(1)), int(m.group(3))
+            elif m.group(6):
+                y, d = int(m.group(6)), int(m.group(4))
             else:
-                y, d = int(p3), int(p1)
-            if 2000 <= y <= 2045:
-                results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+                y, d = int(m.group(9)), int(m.group(8))
+            if 2000 <= y <= 2099:
+                results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}', 'index': m.start()})
 
     return results
 
