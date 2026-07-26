@@ -171,19 +171,28 @@ const DriverVerification = () => {
                 });
                 return;
             }
+            if (scan.isExpired) {
+                setOcrRejected(prev => ({ ...prev, license: true }));
+                if (scan.expirationDate) setLicenseExpiryDate(scan.expirationDate);
+                setDocOcr('license', false, {
+                    status: 'rejected',
+                    expirationDate: scan.expirationDate,
+                    isExpired: true,
+                    message: `🚫 EXPIRED LICENSE DETECTED: The scanned ID image shows an Expiration Date of ${scan.expirationDate || 'past date'} which is EXPIRED. Please upload a valid, renewed LTO Driver's License.`
+                });
+                return;
+            }
             if (scan.success) {
                 const autoPopulated = [];
                 if (scan.expirationDate) { setLicenseExpiryDate(scan.expirationDate); autoPopulated.push(`Expiry Date (${scan.expirationDate})`); }
                 if (scan.licenseNumber) { setLicenseNum(scan.licenseNumber); autoPopulated.push(`License # (${scan.licenseNumber})`); }
                 setDocOcr('license', false, {
-                    status: scan.isExpired ? 'expired' : 'success',
+                    status: 'success',
                     expirationDate: scan.expirationDate,
-                    isExpired: scan.isExpired,
-                    message: scan.isExpired
-                        ? `⚠️ OCR Alert: EXPIRED License Date Detected (${scan.expirationDate})`
-                        : autoPopulated.length > 0
-                            ? `✅ OCR Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
-                            : `✅ OCR Scanned (${scan.confidence}% confidence). Text verified.`
+                    isExpired: false,
+                    message: autoPopulated.length > 0
+                        ? `✅ OCR Completed (${scan.confidence}% confidence). Auto-detected: ${autoPopulated.join(', ')}`
+                        : `✅ OCR Scanned (${scan.confidence}% confidence). Text verified.`
                 });
             } else {
                 setDocOcr('license', false, { status: 'warning', message: '⚠️ OCR unclear — please verify/type fields manually.' });

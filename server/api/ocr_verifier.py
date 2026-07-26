@@ -15,11 +15,55 @@ except ImportError:
 
 # Document Keywords for Server-Side OCR Verification
 DOCUMENT_KEYWORDS = {
-    'license': ['DRIVER', 'LICENSE', 'LTO', 'REPUBLIC', 'PHILIPPINES', 'EXPIRY', 'RESTRICTION', 'DL'],
+    'license': ['DRIVER', 'LICENSE', 'LTO', 'REPUBLIC', 'PHILIPPINES', 'EXPIRY', 'EXPIRATION', 'RESTRICTION', 'DL', 'KAPASUHAN'],
     'permit': ['PERMIT', 'FRANCHISE', 'MTOP', 'TRENTO', 'MUNICIPAL', 'MAYOR', 'TRICYCLE', 'OPERATOR', 'LGU'],
     'clearance': ['NBI', 'POLICE', 'CLEARANCE', 'NATIONAL', 'BUREAU', 'INVESTIGATION', 'RECORD', 'NO DEROGATORY'],
     'orcr': ['OFFICIAL', 'RECEIPT', 'CERTIFICATE', 'REGISTRATION', 'LTO', 'PLATE', 'CHASSIS', 'MOTOR', 'VEHICLE']
 }
+
+def extract_dates_from_pytesseract(ocr_text):
+    """
+    Parses candidate dates and years from PyTesseract OCR text string.
+    Returns list of dicts with formatted date and year.
+    """
+    if not ocr_text:
+        return []
+    
+    upper = ocr_text.upper()
+    # Normalize OCR typos
+    upper = re.sub(r'([0-9])O([0-9])', r'\10\2', upper)
+    upper = re.sub(r'O([0-9])', r'0\1', upper)
+    
+    dates = []
+    today_year = timezone.now().year
+
+    # Format YYYY-MM-DD or YYYY/MM/DD
+    ymd_matches = re.findall(r'\b(20[0-4]\d)[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(0?[1-9]|[12]\d|3[01])\b', upper)
+    for m in ymd_matches:
+        year = int(m[0])
+        month = int(m[1])
+        day = int(m[2])
+        dates.append({
+            'formatted': f"{year:04d}-{month:02d}-{day:02d}",
+            'year': year,
+            'month': month,
+            'day': day
+        })
+
+    # Format DD-MM-YYYY or MM-DD-YYYY
+    dmy_matches = re.findall(r'\b(0?[1-9]|[12]\d|3[01])[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(20[0-4]\d)\b', upper)
+    for m in dmy_matches:
+        year = int(m[2])
+        month = int(m[1])
+        day = int(m[0])
+        dates.append({
+            'formatted': f"{year:04d}-{month:02d}-{day:02d}",
+            'year': year,
+            'month': month,
+            'day': day
+        })
+
+    return dates
 
 def verify_image_ocr_text(img_field, doc_type):
     """
@@ -49,9 +93,23 @@ def verify_image_ocr_text(img_field, doc_type):
 
         img.close()
 
-        # Python string upper() — NOT JavaScript toUpperCase()
         upper_text = ocr_text.upper()
         keywords = DOCUMENT_KEYWORDS.get(doc_type, [])
+
+        if doc_type == 'license' and upper_text.strip():
+            # Check if PyTesseract text contains an expired date or year near EXP keyword
+            dates = extract_dates_from_pytesseract(ocr_text)
+            exp_keywords = ['EXPIRATION', 'EXP', 'VALID UNTIL', 'KAPASUHAN', 'EXPIRES']
+            has_exp_keyword = any(kw in upper_text for kw in exp_keywords)
+            
+            today = timezone.now().date()
+            if dates and has_exp_keyword:
+                # Find max year / expiration candidate
+                dates.sort(key=lambda x: x['year'], reverse=True)
+                latest_date_str = dates[0]['formatted']
+                latest_date_obj = timezone.datetime.strptime(latest_date_str, "%Y-%m-%d").date()
+                if latest_date_obj < today:
+                    return False, ocr_text, f"OCR Rejection: Natagpuang EXPIRED ang LTO License sa larawan (Expiry Date: {latest_date_str})."
 
         if keywords and upper_text.strip():
             matches = [kw for kw in keywords if kw in upper_text]
@@ -60,7 +118,7 @@ def verify_image_ocr_text(img_field, doc_type):
             else:
                 return False, ocr_text, f"OCR Failure: Walang natagpuang opisyal na teksto sa larawan ng {doc_type.upper()}."
 
-        # Tesseract not installed or text is blank — fallback to image quality check
+        # Fallback to image quality check if Tesseract text is blank or PyTesseract is unavailable
         if img_width >= 300 and img_height >= 300 and file_size >= 25000:
             return True, ocr_text, "Image Integrity Verified (High Resolution Document Photo)."
         else:
@@ -97,8 +155,8 @@ def audit_driver_profile(user):
         failure_reasons.append("Mali o kulang ang format ng LTO License Number (dapat hal. D12-34-567890).")
 
     # 2. License Expiry Date Check
+    today = timezone.now().date()
     if user.license_expiry_date:
-        today = timezone.now().date()
         if user.license_expiry_date >= today:
             diagnostics["license_not_expired"] = True
         else:
@@ -119,6 +177,8 @@ def audit_driver_profile(user):
     diagnostics["license_ocr_ok"] = lic_ok
     if not lic_ok:
         failure_reasons.append(f"LTO License Image Audit: {lic_reason}")
+        if "EXPIRED" in lic_reason:
+            diagnostics["license_not_expired"] = False
 
     permit_ok, _, permit_reason = verify_image_ocr_text(user.permit_image, 'permit')
     diagnostics["permit_ocr_ok"] = permit_ok
