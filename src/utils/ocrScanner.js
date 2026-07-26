@@ -18,7 +18,7 @@ const DOCUMENT_KEYWORDS = {
  * Preprocesses an image File or Blob using HTML5 Canvas before passing to Tesseract.js.
  * Converts to high-contrast grayscale to increase OCR text accuracy by over 300%.
  */
-export function preprocessImageForOCR(imageFile, targetWidth = 1400) {
+export function preprocessImageForOCR(imageFile, targetWidth = 1800) {
     return new Promise((resolve) => {
         if (!imageFile || !(imageFile instanceof Blob)) {
             resolve(imageFile);
@@ -30,9 +30,10 @@ export function preprocessImageForOCR(imageFile, targetWidth = 1400) {
             URL.revokeObjectURL(url);
             try {
                 const canvas = document.createElement('canvas');
+                // Prefer 1800px wide (ID cards read much better at larger scale for Tesseract)
                 let scale = targetWidth / img.width;
-                if (scale > 2) scale = 2;
-                if (scale < 0.5) scale = 0.5;
+                if (scale > 3) scale = 3;   // allow up to 3x upscale for small images
+                if (scale < 0.8) scale = 0.8; // don't shrink a large clear photo
 
                 const w = Math.round(img.width * scale);
                 const h = Math.round(img.height * scale);
@@ -40,15 +41,42 @@ export function preprocessImageForOCR(imageFile, targetWidth = 1400) {
                 canvas.height = h;
 
                 const ctx = canvas.getContext('2d');
+                // Draw with bicubic-equivalent quality
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, w, h);
 
                 const imgData = ctx.getImageData(0, 0, w, h);
                 const data = imgData.data;
 
-                // Grayscale & Adaptive Contrast stretch
+                // Step 1: Compute luminance histogram to detect auto-threshold
+                const hist = new Int32Array(256);
+                for (let i = 0; i < data.length; i += 4) {
+                    const lum = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+                    hist[lum]++;
+                }
+                // Find Otsu threshold for adaptive binarization
+                const total = w * h;
+                let sum = 0;
+                for (let t = 0; t < 256; t++) sum += t * hist[t];
+                let sumB = 0, wB = 0, maxVar = 0, threshold = 128;
+                for (let t = 0; t < 256; t++) {
+                    wB += hist[t];
+                    if (!wB) continue;
+                    const wF = total - wB;
+                    if (!wF) break;
+                    sumB += t * hist[t];
+                    const mB = sumB / wB;
+                    const mF = (sum - sumB) / wF;
+                    const varBetween = wB * wF * (mB - mF) ** 2;
+                    if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
+                }
+
+                // Step 2: Apply grayscale + strong contrast stretch + soft binarization
                 for (let i = 0; i < data.length; i += 4) {
                     const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                    let v = (avg - 128) * 1.4 + 128;
+                    // Strong sigmoid-like contrast push around Otsu threshold
+                    let v = ((avg - threshold) * 1.8) + threshold;
                     if (v < 0) v = 0;
                     if (v > 255) v = 255;
                     data[i] = v;
@@ -90,97 +118,171 @@ export function validateDocumentAuthenticity(rawText, docType) {
 }
 
 /**
- * Normalizes common OCR character typos in numeric date strings (e.g. "2O24" -> "2024", "O5/1l" -> "05/11")
+ * Normalizes common OCR character typos in numeric date strings.
+ * e.g. "2O24" -> "2024", "O5/1l" -> "05/11", "O9/O2/2O25" -> "09/02/2025"
  */
 function normalizeOcrDateString(str) {
     return str
+        // 'O' between digits -> '0'
         .replace(/([0-9])O([0-9])/gi, '$10$2')
-        .replace(/O([0-9])/gi, '0$1')
-        .replace(/([0-9])O/gi, '$10')
-        .replace(/([0-9])I([0-9])/gi, '$11$2')
+        // Leading O before digit -> 0
+        .replace(/\bO([0-9])/gi, '0$1')
+        // Trailing O after digit -> 0
+        .replace(/([0-9])O\b/gi, '$10')
+        // I or l between digits -> 1
+        .replace(/([0-9])[Il]([0-9])/gi, '$11$2')
+        // L between digits -> 1
         .replace(/([0-9])L([0-9])/gi, '$11$2')
-        .replace(/([0-9])S([0-9])/gi, '$15$2');
+        // S between digits -> 5
+        .replace(/([0-9])S([0-9])/gi, '$15$2')
+        // B between digits -> 8 (rare OCR error)
+        .replace(/([0-9])B([0-9])/gi, '$18$2');
 }
 
 /**
- * Helper to parse dates in PH document formats & find EXPIRATION date near EXP keywords.
+ * Extracts all date instances from a single line of text.
+ * Returns array of { formatted, year, month, day } objects.
+ */
+function parseDatesInLine(line) {
+    const clean = normalizeOcrDateString(line.toUpperCase());
+    const results = [];
+    let m;
+
+    // YYYY-MM-DD / YYYY/MM/DD
+    const ymd = /\b(20[0-4]\d)[-/. ](0?[1-9]|1[0-2])[-/. ](0?[1-9]|[12]\d|3[01])\b/g;
+    while ((m = ymd.exec(clean)) !== null) {
+        const year = parseInt(m[1], 10);
+        const month = parseInt(m[2], 10);
+        const day = parseInt(m[3], 10);
+        results.push({ formatted: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`, year, month, day });
+    }
+
+    // MM/DD/YYYY or DD/MM/YYYY — pick correctly using range logic
+    const dmy = /\b(0?[1-9]|[12]\d|3[01])[-/. ](0?[1-9]|1[0-2])[-/. ](20[0-4]\d)\b/g;
+    while ((m = dmy.exec(clean)) !== null) {
+        const p1 = parseInt(m[1], 10);
+        const p2 = parseInt(m[2], 10);
+        const year = parseInt(m[3], 10);
+        // If p1 > 12, it must be a day (DD/MM/YYYY)
+        let month, day;
+        if (p1 > 12) { month = p2; day = p1; }
+        else if (p2 > 12) { month = p1; day = p2; }
+        else { month = p1; day = p2; } // default to MM/DD/YYYY (PH LTO uses MM/DD/YYYY)
+        results.push({ formatted: `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`, year, month, day });
+    }
+
+    // Month-name formats: "15 MAY 2025" / "2025 MAY 15" / "MAY 15 2025"
+    const MONTHS = { JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12' };
+    const mon = /\b(?:(20[0-4]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})|(\d{1,2})[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(20[0-4]\d)|(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2})[\s/-]+(20[0-4]\d))\b/gi;
+    while ((m = mon.exec(clean)) !== null) {
+        let year, month, day;
+        if (m[1]) { year = parseInt(m[1]); month = MONTHS[m[2].slice(0,3).toUpperCase()]; day = m[3].padStart(2,'0'); }
+        else if (m[4]) { year = parseInt(m[6]); month = MONTHS[m[5].slice(0,3).toUpperCase()]; day = m[4].padStart(2,'0'); }
+        else { year = parseInt(m[9]); month = MONTHS[m[7].slice(0,3).toUpperCase()]; day = m[8].padStart(2,'0'); }
+        if (year && month) results.push({ formatted: `${year}-${month}-${day}`, year, month: parseInt(month), day: parseInt(day) });
+    }
+
+    return results;
+}
+
+/**
+ * Line-by-line label-aware date extractor for PH LTO Driver's Licenses.
+ *
+ * Correctly separates:
+ *   EXPIRATION DATE → returns as expiry candidate
+ *   ISSUE DATE / DATE OF ISSUANCE → excluded from expiry (kept as issueDate)
+ *   DATE OF BIRTH / KAPANGANAKAN   → excluded from expiry (kept as birthDate)
+ *
+ * Returns { expirationDate, issueDate, birthDate, allDates }
+ */
+function extractLicenseDatesLineByLine(rawText) {
+    if (!rawText) return { expirationDate: null, issueDate: null, birthDate: null, allDates: [] };
+
+    const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+    const upperLines = lines.map(l => l.toUpperCase());
+
+    // Label patterns for each date type
+    const EXP_LABELS  = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:', 'EXPIRY DATE'];
+    const ISS_LABELS  = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED'];
+    const DOB_LABELS  = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB', 'BORN'];
+
+    const allDates = [];
+    let expirationCandidates = [];
+    let issueCandidates = [];
+    let birthCandidates = [];
+
+    for (let i = 0; i < upperLines.length; i++) {
+        const line = upperLines[i];
+        const datesInLine = parseDatesInLine(line);
+        // Also peek at next line in case the date is printed on the line after the label
+        const nextLine = i + 1 < upperLines.length ? upperLines[i + 1] : '';
+        const datesInNextLine = parseDatesInLine(nextLine);
+
+        const isExpLine = EXP_LABELS.some(lbl => line.includes(lbl));
+        const isIssLine = ISS_LABELS.some(lbl => line.includes(lbl));
+        const isDobLine = DOB_LABELS.some(lbl => line.includes(lbl));
+
+        if (isExpLine) {
+            // Prefer dates on the same line, then next line
+            const combined = [...datesInLine, ...datesInNextLine];
+            expirationCandidates.push(...combined);
+            allDates.push(...combined);
+        } else if (isIssLine) {
+            const combined = [...datesInLine, ...datesInNextLine];
+            issueCandidates.push(...combined);
+            allDates.push(...combined);
+        } else if (isDobLine) {
+            const combined = [...datesInLine, ...datesInNextLine];
+            birthCandidates.push(...combined);
+            allDates.push(...combined);
+        } else if (datesInLine.length > 0) {
+            // Generic date line — keep in allDates pool for fallback
+            allDates.push(...datesInLine);
+        }
+    }
+
+    // Resolve expiration date
+    let expirationDate = null;
+    if (expirationCandidates.length > 0) {
+        // Pick the one with the highest year (future-most)
+        expirationCandidates.sort((a, b) => b.year - a.year || b.month - a.month);
+        expirationDate = expirationCandidates[0].formatted;
+    } else if (allDates.length > 0) {
+        // Fallback: exclude any date already identified as issue or birth
+        const issueStrs = new Set(issueCandidates.map(d => d.formatted));
+        const birthStrs = new Set(birthCandidates.map(d => d.formatted));
+        const fallback = allDates.filter(d => !issueStrs.has(d.formatted) && !birthStrs.has(d.formatted));
+        if (fallback.length > 0) {
+            fallback.sort((a, b) => b.year - a.year);
+            expirationDate = fallback[0].formatted;
+        } else {
+            // Last resort: take the highest-year date overall
+            allDates.sort((a, b) => b.year - a.year);
+            expirationDate = allDates[0].formatted;
+        }
+    }
+
+    const issueDate = issueCandidates.length > 0
+        ? [...issueCandidates].sort((a, b) => b.year - a.year)[0].formatted
+        : null;
+    const birthDate = birthCandidates.length > 0
+        ? [...birthCandidates].sort((a, b) => b.year - a.year)[0].formatted
+        : null;
+
+    return { expirationDate, issueDate, birthDate, allDates };
+}
+
+/**
+ * Generic multi-format date extractor (for non-license documents that don't have strict labels).
  */
 function extractDatesFromText(rawText) {
     if (!rawText) return [];
-
-    const cleanedText = normalizeOcrDateString(rawText.toUpperCase().replace(/[|]/g, ' '));
-    const dateMatches = [];
-
-    // Regex 1: Standard YYYY[-/. ]MM[-/. ]DD or YYYY[-/. ]M[-/. ]D
-    const ymdRegex = /\b(20[0-4]\d)[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(0?[1-9]|[12]\d|3[01])\b/g;
-    let match;
-    while ((match = ymdRegex.exec(cleanedText)) !== null) {
-        const year = parseInt(match[1], 10);
-        const month = match[2].padStart(2, '0');
-        const day = match[3].padStart(2, '0');
-        dateMatches.push({
-            formatted: `${year}-${month}-${day}`,
-            year,
-            index: match.index,
-            raw: match[0]
-        });
-    }
-
-    // Regex 2: Standard DD[-/. ]MM[-/. ]YYYY or MM[-/. ]DD[-/. ]YYYY
-    const dmyRegex = /\b(0?[1-9]|[12]\d|3[01])[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(20[0-4]\d)\b/g;
-    while ((match = dmyRegex.exec(cleanedText)) !== null) {
-        const p1 = match[1].padStart(2, '0');
-        const p2 = match[2].padStart(2, '0');
-        const year = parseInt(match[3], 10);
-        
-        // Assume MM-DD-YYYY or DD-MM-YYYY depending on valid ranges
-        let month = p2;
-        let day = p1;
-        if (parseInt(p1, 10) <= 12 && parseInt(p2, 10) > 12) {
-            month = p1;
-            day = p2;
-        }
-
-        dateMatches.push({
-            formatted: `${year}-${month}-${day}`,
-            year,
-            index: match.index,
-            raw: match[0]
-        });
-    }
-
-    // Regex 3: Month name formats e.g. "2024 MAY 15", "15 MAY 2024", "EXP 2023.05.15"
-    const months = {
-        JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
-        JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12'
-    };
-    const monthRegex = /\b(20[0-4]\d|0?[1-9]|[12]\d|3[01])[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(20[0-4]\d|0?[1-9]|[12]\d|3[01])\b/gi;
-    while ((match = monthRegex.exec(cleanedText)) !== null) {
-        const part1 = match[1];
-        const monthStr = match[2].toUpperCase().slice(0, 3);
-        const part3 = match[3];
-        const month = months[monthStr];
-
-        let year, day;
-        if (part1.length === 4) {
-            year = parseInt(part1, 10);
-            day = part3.padStart(2, '0');
-        } else {
-            year = parseInt(part3, 10);
-            day = part1.padStart(2, '0');
-        }
-
-        if (year >= 2000 && year <= 2045 && month) {
-            dateMatches.push({
-                formatted: `${year}-${month}-${day}`,
-                year,
-                index: match.index,
-                raw: match[0]
-            });
-        }
-    }
-
-    return dateMatches;
+    const lines = rawText.split('\n');
+    const all = [];
+    for (const line of lines) all.push(...parseDatesInLine(line));
+    // Deduplicate by formatted date
+    const seen = new Set();
+    return all.filter(d => { if (seen.has(d.formatted)) return false; seen.add(d.formatted); return true; });
 }
 
 // Helper to extract PH LTO License Number
@@ -225,77 +327,53 @@ function extractPlateNumber(rawText) {
 }
 
 /**
- * Scan LTO Driver's License with Canvas Preprocessing & Expiry Enforcement
+ * Scan LTO Driver's License with Canvas Preprocessing & Line-by-Line Label-Aware Expiry Enforcement.
+ *
+ * Key improvement over previous versions:
+ *   - Uses extractLicenseDatesLineByLine() which parses text line-by-line and EXCLUDES dates
+ *     on ISSUE DATE / DATE OF ISSUANCE and DATE OF BIRTH lines from being mistaken as expiry.
+ *   - Year-hierarchy tiebreak: always picks the highest year remaining as expiration candidate.
+ *   - Prevents 12/02/2020 (Issue Date) from being selected over 02/09/2025 (Expiration Date).
  */
 export async function scanLicenseID(imageFile) {
     let worker = null;
     try {
         const preprocessedImage = await preprocessImageForOCR(imageFile);
         worker = await createWorker('eng');
+
+        // Use high-accuracy PSM 6 (assume uniform block of text) + OEM 3 (LSTM)
+        await worker.setParameters({
+            tessedit_pageseg_mode: '6',
+            tessedit_ocr_engine_mode: '3',
+            preserve_interword_spaces: '1',
+        });
+
         const ret = await worker.recognize(preprocessedImage);
         const text = ret.data.text || '';
         const confidence = ret.data.confidence || 0;
         await worker.terminate();
 
-        const upperText = text.toUpperCase();
+        console.log('[OCR] Raw text from Driver License:\n', text);
+        console.log('[OCR] Confidence:', confidence);
+
         const isAuthenticDoc = validateDocumentAuthenticity(text, 'license');
         const detectedLicense = extractLicenseNumber(text);
-        const dates = extractDatesFromText(text);
 
-        let expirationDate = null;
-        let isExpired = false;
+        // --- Core Fix: Line-by-line label-aware date parsing ---
+        const { expirationDate, issueDate, birthDate, allDates } = extractLicenseDatesLineByLine(text);
 
-        const expKeywords = ['EXPIRATION', 'EXP', 'VALID UNTIL', 'KAPASUHAN', 'EXPIRES'];
-        let expKeywordIndex = -1;
-        for (const kw of expKeywords) {
-            const idx = upperText.indexOf(kw);
-            if (idx !== -1) {
-                expKeywordIndex = idx;
-                break;
-            }
-        }
-
-        if (dates.length > 0) {
-            if (expKeywordIndex !== -1) {
-                // Find date closest AFTER the EXP keyword
-                const datesAfterExp = dates.filter(d => d.index >= expKeywordIndex);
-                if (datesAfterExp.length > 0) {
-                    datesAfterExp.sort((a, b) => (a.index - expKeywordIndex) - (b.index - expKeywordIndex));
-                    expirationDate = datesAfterExp[0].formatted;
-                } else {
-                    // Fallback to highest year (most likely expiration year vs birth year)
-                    dates.sort((a, b) => b.year - a.year);
-                    expirationDate = dates[0].formatted;
-                }
-            } else {
-                dates.sort((a, b) => b.year - a.year);
-                expirationDate = dates[0].formatted;
-            }
-        }
+        console.log('[OCR] Expiration Date detected:', expirationDate);
+        console.log('[OCR] Issue Date detected:', issueDate);
+        console.log('[OCR] Birth Date detected:', birthDate);
+        console.log('[OCR] All dates in document:', allDates.map(d => d.formatted));
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        let isExpired = false;
         if (expirationDate) {
-            const expDateObj = new Date(expirationDate);
-            if (expDateObj < today) {
-                isExpired = true;
-            }
-        }
-
-        // Additional fail-safe: Check if any detected year near EXP keyword is in the past (e.g. 2018 - 2025 vs today 2026)
-        if (!isExpired && expKeywordIndex !== -1) {
-            const currentYear = today.getFullYear();
-            for (const d of dates) {
-                if (d.year < currentYear) {
-                    // Check if date is within 200 chars of EXP keyword
-                    if (Math.abs(d.index - expKeywordIndex) < 200) {
-                        isExpired = true;
-                        if (!expirationDate) expirationDate = d.formatted;
-                        break;
-                    }
-                }
-            }
+            const expDateObj = new Date(expirationDate + 'T00:00:00');
+            isExpired = expDateObj < today;
         }
 
         return {
@@ -304,6 +382,8 @@ export async function scanLicenseID(imageFile) {
             rawText: text,
             licenseNumber: detectedLicense,
             expirationDate,
+            issueDate,
+            birthDate,
             isExpired,
             confidence: Math.round(confidence)
         };

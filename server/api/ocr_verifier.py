@@ -21,49 +21,147 @@ DOCUMENT_KEYWORDS = {
     'orcr': ['OFFICIAL', 'RECEIPT', 'CERTIFICATE', 'REGISTRATION', 'LTO', 'PLATE', 'CHASSIS', 'MOTOR', 'VEHICLE']
 }
 
+def normalize_ocr_date_str(text):
+    """
+    Normalizes common Tesseract OCR character substitution errors in date strings.
+    e.g. 'O9/O2/2O25' -> '09/02/2025', '12/O2/2O20' -> '12/02/2020'
+    """
+    import re
+    # 'O' between digits -> '0'
+    text = re.sub(r'(?<=[0-9])O(?=[0-9])', '0', text)
+    # Leading O before digit -> 0
+    text = re.sub(r'\bO(?=[0-9])', '0', text)
+    # Trailing O after digit -> 0  
+    text = re.sub(r'(?<=[0-9])O\b', '0', text)
+    # I/l between digits -> 1
+    text = re.sub(r'(?<=[0-9])[Il](?=[0-9])', '1', text)
+    # L between digits -> 1
+    text = re.sub(r'(?<=[0-9])L(?=[0-9])', '1', text)
+    # S between digits -> 5
+    text = re.sub(r'(?<=[0-9])S(?=[0-9])', '5', text)
+    return text
+
+
+def parse_dates_in_line(line):
+    """
+    Extracts all date instances from a single line of OCR text.
+    Returns list of dicts with year, month, day, formatted fields.
+    """
+    import re
+    results = []
+    clean = normalize_ocr_date_str(line.upper())
+
+    # YYYY-MM-DD / YYYY/MM/DD
+    for m in re.finditer(r'\b(20[0-4]\d)[\-/. ](0?[1-9]|1[0-2])[\-/. ](0?[1-9]|[12]\d|3[01])\b', clean):
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+
+    # MM/DD/YYYY or DD/MM/YYYY
+    for m in re.finditer(r'\b(0?[1-9]|[12]\d|3[01])[\-/. ](0?[1-9]|1[0-2])[\-/. ](20[0-4]\d)\b', clean):
+        p1, p2, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if p1 > 12:
+            mo, d = p2, p1          # DD/MM/YYYY
+        elif p2 > 12:
+            mo, d = p1, p2          # MM/DD/YYYY but p2 > 12 means p2 is day
+        else:
+            mo, d = p1, p2          # default MM/DD/YYYY (PH LTO standard)
+        results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+
+    # Month-name formats: "02 SEP 2025" / "2025 SEP 02"
+    MONTHS = {'JAN':1,'FEB':2,'MAR':3,'APR':4,'MAY':5,'JUN':6,'JUL':7,'AUG':8,'SEP':9,'OCT':10,'NOV':11,'DEC':12}
+    for m in re.finditer(
+        r'\b(\d{1,2}|20[0-4]\d)[\s/-]+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s/-]+(\d{1,2}|20[0-4]\d)\b',
+        clean
+    ):
+        p1, mon_str, p3 = m.group(1), m.group(2)[:3].upper(), m.group(3)
+        mo = MONTHS.get(mon_str)
+        if mo:
+            if len(p1) == 4:
+                y, d = int(p1), int(p3)
+            else:
+                y, d = int(p3), int(p1)
+            if 2000 <= y <= 2045:
+                results.append({'year': y, 'month': mo, 'day': d, 'formatted': f'{y:04d}-{mo:02d}-{d:02d}'})
+
+    return results
+
+
 def extract_dates_from_pytesseract(ocr_text):
     """
-    Parses candidate dates and years from PyTesseract OCR text string.
-    Returns list of dicts with formatted date and year.
+    Line-by-line label-aware date extractor for PH LTO Driver's License OCR text.
+
+    Correctly classifies:
+      EXPIRATION DATE lines -> expiration candidates
+      ISSUE DATE / DATE OF ISSUANCE lines -> excluded from expiry
+      DATE OF BIRTH lines -> excluded from expiry
+
+    Returns dict: { expirationDate, issueDate, birthDate, allDates }
     """
     if not ocr_text:
-        return []
-    
-    upper = ocr_text.upper()
-    # Normalize OCR typos
-    upper = re.sub(r'([0-9])O([0-9])', r'\10\2', upper)
-    upper = re.sub(r'O([0-9])', r'0\1', upper)
-    
-    dates = []
-    today_year = timezone.now().year
+        return {'expirationDate': None, 'issueDate': None, 'birthDate': None, 'allDates': []}
 
-    # Format YYYY-MM-DD or YYYY/MM/DD
-    ymd_matches = re.findall(r'\b(20[0-4]\d)[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(0?[1-9]|[12]\d|3[01])\b', upper)
-    for m in ymd_matches:
-        year = int(m[0])
-        month = int(m[1])
-        day = int(m[2])
-        dates.append({
-            'formatted': f"{year:04d}-{month:02d}-{day:02d}",
-            'year': year,
-            'month': month,
-            'day': day
-        })
+    EXP_LABELS = ['EXPIRATION', 'EXPIRY', 'EXP DATE', 'PETSA NG KAPASUHAN', 'VALID UNTIL', 'EXPIRES', 'EXP:']
+    ISS_LABELS = ['ISSUE DATE', 'DATE OF ISSUANCE', 'ISSUANCE', 'ISSUED ON', 'ISSUED:', 'DATE ISSUED']
+    DOB_LABELS = ['DATE OF BIRTH', 'BIRTHDATE', 'BIRTH DATE', 'PETSA NG KAPANGANAKAN', 'DOB']
 
-    # Format DD-MM-YYYY or MM-DD-YYYY
-    dmy_matches = re.findall(r'\b(0?[1-9]|[12]\d|3[01])[-/.\s]+(0?[1-9]|1[0-2])[-/.\s]+(20[0-4]\d)\b', upper)
-    for m in dmy_matches:
-        year = int(m[2])
-        month = int(m[1])
-        day = int(m[0])
-        dates.append({
-            'formatted': f"{year:04d}-{month:02d}-{day:02d}",
-            'year': year,
-            'month': month,
-            'day': day
-        })
+    lines = [l.strip() for l in ocr_text.split('\n') if l.strip()]
+    upper_lines = [l.upper() for l in lines]
 
-    return dates
+    all_dates = []
+    expiration_candidates = []
+    issue_candidates = []
+    birth_candidates = []
+
+    for i, line in enumerate(upper_lines):
+        dates_in_line = parse_dates_in_line(line)
+        next_line = upper_lines[i + 1] if i + 1 < len(upper_lines) else ''
+        dates_in_next = parse_dates_in_line(next_line)
+
+        is_exp = any(lbl in line for lbl in EXP_LABELS)
+        is_iss = any(lbl in line for lbl in ISS_LABELS)
+        is_dob = any(lbl in line for lbl in DOB_LABELS)
+
+        combined = dates_in_line + dates_in_next
+
+        if is_exp:
+            expiration_candidates.extend(combined)
+            all_dates.extend(combined)
+        elif is_iss:
+            issue_candidates.extend(combined)
+            all_dates.extend(combined)
+        elif is_dob:
+            birth_candidates.extend(combined)
+            all_dates.extend(combined)
+        elif dates_in_line:
+            all_dates.extend(dates_in_line)
+
+    # Resolve expiration: pick highest-year candidate
+    expiration_date = None
+    if expiration_candidates:
+        expiration_candidates.sort(key=lambda x: (x['year'], x['month']), reverse=True)
+        expiration_date = expiration_candidates[0]['formatted']
+    elif all_dates:
+        issue_strs = {d['formatted'] for d in issue_candidates}
+        birth_strs = {d['formatted'] for d in birth_candidates}
+        fallback = [d for d in all_dates if d['formatted'] not in issue_strs and d['formatted'] not in birth_strs]
+        if fallback:
+            fallback.sort(key=lambda x: x['year'], reverse=True)
+            expiration_date = fallback[0]['formatted']
+        else:
+            all_dates.sort(key=lambda x: x['year'], reverse=True)
+            expiration_date = all_dates[0]['formatted'] if all_dates else None
+
+    issue_date = (sorted(issue_candidates, key=lambda x: x['year'], reverse=True)[0]['formatted']
+                  if issue_candidates else None)
+    birth_date = (sorted(birth_candidates, key=lambda x: x['year'], reverse=True)[0]['formatted']
+                  if birth_candidates else None)
+
+    return {
+        'expirationDate': expiration_date,
+        'issueDate': issue_date,
+        'birthDate': birth_date,
+        'allDates': all_dates,
+    }
 
 def verify_image_ocr_text(img_field, doc_type):
     """
@@ -97,19 +195,23 @@ def verify_image_ocr_text(img_field, doc_type):
         keywords = DOCUMENT_KEYWORDS.get(doc_type, [])
 
         if doc_type == 'license' and upper_text.strip():
-            # Check if PyTesseract text contains an expired date or year near EXP keyword
-            dates = extract_dates_from_pytesseract(ocr_text)
-            exp_keywords = ['EXPIRATION', 'EXP', 'VALID UNTIL', 'KAPASUHAN', 'EXPIRES']
-            has_exp_keyword = any(kw in upper_text for kw in exp_keywords)
-            
+            # Use line-by-line label-aware date extraction for accurate expiry detection
+            date_info = extract_dates_from_pytesseract(ocr_text)
+            expiration_date_str = date_info.get('expirationDate')
+
+            logger.info(f'[OCR Backend] Expiration Date: {expiration_date_str}')
+            logger.info(f'[OCR Backend] Issue Date: {date_info.get("issueDate")}')
+            logger.info(f'[OCR Backend] Birth Date: {date_info.get("birthDate")}')
+
             today = timezone.now().date()
-            if dates and has_exp_keyword:
-                # Find max year / expiration candidate
-                dates.sort(key=lambda x: x['year'], reverse=True)
-                latest_date_str = dates[0]['formatted']
-                latest_date_obj = timezone.datetime.strptime(latest_date_str, "%Y-%m-%d").date()
-                if latest_date_obj < today:
-                    return False, ocr_text, f"OCR Rejection: Natagpuang EXPIRED ang LTO License sa larawan (Expiry Date: {latest_date_str})."
+            if expiration_date_str:
+                try:
+                    from datetime import datetime
+                    exp_date = datetime.strptime(expiration_date_str, '%Y-%m-%d').date()
+                    if exp_date < today:
+                        return False, ocr_text, f"OCR Rejection: Natagpuang EXPIRED ang LTO License sa larawan (Expiry Date: {expiration_date_str})."
+                except ValueError:
+                    logger.warning(f'Could not parse expiration date: {expiration_date_str}')
 
         if keywords and upper_text.strip():
             matches = [kw for kw in keywords if kw in upper_text]
