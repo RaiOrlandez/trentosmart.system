@@ -34,6 +34,7 @@ import {
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { ensureImageUrl } from '../../utils/url';
+import { reverseGeocode } from '../../utils/reverseGeocode';
 import useRideTracking from '../../hooks/useRideTracking';
 import useSystemEvents from '../../hooks/useSystemEvents';
 import useNotifications from '../../hooks/useNotifications';
@@ -45,29 +46,6 @@ import useLocationSync from '../../hooks/useLocationSync';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 
 const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
-
-/**
- * Reverse geocode (lat, lng) → human-readable place name using Nominatim.
- */
-async function reverseGeocode(lat, lng) {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrentoSmartApp/1.0' } });
-    if (!res.ok) throw new Error('Nominatim error');
-    const data = await res.json();
-    if (!data || !data.address) return null;
-    const a = data.address;
-    const parts = [
-      a.road || a.pedestrian || a.path || a.footway,
-      a.neighbourhood || a.hamlet || a.suburb,
-      a.village || a.city_district || a.county,
-    ].filter(Boolean);
-    if (parts.length === 0) return data.display_name ? data.display_name.split(',').slice(0, 3).join(', ') : null;
-    return parts.slice(0, 3).join(', ');
-  } catch {
-    return null;
-  }
-}
 
 /** Returns true if the string is raw coordinates or a generic pin label */
 function isGenericDestLabel(label) {

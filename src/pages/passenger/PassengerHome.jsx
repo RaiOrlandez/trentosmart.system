@@ -40,31 +40,7 @@ import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 import { searchLandmarks, QUICK_DESTINATIONS, TRENTO_LANDMARKS } from '../../data/trentoLandmarks';
 import { ensureImageUrl } from '../../utils/url';
-
-/**
- * Reverse geocode (lat, lng) → human-readable place name
- * Uses Nominatim (free, OSM-based). Returns a concise local label.
- */
-async function reverseGeocode(lat, lng) {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'TrentoSmartApp/1.0' } });
-    if (!res.ok) throw new Error('Nominatim error');
-    const data = await res.json();
-    if (!data || !data.address) return null;
-    const a = data.address;
-    // Build a concise label: Road/Neighbourhood + Barangay/City
-    const parts = [
-      a.road || a.pedestrian || a.path || a.footway,
-      a.neighbourhood || a.hamlet || a.suburb,
-      a.village || a.city_district || a.county,
-    ].filter(Boolean);
-    if (parts.length === 0) return data.display_name ? data.display_name.split(',').slice(0, 3).join(', ') : null;
-    return parts.slice(0, 3).join(', ');
-  } catch {
-    return null;
-  }
-}
+import { reverseGeocode } from '../../utils/reverseGeocode';
 
 // Default map centre (Trento ADS)
 const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
