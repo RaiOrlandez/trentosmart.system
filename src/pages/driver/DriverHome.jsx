@@ -34,7 +34,7 @@ import {
 import { AuthContext } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { ensureImageUrl } from '../../utils/url';
-import { reverseGeocode } from '../../utils/reverseGeocode';
+import { reverseGeocode, formatAddress } from '../../utils/reverseGeocode';
 import useRideTracking from '../../hooks/useRideTracking';
 import useSystemEvents from '../../hooks/useSystemEvents';
 import useNotifications from '../../hooks/useNotifications';
@@ -582,7 +582,7 @@ const DriverHome = () => {
       if (!notifiedRideIds.current.has(newRide.id)) {
         addNotifiedRideId(newRide.id);
         try {
-          notifyNewRideRequest(newRide.pickup_address || newRide.pickup || 'nearby');
+          notifyNewRideRequest(formatAddress(newRide.pickup_address || newRide.pickup, 'nearby'));
         } catch (e) { }
       }
     }
@@ -593,7 +593,7 @@ const DriverHome = () => {
     const ride = activeRide || selectedRequest;
     if (!ride) { setResolvedDestName(''); return; }
 
-    const destLabel = ride.dest_address || ride.dest || '';
+    const destLabel = formatAddress(ride.dest_address || ride.dest);
     const destLat = parseFloat(ride.dest_lat);
     const destLng = parseFloat(ride.dest_lng);
 
@@ -606,8 +606,9 @@ const DriverHome = () => {
     // Otherwise reverse-geocode the coordinates
     if (!isNaN(destLat) && !isNaN(destLng)) {
       setResolvedDestName('Resolving…');
-      reverseGeocode(destLat, destLng).then(name => {
-        setResolvedDestName(name || `${destLat.toFixed(5)}, ${destLng.toFixed(5)}`);
+      reverseGeocode(destLat, destLng).then(res => {
+        const formatted = formatAddress(res);
+        setResolvedDestName(formatted || `${destLat.toFixed(5)}, ${destLng.toFixed(5)}`);
       });
     } else {
       setResolvedDestName(destLabel || 'Unknown Destination');
@@ -679,7 +680,7 @@ const DriverHome = () => {
       }
 
       // Destination pin — always shown; use resolved name so driver sees real place name in popup
-      const destDisplayName = resolvedDestName || activeRide.dest_address || activeRide.dest || 'Destination';
+      const destDisplayName = formatAddress(resolvedDestName || activeRide.dest_address || activeRide.dest, 'Destination');
       newMarkers.push({
         id: 'dest',
         lat: activeRide.dest_lat || 8.056,
@@ -693,18 +694,19 @@ const DriverHome = () => {
       const reqPassengerName = reqPassenger?.username || 'Passenger';
       const reqPassengerPhone = reqPassenger?.phone_number || '';
 
+      const reqPickupAddr = formatAddress(selectedRequest.pickup_address || selectedRequest.pickup, 'Pickup Location');
       newMarkers.push({
         id: 'req_pickup',
         lat: selectedRequest.pickup_lat || 8.03555,
         lng: selectedRequest.pickup_lng || 126.06432,
         title: reqPassengerName,
-        info: `Pickup at ${selectedRequest.pickup_address || selectedRequest.pickup}`,
+        info: `Pickup at ${reqPickupAddr}`,
         isPickup: true,
         passengerDetails: {
           username: reqPassengerName,
           profile_picture: reqPassenger?.profile_picture_url || reqPassenger?.profile_picture,
           phone: reqPassengerPhone,
-          pickup_address: selectedRequest.pickup_address || selectedRequest.pickup,
+          pickup_address: reqPickupAddr,
           fare: selectedRequest.fare,
           payment_method: selectedRequest.payment_method || 'cash',
           passenger_count: selectedRequest.passenger_count || 1,
@@ -713,7 +715,7 @@ const DriverHome = () => {
 
       // Also show destination pin in preview — driver can see where they'd be going
       if (selectedRequest.dest_lat && selectedRequest.dest_lng) {
-        const destDisplayName = resolvedDestName || selectedRequest.dest_address || selectedRequest.dest || 'Destination';
+        const destDisplayName = formatAddress(resolvedDestName || selectedRequest.dest_address || selectedRequest.dest, 'Destination');
         newMarkers.push({
           id: 'req_dest',
           lat: parseFloat(selectedRequest.dest_lat),
@@ -1284,7 +1286,7 @@ const DriverHome = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Pickup</p>
-                          <p className="text-xs font-bold text-secondary truncate">{activeRide.pickup_address || activeRide.pickup}</p>
+                          <p className="text-xs font-bold text-secondary truncate">{formatAddress(activeRide.pickup_address || activeRide.pickup, 'Pickup Location')}</p>
                         </div>
                       </div>
                       <div className="border-l border-dashed border-slate-300 ml-4 h-3 my-0.5"></div>
@@ -1294,7 +1296,7 @@ const DriverHome = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Destination</p>
-                          <p className="text-xs font-bold text-secondary truncate">{resolvedDestName || activeRide.dest_address || activeRide.dest}</p>
+                          <p className="text-xs font-bold text-secondary truncate">{formatAddress(resolvedDestName || activeRide.dest_address || activeRide.dest, 'Destination')}</p>
                         </div>
                       </div>
                     </div>
@@ -1483,7 +1485,7 @@ const DriverHome = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider mb-0.5">Pickup Location</p>
-                          <p className="text-xs font-bold text-secondary leading-tight">{selectedRequest.pickup_address || selectedRequest.pickup}</p>
+                          <p className="text-xs font-bold text-secondary leading-tight">{formatAddress(selectedRequest.pickup_address || selectedRequest.pickup, 'Pickup Location')}</p>
                         </div>
                       </div>
                       <div className="border-l border-dashed border-slate-300 ml-4 h-3 my-0.5"></div>
@@ -1493,7 +1495,7 @@ const DriverHome = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] uppercase font-black text-slate-400 tracking-wider mb-0.5">Destination</p>
-                          <p className="text-xs font-bold text-secondary leading-tight">{resolvedDestName || selectedRequest.dest_address || selectedRequest.dest}</p>
+                          <p className="text-xs font-bold text-secondary leading-tight">{formatAddress(resolvedDestName || selectedRequest.dest_address || selectedRequest.dest, 'Destination')}</p>
                         </div>
                       </div>
                     </div>

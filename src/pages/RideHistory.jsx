@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import api from '../api/axios';
+import { formatAddress } from '../utils/reverseGeocode';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Calendar,
@@ -151,8 +152,8 @@ const RideHistory = () => {
         const rows = filteredRides.map(r => {
             const date = formatDate(r.requested_at);
             const time = formatTime(r.requested_at);
-            const pickup = r.pickup_address;
-            const dest = r.dest_address;
+            const pickup = formatAddress(r.pickup_address, 'Pickup Location');
+            const dest = formatAddress(r.dest_address, 'Destination');
             const fare = `₱${parseFloat(r.fare || 0).toFixed(2)}`;
             const payment = r.payment_method || 'cash';
             const status = r.status;
@@ -525,13 +526,13 @@ const RideHistory = () => {
                                                 <div className="flex items-center gap-2">
                                                     <MapPin size={12} className="text-primary shrink-0" />
                                                     <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                                                        <span className="font-bold">Pickup: </span>{ride.pickup_address}
+                                                        <span className="font-bold">Pickup: </span>{formatAddress(ride.pickup_address, 'Pickup Location')}
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <MapPin size={12} className="text-accent shrink-0" />
                                                     <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                                                        <span className="font-bold">Dropoff: </span>{ride.dest_address}
+                                                        <span className="font-bold">Dropoff: </span>{formatAddress(ride.dest_address, 'Destination')}
                                                     </p>
                                                 </div>
                                             </div>

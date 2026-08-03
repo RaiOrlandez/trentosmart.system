@@ -40,7 +40,7 @@ import useGeoLocation from '../../hooks/useGeoLocation';
 import LocationPermissionModal from '../../components/LocationPermissionModal';
 import { searchLandmarks, QUICK_DESTINATIONS, TRENTO_LANDMARKS } from '../../data/trentoLandmarks';
 import { ensureImageUrl } from '../../utils/url';
-import { reverseGeocode } from '../../utils/reverseGeocode';
+import { reverseGeocode, formatAddress } from '../../utils/reverseGeocode';
 
 // Default map centre (Trento ADS)
 const TRENTO_CENTER = { lat: 8.03555, lng: 126.06432 };
@@ -212,7 +212,8 @@ const PassengerHome = () => {
       
       // Try to resolve the actual address text in the background
       reverseGeocode(gpsLocation.lat, gpsLocation.lng).then(label => {
-        if (label) setPickup(label);
+        const formatted = formatAddress(label);
+        if (formatted) setPickup(formatted);
       }).catch(() => {});
     }
   }, [gpsLocation, status, pickup]);
@@ -572,8 +573,8 @@ const PassengerHome = () => {
           const ride = res.data;
           setActiveRideId(ride.id);
           if (ride.share_token) setCachedShareToken(ride.share_token);
-          setPickup(ride.pickup_address);
-          setDest(ride.dest_address);
+          setPickup(formatAddress(ride.pickup_address, 'Pickup Location'));
+          setDest(formatAddress(ride.dest_address, 'Destination'));
           setFare(ride.fare);
           if (ride.payment_method) setPaymentMethod(ride.payment_method);
 
@@ -1262,8 +1263,8 @@ const PassengerHome = () => {
 
       // Create actual ride in database with real geocoded coordinates
       const response = await api.post('/rides/', {
-        pickup_address: pickup,
-        dest_address: dest,
+        pickup_address: formatAddress(pickup, 'Current GPS Location'),
+        dest_address: formatAddress(dest, 'Destination'),
         pickup_lat: parseFloat(realPickupLat).toFixed(6),
         pickup_lng: parseFloat(realPickupLng).toFixed(6),
         dest_lat: parseFloat(realDestLat).toFixed(6),
@@ -1652,7 +1653,7 @@ const PassengerHome = () => {
                     // Fall back to the raw coordinate string if Nominatim is slow/offline.
                     try {
                       const label = await reverseGeocode(gpsLocation.lat, gpsLocation.lng);
-                      setPickup(label || `${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`);
+                      setPickup(formatAddress(label) || `${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`);
                     } catch {
                       setPickup(`${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`);
                     }
@@ -2364,7 +2365,8 @@ const PassengerHome = () => {
             ]);
 
             // Resolve real address in background
-            const placeName = await reverseGeocode(lat, lng);
+            const placeNameObj = await reverseGeocode(lat, lng);
+            const placeName = formatAddress(placeNameObj);
             const finalLabel = placeName || coordLabel;
             setDest(finalLabel);
 
@@ -2790,7 +2792,7 @@ const PassengerHome = () => {
               <div className="space-y-2.5">
                 <button
                   onClick={() => {
-                    setDest(selectedPlaceAction.address);
+                    setDest(formatAddress(selectedPlaceAction.address));
                     setSelectedPlaceAction(null);
                   }}
                   className="w-full py-4 px-5 rounded-2xl bg-secondary text-white font-black text-xs uppercase tracking-widest hover:scale-[1.01] transition-transform flex items-center justify-center gap-2 shadow-lg shadow-slate-200 dark:shadow-none"
@@ -2801,7 +2803,7 @@ const PassengerHome = () => {
 
                 <button
                   onClick={() => {
-                    setPickup(selectedPlaceAction.address);
+                    setPickup(formatAddress(selectedPlaceAction.address));
                     setSelectedPlaceAction(null);
                   }}
                   className="w-full py-4 px-5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-secondary dark:text-white font-black text-xs uppercase tracking-widest hover:scale-[1.01] transition-transform flex items-center justify-center gap-2"

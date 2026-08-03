@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import { formatAddress } from '../utils/reverseGeocode';
 import ScheduleRideModal from '../components/ScheduleRideModal';
 
 const ScheduledRides = () => {
@@ -196,14 +197,14 @@ const ScheduledRides = () => {
                                             <div className="w-3 h-3 rounded-full bg-primary mt-1.5 shrink-0"></div>
                                             <div className="flex-1">
                                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Pickup</p>
-                                                <p className="text-sm font-bold text-secondary dark:text-white">{schedule.pickup_address}</p>
+                                                <p className="text-sm font-bold text-secondary dark:text-white">{formatAddress(schedule.pickup_address, 'Pickup Location')}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-start gap-4">
                                             <div className="w-3 h-3 rounded-full bg-secondary dark:bg-white mt-1.5 shrink-0"></div>
                                             <div className="flex-1">
                                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Destination</p>
-                                                <p className="text-sm font-bold text-secondary dark:text-white">{schedule.dest_address}</p>
+                                                <p className="text-sm font-bold text-secondary dark:text-white">{formatAddress(schedule.dest_address, 'Destination')}</p>
                                             </div>
                                         </div>
 

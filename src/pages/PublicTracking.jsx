@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/axios';
+import { formatAddress } from '../utils/reverseGeocode';
 import LeafletMap from '../components/LeafletMap';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Car, ShieldCheck, Phone, AlertTriangle, Wifi, WifiOff, RefreshCw, CheckCircle2, Clock, Navigation } from 'lucide-react';
@@ -187,7 +188,7 @@ const PublicTracking = () => {
                 lat: parseFloat(rideData.pickup_lat),
                 lng: parseFloat(rideData.pickup_lng),
                 title: 'Pickup',
-                info: rideData.pickup_address || rideData.pickup,
+                info: formatAddress(rideData.pickup_address || rideData.pickup, 'Pickup Location'),
                 isPickup: true
             });
         }
@@ -198,7 +199,7 @@ const PublicTracking = () => {
                 lat: parseFloat(rideData.dest_lat),
                 lng: parseFloat(rideData.dest_lng),
                 title: 'Destination',
-                info: rideData.dest_address || rideData.destination,
+                info: formatAddress(rideData.dest_address || rideData.destination, 'Destination'),
                 isDestination: true
             });
         }
@@ -422,11 +423,11 @@ const PublicTracking = () => {
                         <div className="flex-1 space-y-5">
                             <div>
                                 <p className="text-xs text-slate-400 font-bold uppercase tracking-tighter">Pickup Location</p>
-                                <p className="font-bold text-slate-700 leading-tight">{rideData.pickup_address || rideData.pickup}</p>
+                                <p className="font-bold text-slate-700 leading-tight">{formatAddress(rideData.pickup_address || rideData.pickup, 'Pickup Location')}</p>
                             </div>
                             <div>
                                 <p className="text-xs text-slate-400 font-bold uppercase tracking-tighter">Destination</p>
-                                <p className="font-bold text-slate-700 leading-tight">{rideData.dest_address || rideData.destination}</p>
+                                <p className="font-bold text-slate-700 leading-tight">{formatAddress(rideData.dest_address || rideData.destination, 'Destination')}</p>
                             </div>
                         </div>
                     </div>

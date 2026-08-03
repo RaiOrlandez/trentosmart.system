@@ -67,6 +67,33 @@ function getLocalTrentoFallback(lat, lng) {
     };
 }
 
+/**
+ * Helper to safely extract address string from string, object, or legacy [object Object]
+ */
+export function formatAddress(addr, fallback = '') {
+    if (!addr) return fallback;
+    if (typeof addr === 'object') {
+        const val = addr.display || addr.full || addr.name || addr.road || '';
+        return val || fallback;
+    }
+    const str = String(addr).trim();
+    if (!str || str.includes('[object Object]')) {
+        return fallback;
+    }
+    return str;
+}
+
+function createGeocodeResult(display, road, full) {
+    return {
+        display,
+        road,
+        full,
+        toString() {
+            return this.display || this.full || '';
+        }
+    };
+}
+
 export async function reverseGeocode(lat, lng) {
     if (lat == null || lng == null) return null;
     const numLat = parseFloat(lat);
@@ -97,11 +124,11 @@ export async function reverseGeocode(lat, lng) {
             const display = parts.length > 0 ? parts.join(', ') : (addr.Match_addr || null);
 
             if (display) {
-                const result = {
-                    display: display,
-                    road: road !== display ? road : null,
-                    full: addr.LongLabel || addr.Match_addr || display,
-                };
+                const result = createGeocodeResult(
+                    display,
+                    road !== display ? road : null,
+                    addr.LongLabel || addr.Match_addr || display
+                );
                 cache.set(key, result);
                 return result;
             }
@@ -129,11 +156,7 @@ export async function reverseGeocode(lat, lng) {
             if (province) parts.push(province);
 
             if (parts.length > 0) {
-                const result = {
-                    display: parts.join(', '),
-                    road: null,
-                    full: parts.join(', '),
-                };
+                const result = createGeocodeResult(parts.join(', '), null, parts.join(', '));
                 cache.set(key, result);
                 return result;
             }
@@ -143,7 +166,8 @@ export async function reverseGeocode(lat, lng) {
     }
 
     // ── Strategy 3: Trento Local Geofence Fallback ───────────────────
-    const fallback = getLocalTrentoFallback(numLat, numLng);
+    const rawFb = getLocalTrentoFallback(numLat, numLng);
+    const fallback = createGeocodeResult(rawFb.display, rawFb.road, rawFb.full);
     cache.set(key, fallback);
     return fallback;
 }
